@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Virtual Teacher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+    <style>
+        /* Your original CSS styles can go here */
+        body { font-family: 'Segoe UI', sans-serif; }
+        .quiz-option.correct { background-color: #d4edda; border-color: #28a745; }
+        .quiz-option.incorrect { background-color: #f8d7da; border-color: #dc3545; }
+        .quiz-option.disabled { cursor: not-allowed; opacity: 0.7; }
+        .hidden { display: none; }
+        #whiteboard-container {
+    width: 100%;
+    height: 500px;
+    overflow-y: scroll;
+    border: 2px solid #ccc;
+}
+
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="flex flex-col">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">AI Virtual Teacher</h1>
+            
+            <form id="topic-form" class="mb-4">
+                <label for="topic-input" class="block text-lg font-medium text-gray-700">What would you like to learn about today?</label>
+                <div class="mt-1 flex rounded-md shadow-sm">
+                    <input type="text" name="topic" id="topic-input" class="flex-1 block w-full rounded-none rounded-l-md border-gray-300 p-3" placeholder="e.g., Photosynthesis, Black Holes, etc.">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-r-md text-white bg-green-600 hover:bg-green-700">
+                        Start Lesson
+                    </button>
+                </div>
+            </form>
+
+            <div id="ai-response-container" class="bg-blue-50 p-6 rounded-lg shadow-inner flex-grow">
+                <h2 class="text-xl font-semibold text-blue-800 mb-4">Teacher's Explanation:</h2>
+                <div id="ai-response" class="text-gray-700 text-lg leading-relaxed">
+                    <p id="current-explanation">Enter a topic above to begin your lesson!</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 text-center">Virtual Whiteboard</h2>
+            <div id="whiteboard-container" class="border-2 border-gray-300 rounded-lg bg-white overflow-hidden w-full" style="height: 400px;"></div>
+            
+            <div id="notes-and-quiz-container" class="mt-8 w-full hidden">
+                <div id="notes-container" class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Your Notes:</h2>
+                    <div id="notes-content" class="text-gray-700 text-base leading-relaxed"></div>
+                </div>
+                <div id="quiz-section" class="mt-8 bg-green-50 p-6 rounded-lg shadow-inner">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State and DOM Elements ---
+        const topicForm = document.getElementById('topic-form');
+        const topicInput = document.getElementById('topic-input');
+        const currentExplanationEl = document.getElementById('current-explanation');
+        const notesAndQuizContainer = document.getElementById('notes-and-quiz-container');
+        const notesContent = document.getElementById('notes-content');
+        const quizSection = document.getElementById('quiz-section');
+        const whiteboardContainer = document.getElementById('whiteboard-container');
+
+        let stage, layer;
+        let lessonPlan = [];
+        let currentStepIndex = 0;
+        let quizData = [];
+        let currentQuizIndex = 0;
+        const synth = window.speechSynthesis;
+
+        // --- WebSocket Setup ---
+        const chatSocket = new WebSocket('ws://' + window.location.host + '/ws/teacher/');
+
+        chatSocket.onmessage = function(e) {
+    const payload = JSON.parse(e.data);
+
+    if (payload.type === 'status') {
+        currentExplanationEl.textContent = payload.message;
+    } else if (payload.type === 'error') {
+        currentExplanationEl.textContent = `Error: ${payload.message}`;
+        alert(`An error occurred: ${payload.message}`);
+    } else if (payload.type === 'lesson_step') {
+        lessonPlan.push(payload.data);
+        if (lessonPlan.length === 1) {
+            presentStep(0);
+        }
+    } else if (payload.type === 'notes_and_quiz_ready') {
+        handleFinalStep(payload.data); // ✅ ADD THIS
+    }
+};
+
+
+        chatSocket.onclose = function(e) {
+            console.error('WebSocket closed unexpectedly');
+        };
+
+        // --- Event Listeners ---
+        topicForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const topic = topicInput.value;
+            if (topic.trim() === '') return;
+
+            // Reset UI for a new lesson
+            lessonPlan = [];
+            currentStepIndex = 0;
+            notesAndQuizContainer.classList.add('hidden');
+            layer.destroyChildren();
+
+            chatSocket.send(JSON.stringify({
+                'topic': topic
+            }));
+        });
+
+        // --- Core Presentation Logic ---
+        function speak(text, onEndCallback) {
+            if (!synth) {
+                if (onEndCallback) onEndCallback();
+                return;
+            }
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.onend = () => {
+                if (onEndCallback) onEndCallback();
+            };
+            synth.speak(utterance);
+        }
+
+        function presentStep(stepIndex) {
+            if (stepIndex >= lessonPlan.length) return;
+            const stepData = lessonPlan[stepIndex];
+
+            if (stepData.type === 'notes_and_quiz_ready') {
+                handleFinalStep(stepData);
+                return;
+            }
+
+            currentExplanationEl.textContent = stepData.text_explanation;
+            executeWhiteboardCommands(stepData.whiteboard_commands);
+            speak(stepData.tts_text, () => {
+                // Automatically move to the next step after a short pause
+                setTimeout(() => {
+                    currentStepIndex++;
+                    presentStep(currentStepIndex);
+                }, 1500); // 1.5 second pause between steps
+            });
+        }
+        
+        function handleFinalStep(finalData) {
+            notesAndQuizContainer.classList.remove('hidden');
+            notesContent.innerHTML = finalData.notes_content;
+            quizData = finalData.quiz;
+            currentQuizIndex = 0;
+            displayQuizQuestion(currentQuizIndex);
+            speak("That concludes our lesson. Please review the notes and take the quiz.");
+        }
+
+        // --- Whiteboard Drawing Logic ---
+        function executeWhiteboardCommands(commands) {
+            if (!commands || !Array.isArray(commands)) return;
+            const W = stage.width();
+            const H = stage.height();
+
+            for (const cmd of commands) {
+                if (cmd.action === "clear_all") {
+                    layer.destroyChildren();
+                } else if (cmd.action === "write_text") {
+                    const textNode = new Konva.Text({
+                        text: cmd.text,
+                        fontSize: cmd.font_size || 20,
+                        fill: cmd.color || 'black',
+                        fontFamily: 'Segoe UI',
+                        x: (cmd.x_percent / 100) * W,
+                        y: (cmd.y_percent / 100) * H,
+                    });
+                    if (cmd.align === 'center') {
+                        textNode.offsetX(textNode.width() / 2);
+                    }
+                    layer.add(textNode);
+                } else if (cmd.action === "draw_shape") {
+                    const shapeArgs = {
+                        x: (cmd.x_percent / 100) * W,
+                        y: (cmd.y_percent / 100) * H,
+                        width: (cmd.width_percent / 100) * W,
+                        height: cmd.height,
+                        fill: cmd.color,
+                        stroke: cmd.stroke || 'black',
+                        strokeWidth: 2,
+                        cornerRadius: cmd.shape === 'rect' ? 8 : 0,
+                    };
+                    const shape = cmd.shape === 'circle' ? new Konva.Circle({ ...shapeArgs, radius: shapeArgs.width / 2}) : new Konva.Rect(shapeArgs);
+                    layer.add(shape);
+                }
+                // Add more command handlers here as needed (draw_arrow, etc.)
+            }
+            layer.draw();
+        }
+
+        // --- Quiz Logic ---
+        function displayQuizQuestion(index) {
+            if (index >= quizData.length) {
+                quizSection.innerHTML = '<h2 class="text-xl font-semibold text-green-700 mb-4 text-center">Quiz Completed! Well done!</h2>';
+                speak("You've finished the quiz. Well done!");
+                return;
+            }
+            const q = quizData[index];
+            let optionsHTML = q.options.map((option, i) => 
+                `<div class="quiz-option p-3 mb-2 border rounded-lg cursor-pointer hover:bg-gray-200" data-index="${i}">${option}</div>`
+            ).join('');
+
+            quizSection.innerHTML = `
+                <h2 class="text-xl font-semibold text-green-700 mb-4">Quick Quiz:</h2>
+                <div id="quiz-question" class="text-lg font-medium text-gray-800 mb-4">${q.question}</div>
+                <div id="quiz-options">${optionsHTML}</div>
+                <p id="quiz-feedback" class="mt-4 font-semibold text-center"></p>
+                <button id="next-quiz-btn" class="hidden bg-green-600 text-white font-bold py-2 px-4 rounded mx-auto mt-4">Next Question</button>
+            `;
+            
+            document.getElementById('quiz-options').addEventListener('click', (e) => {
+                if (e.target.classList.contains('quiz-option')) {
+                    checkAnswer(e.target, q.correct, q.feedback);
+                }
+            });
+
+            document.getElementById('next-quiz-btn').addEventListener('click', () => {
+                currentQuizIndex++;
+                displayQuizQuestion(currentQuizIndex);
+            });
+        }
+        
+        function checkAnswer(selectedOptionDiv, correctIndex, feedback) {
+            const selectedIndex = parseInt(selectedOptionDiv.dataset.index);
+            const isCorrect = selectedIndex === correctIndex;
+
+            document.querySelectorAll('.quiz-option').forEach((opt, idx) => {
+                opt.classList.add('disabled');
+                if (idx === correctIndex) opt.classList.add('correct');
+                else if (idx === selectedIndex) opt.classList.add('incorrect');
+            });
+            
+            const feedbackEl = document.getElementById('quiz-feedback');
+            feedbackEl.textContent = feedback;
+            feedbackEl.style.color = isCorrect ? '#16a34a' : '#dc2626';
+            document.getElementById('next-quiz-btn').classList.remove('hidden');
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            stage = new Konva.Stage({
+                container: 'whiteboard-container',
+                width: whiteboardContainer.clientWidth,
+                height: 2000
+            });
+            layer = new Konva.Layer();
+            stage.add(layer);
+
+            window.addEventListener('resize', () => {
+                stage.width(whiteboardContainer.clientWidth);
+                stage.height(whiteboardContainer.clientHeight);
+            });
+        });
+
+    </script>
+</body>
+</html>
