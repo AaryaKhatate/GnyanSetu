@@ -13,6 +13,13 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -22,7 +29,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-67)8z1qalde_j@=n)3gg14g_3ayn=2f#4u@o7yhj9@nm4ios30'
-GOOGLE_API_KEY = "AIzaSyAPveKR-1y5yldQAorSMmK4ysH6mswef7M"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
