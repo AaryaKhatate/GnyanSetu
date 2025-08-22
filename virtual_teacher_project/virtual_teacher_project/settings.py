@@ -13,11 +13,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 
-import os
 from dotenv import load_dotenv
-load_dotenv()
 
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -45,8 +44,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "teacher_app", # Add our new app
-    "channels",      # Add channels
+    "teacher_app", 
+    "channels", 
 ]
 
 MIDDLEWARE = [
@@ -77,18 +76,25 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'virtual_teacher_project.wsgi.application'
 
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'djongo',
+        'NAME': 'Gnyansetu',   
+        'CLIENT': {
+            'host': '127.0.0.1',
+            'port': 27017,
+        }
     }
 }
+
+# Channels config
+ASGI_APPLICATION = "virtual_teacher_project.asgi.application"
 
 # Use Redis in production for better performance and reliability
 # For local development, an in-memory layer is sufficient.
@@ -145,3 +151,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+MONGO_DB_NAME = "Gnyansetu"
+MONGO_DB_URI = "mongodb://localhost:27017"

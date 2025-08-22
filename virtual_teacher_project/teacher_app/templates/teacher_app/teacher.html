@@ -1,272 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>AI Virtual Teacher</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+    <script src="https://pixijs.download/release/pixi.min.js"></script>
     <style>
-        /* Your original CSS styles can go here */
-        body { font-family: 'Segoe UI', sans-serif; }
-        .quiz-option.correct { background-color: #d4edda; border-color: #28a745; }
-        .quiz-option.incorrect { background-color: #f8d7da; border-color: #dc3545; }
+        body { font-family: 'Segoe UI', Roboto, system-ui, -apple-system; }
+        #whiteboard-wrap {
+            border-radius: 8px; border: 1px solid #e5e7eb; background: white;
+            overflow: hidden; position: relative;
+        }
+        .quiz-option.correct { background-color: #d1fae5; border-color: #10b981; }
+        .quiz-option.incorrect { background-color: #fee2e2; border-color: #ef4444; }
         .quiz-option.disabled { cursor: not-allowed; opacity: 0.7; }
-        .hidden { display: none; }
-        #whiteboard-container {
-    width: 100%;
-    height: 500px;
-    overflow-y: scroll;
-    border: 2px solid #ccc;
-}
-
+        #status { word-break: break-word; }
+        #loader-container { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255, 255, 255, 0.7);
+            display: flex; align-items: center; justify-content: center;
+        }
+        #loader {
+            border: 6px solid #f3f3f3; border-top: 6px solid #3498db;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="flex flex-col">
-            <h1 class="text-3xl font-bold text-gray-800 mb-4">AI Virtual Teacher</h1>
-            
-            <form id="topic-form" class="mb-4">
-                <label for="topic-input" class="block text-lg font-medium text-gray-700">What would you like to learn about today?</label>
-                <div class="mt-1 flex rounded-md shadow-sm">
-                    <input type="text" name="topic" id="topic-input" class="flex-1 block w-full rounded-none rounded-l-md border-gray-300 p-3" placeholder="e.g., Photosynthesis, Black Holes, etc.">
-                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-r-md text-white bg-green-600 hover:bg-green-700">
-                        Start Lesson
-                    </button>
-                </div>
-            </form>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-screen-2xl mx-auto">
+        <h1 class="text-4xl font-bold mb-6 text-center text-gray-800">AI Virtual Teacher</h1>
 
-            <div id="ai-response-container" class="bg-blue-50 p-6 rounded-lg shadow-inner flex-grow">
-                <h2 class="text-xl font-semibold text-blue-800 mb-4">Teacher's Explanation:</h2>
-                <div id="ai-response" class="text-gray-700 text-lg leading-relaxed">
-                    <p id="current-explanation">Enter a topic above to begin your lesson!</p>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="md:col-span-3">
+                <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
+                    <form id="topic-form" class="flex gap-2 items-center">
+                        {% csrf_token %}
+                        <input id="topic-input" class="flex-1 p-3 border rounded-md" placeholder="Enter topic (e.g., Photosynthesis)" />
+                        <button id="start-btn" type="submit" class="px-5 py-3 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition">Start Lesson</button>
+                    </form>
+                    <div class="text-center my-2 text-gray-500">OR</div>
+                    <form id="pdf-form" class="flex gap-2 items-center">
+                        {% csrf_token %}
+                        <input type="file" id="pdf-input" class="flex-1 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100" accept=".pdf" />
+                        <button id="upload-btn" type="submit" class="px-5 py-3 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700 transition">Upload PDF</button>
+                    </form>
+                </div>
+
+                <div id="whiteboard-wrap" style="height:650px;">
+                    <div id="whiteboard"></div>
+                    <div id="loader-container" class="hidden"><div id="loader"></div></div>
+                </div>
+
+                <div class="mt-4 flex gap-2 items-center">
+                    <button id="prev-step" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300" disabled>Prev</button>
+                    <button id="pause-play" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300" disabled>Pause</button>
+                    <button id="next-step" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300" disabled>Next</button>
+                    <div id="status" class="ml-auto text-sm text-gray-600 font-mono"></div>
                 </div>
             </div>
-        </div>
 
-        <div class="flex flex-col">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 text-center">Virtual Whiteboard</h2>
-            <div id="whiteboard-container" class="border-2 border-gray-300 rounded-lg bg-white overflow-hidden w-full" style="height: 400px;"></div>
-            
-            <div id="notes-and-quiz-container" class="mt-8 w-full hidden">
-                <div id="notes-container" class="bg-gray-50 p-6 rounded-lg shadow-inner">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Your Notes:</h2>
-                    <div id="notes-content" class="text-gray-700 text-base leading-relaxed"></div>
+            <div class="flex flex-col gap-4 md:col-span-1">
+                <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                    <h2 class="font-semibold text-lg text-blue-800">Teacher's Explanation</h2>
+                    <div id="ai-response" class="mt-2 text-gray-800">Enter a topic or upload a PDF to begin.</div>
                 </div>
-                <div id="quiz-section" class="mt-8 bg-green-50 p-6 rounded-lg shadow-inner">
-                    </div>
+                <div id="notes-and-quiz-container" class="hidden bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="font-semibold text-lg mb-2">Notes & Quiz</h3>
+                    <div id="notes-content" class="prose max-w-none text-sm text-gray-700"></div>
+                    <hr class="my-4" />
+                    <div id="quiz-section"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // --- State and DOM Elements ---
-        const topicForm = document.getElementById('topic-form');
-        const topicInput = document.getElementById('topic-input');
-        const currentExplanationEl = document.getElementById('current-explanation');
-        const notesAndQuizContainer = document.getElementById('notes-and-quiz-container');
-        const notesContent = document.getElementById('notes-content');
-        const quizSection = document.getElementById('quiz-section');
-        const whiteboardContainer = document.getElementById('whiteboard-container');
+<script>
+console.log("Script execution started.");
 
-        let stage, layer;
-        let lessonPlan = [];
-        let currentStepIndex = 0;
-        let quizData = [];
-        let currentQuizIndex = 0;
-        const synth = window.speechSynthesis;
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM fully loaded and parsed.");
 
-        // --- WebSocket Setup ---
-        const chatSocket = new WebSocket('ws://' + window.location.host + '/ws/teacher/');
+    const ui = {
+        topicForm: document.getElementById('topic-form'),
+        pdfForm: document.getElementById('pdf-form'),
+        topicInput: document.getElementById('topic-input'),
+        pdfInput: document.getElementById('pdf-input'),
+        aiResponse: document.getElementById('ai-response'),
+        notesAndQuizContainer: document.getElementById('notes-and-quiz-container'),
+        notesContent: document.getElementById('notes-content'),
+        quizSection: document.getElementById('quiz-section'),
+        statusEl: document.getElementById('status'),
+        whiteboardWrap: document.getElementById('whiteboard-wrap'),
+        whiteboardDiv: document.getElementById('whiteboard'),
+        loader: document.getElementById('loader-container'),
+        startBtn: document.getElementById('start-btn'),
+        uploadBtn: document.getElementById('upload-btn'),
+        prevBtn: document.getElementById('prev-step'),
+        nextBtn: document.getElementById('next-step'),
+        pausePlayBtn: document.getElementById('pause-play'),
+        csrfToken: document.querySelector('input[name=csrfmiddlewaretoken]').value
+    };
 
-        chatSocket.onmessage = function(e) {
-    const payload = JSON.parse(e.data);
+    let app, stageContainer;
+    let lessonSteps = [];
+    let currentStepIndex = -1;
+    let paused = false;
+    let synth = window.speechSynthesis;
+    let socket;
 
-    if (payload.type === 'status') {
-        currentExplanationEl.textContent = payload.message;
-    } else if (payload.type === 'error') {
-        currentExplanationEl.textContent = `Error: ${payload.message}`;
-        alert(`An error occurred: ${payload.message}`);
-    } else if (payload.type === 'lesson_step') {
-        lessonPlan.push(payload.data);
-        if (lessonPlan.length === 1) {
-            presentStep(0);
-        }
-    } else if (payload.type === 'notes_and_quiz_ready') {
-        handleFinalStep(payload.data); // ✅ ADD THIS
+    // --- Main Setup ---
+    initPixi(); // Start the initialization process
+    connectSocket();
+    setupEventListeners();
+
+    // --- EVENT LISTENERS & HANDLERS ---
+    function setupEventListeners() {
+        ui.topicForm.addEventListener('submit', handleTopicSubmit);
+        ui.pdfForm.addEventListener('submit', handlePdfSubmit);
+        ui.nextBtn.addEventListener('click', () => presentStep(currentStepIndex + 1, { manual: true }));
+        ui.prevBtn.addEventListener('click', () => presentStep(currentStepIndex - 1, { manual: true }));
+        ui.pausePlayBtn.addEventListener('click', () => {
+            paused = !paused;
+            ui.pausePlayBtn.textContent = paused ? 'Play' : 'Pause';
+            if (paused) synth.pause(); else synth.resume();
+        });
+        window.addEventListener('resize', () => {
+            if (app?.renderer) app.renderer.resize(ui.whiteboardWrap.clientWidth, ui.whiteboardWrap.clientHeight);
+        });
+        console.log("All event listeners attached successfully.");
     }
-};
+    
+    function handleTopicSubmit(event) {
+        event.preventDefault();
+        const topic = ui.topicInput.value.trim();
+        if (!topic) { alert("Please enter a topic."); return; }
+        resetState();
+        ui.loader.style.display = 'flex';
+        ui.statusEl.textContent = "Sending topic to server...";
+        sendToSocket({ topic: topic });
+    }
 
+    async function handlePdfSubmit(event) {
+        event.preventDefault();
+        const file = ui.pdfInput.files[0];
+        if (!file) { alert("Please select a PDF file."); return; }
+        resetState();
+        ui.loader.style.display = 'flex';
+        ui.statusEl.textContent = "Uploading and processing PDF...";
+        const formData = new FormData();
+        formData.append('pdf_file', file);
+        try {
+            const response = await fetch('/upload_pdf/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': ui.csrfToken },
+                body: formData,
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `Server responded with status ${response.status}`);
+            ui.statusEl.textContent = "Sending PDF content to AI...";
+            sendToSocket({ topic: file.name, pdf_text: data.text });
+        } catch (error) {
+            console.error("PDF Upload Failed:", error);
+            ui.statusEl.textContent = `Error: ${error.message}`;
+            setFormsEnabled(true);
+            ui.loader.style.display = 'none';
+        }
+    }
 
-        chatSocket.onclose = function(e) {
-            console.error('WebSocket closed unexpectedly');
+    // --- WEBSOCKET ---
+    function connectSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${window.location.host}/ws/teacher/`;
+        socket = new WebSocket(url);
+        socket.onopen = () => {
+            console.log("WebSocket connected.");
+            ui.statusEl.textContent = "Connected.";
+            setFormsEnabled(true);
         };
+        socket.onmessage = (e) => handleSocketPayload(JSON.parse(e.data));
+        socket.onclose = () => {
+            console.warn("Socket closed. Attempting to reconnect...");
+            ui.statusEl.textContent = "Connection lost. Reconnecting...";
+            setFormsEnabled(false);
+            setTimeout(connectSocket, 3000);
+        };
+        socket.onerror = (err) => console.error("Socket error:", err);
+    }
 
-        // --- Event Listeners ---
-        topicForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const topic = topicInput.value;
-            if (topic.trim() === '') return;
-
-            // Reset UI for a new lesson
-            lessonPlan = [];
-            currentStepIndex = 0;
-            notesAndQuizContainer.classList.add('hidden');
-            layer.destroyChildren();
-
-            chatSocket.send(JSON.stringify({
-                'topic': topic
-            }));
-        });
-
-        // --- Core Presentation Logic ---
-        function speak(text, onEndCallback) {
-            if (!synth) {
-                if (onEndCallback) onEndCallback();
-                return;
-            }
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.onend = () => {
-                if (onEndCallback) onEndCallback();
-            };
-            synth.speak(utterance);
+    function sendToSocket(data) {
+        if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(data));
+        } else {
+            console.error("WebSocket is not open. Cannot send data.");
+            ui.statusEl.textContent = "Error: Not connected to the server.";
+            setFormsEnabled(true);
+            ui.loader.style.display = 'none';
         }
+    }
 
-        function presentStep(stepIndex) {
-            if (stepIndex >= lessonPlan.length) return;
-            const stepData = lessonPlan[stepIndex];
+    function handleSocketPayload(payload) {
+        ui.loader.style.display = 'none';
+        ui.statusEl.textContent = payload.message || ui.statusEl.textContent;
+        switch (payload.type) {
+            case 'lesson_step':
+                lessonSteps.push(payload.data);
+                if (currentStepIndex === -1) {
+                    presentStep(0);
+                    setLessonControlsEnabled(true);
+                }
+                break;
+            case 'notes_and_quiz_ready': showNotesAndQuiz(payload.data); break;
+            case 'lesson_end': setFormsEnabled(true); break;
+            case 'error':
+                console.error("Server error:", payload.message);
+                ui.aiResponse.textContent = `An error occurred: ${payload.message}`;
+                setFormsEnabled(true);
+                break;
+        }
+    }
 
-            if (stepData.type === 'notes_and_quiz_ready') {
-                handleFinalStep(stepData);
-                return;
-            }
+    // --- STATE & UI ---
+    function setFormsEnabled(enabled) {
+        ui.startBtn.disabled = !enabled;
+        ui.uploadBtn.disabled = !enabled;
+        if (!enabled) setLessonControlsEnabled(false);
+    }
+    function setLessonControlsEnabled(enabled) {
+        [ui.prevBtn, ui.nextBtn, ui.pausePlayBtn].forEach(btn => btn.disabled = !enabled);
+    }
+    function resetState() {
+        lessonSteps = [];
+        currentStepIndex = -1;
+        paused = false;
+        ui.pausePlayBtn.textContent = 'Pause';
+        ui.notesAndQuizContainer.classList.add('hidden');
+        ui.aiResponse.textContent = "Preparing lesson...";
+        clearWhiteboard();
+        synth.cancel();
+        setFormsEnabled(false);
+    }
 
-            currentExplanationEl.textContent = stepData.text_explanation;
-            executeWhiteboardCommands(stepData.whiteboard_commands);
-            speak(stepData.tts_text, () => {
-                // Automatically move to the next step after a short pause
-                setTimeout(() => {
-                    currentStepIndex++;
-                    presentStep(currentStepIndex);
-                }, 1500); // 1.5 second pause between steps
-            });
+    // --- PIXIJS (GRAPHICS) ---
+    function initPixi() {
+        if (app) app.destroy(true, { children: true });
+
+        const container = ui.whiteboardWrap;
+        if (container.clientWidth < 1 || container.clientHeight < 1) {
+            setTimeout(initPixi, 50);
+            return;
         }
         
-        function handleFinalStep(finalData) {
-            notesAndQuizContainer.classList.remove('hidden');
-            notesContent.innerHTML = finalData.notes_content;
-            quizData = finalData.quiz;
-            currentQuizIndex = 0;
-            displayQuizQuestion(currentQuizIndex);
-            speak("That concludes our lesson. Please review the notes and take the quiz.");
+        try {
+            // **THE FIX IS HERE: We create the canvas ourselves**
+            ui.whiteboardDiv.innerHTML = ''; // Clear previous canvas if any
+            const canvas = document.createElement('canvas');
+            ui.whiteboardDiv.appendChild(canvas);
+
+            // **And then tell Pixi to use our canvas**
+            app = new PIXI.Application({
+                view: canvas, // This is the key change
+                width: container.clientWidth,
+                height: container.clientHeight,
+                backgroundColor: 0xFFFFFF,
+                resolution: window.devicePixelRatio || 1,
+                autoDensity: true,
+                antialias: true
+            });
+
+            stageContainer = new PIXI.Container();
+            app.stage.addChild(stageContainer);
+            console.log("PixiJS initialized successfully using pre-existing canvas.");
+        } catch (error) {
+            console.error("A critical error occurred during PixiJS initialization:", error);
+            ui.aiResponse.textContent = "Error: Could not initialize the whiteboard graphics.";
         }
-
-        // --- Whiteboard Drawing Logic ---
-        function executeWhiteboardCommands(commands) {
-            if (!commands || !Array.isArray(commands)) return;
-            const W = stage.width();
-            const H = stage.height();
-
-            for (const cmd of commands) {
-                if (cmd.action === "clear_all") {
-                    layer.destroyChildren();
-                } else if (cmd.action === "write_text") {
-                    const textNode = new Konva.Text({
-                        text: cmd.text,
-                        fontSize: cmd.font_size || 20,
-                        fill: cmd.color || 'black',
-                        fontFamily: 'Segoe UI',
-                        x: (cmd.x_percent / 100) * W,
-                        y: (cmd.y_percent / 100) * H,
-                    });
-                    if (cmd.align === 'center') {
-                        textNode.offsetX(textNode.width() / 2);
-                    }
-                    layer.add(textNode);
-                } else if (cmd.action === "draw_shape") {
-                    const shapeArgs = {
-                        x: (cmd.x_percent / 100) * W,
-                        y: (cmd.y_percent / 100) * H,
-                        width: (cmd.width_percent / 100) * W,
-                        height: cmd.height,
-                        fill: cmd.color,
-                        stroke: cmd.stroke || 'black',
-                        strokeWidth: 2,
-                        cornerRadius: cmd.shape === 'rect' ? 8 : 0,
-                    };
-                    const shape = cmd.shape === 'circle' ? new Konva.Circle({ ...shapeArgs, radius: shapeArgs.width / 2}) : new Konva.Rect(shapeArgs);
-                    layer.add(shape);
-                }
-                // Add more command handlers here as needed (draw_arrow, etc.)
+    }
+    
+    // --- The rest of the functions (presentation, drawing, quiz) remain the same ---
+    async function presentStep(idx, opts = {}) {
+        if (idx < 0 || idx >= lessonSteps.length) return;
+        currentStepIndex = idx;
+        const step = lessonSteps[idx];
+        ui.aiResponse.textContent = step.text_explanation || "";
+        await executeWhiteboardCommands(step.whiteboard_commands || []);
+        const tts = step.tts_text || step.text_explanation || "";
+        if (synth && !paused) speak(tts, () => !paused && !opts.manual && setTimeout(() => presentStep(currentStepIndex + 1), 900));
+    }
+    function speak(text, onend) {
+        if (!synth || !text) { if (onend) onend(); return; }
+        synth.cancel();
+        const ut = new SpeechSynthesisUtterance(text);
+        ut.onend = onend;
+        synth.speak(ut);
+    }
+    function clearWhiteboard() { if (stageContainer) stageContainer.removeChildren(); }
+    async function executeWhiteboardCommands(commands) {
+        clearWhiteboard();
+        if (!Array.isArray(commands)) return;
+        for (const cmd of commands) {
+            if (!cmd?.action) continue;
+            switch(cmd.action) {
+                case 'clear_all': clearWhiteboard(); break;
+                case 'write_text': drawText(cmd); break;
+                case 'draw_shape': drawShape(cmd); break;
+                case 'draw_arrow': drawArrow(cmd); break;
             }
-            layer.draw();
         }
-
-        // --- Quiz Logic ---
-        function displayQuizQuestion(index) {
-            if (index >= quizData.length) {
-                quizSection.innerHTML = '<h2 class="text-xl font-semibold text-green-700 mb-4 text-center">Quiz Completed! Well done!</h2>';
-                speak("You've finished the quiz. Well done!");
-                return;
-            }
-            const q = quizData[index];
-            let optionsHTML = q.options.map((option, i) => 
-                `<div class="quiz-option p-3 mb-2 border rounded-lg cursor-pointer hover:bg-gray-200" data-index="${i}">${option}</div>`
-            ).join('');
-
-            quizSection.innerHTML = `
-                <h2 class="text-xl font-semibold text-green-700 mb-4">Quick Quiz:</h2>
-                <div id="quiz-question" class="text-lg font-medium text-gray-800 mb-4">${q.question}</div>
-                <div id="quiz-options">${optionsHTML}</div>
-                <p id="quiz-feedback" class="mt-4 font-semibold text-center"></p>
-                <button id="next-quiz-btn" class="hidden bg-green-600 text-white font-bold py-2 px-4 rounded mx-auto mt-4">Next Question</button>
-            `;
-            
-            document.getElementById('quiz-options').addEventListener('click', (e) => {
-                if (e.target.classList.contains('quiz-option')) {
-                    checkAnswer(e.target, q.correct, q.feedback);
-                }
+    }
+    function percentToPixelX(p) { return app.renderer.width * (p / 100); }
+    function percentToPixelY(p) { return app.renderer.height * (p / 100); }
+    function parseColor(c) { return c?.startsWith('#') ? parseInt(c.slice(1), 16) : 0x000000; }
+    function drawText(cmd) {
+        const style = new PIXI.TextStyle({ fontFamily: 'Segoe UI', fontSize: cmd.font_size || 20, fill: cmd.color || '#000', wordWrap: true, wordWrapWidth: app.renderer.width - percentToPixelX(cmd.x_percent || 5) - 20, align: cmd.align || 'left' });
+        const text = new PIXI.Text(cmd.text || '', style);
+        text.x = percentToPixelX(cmd.x_percent || 5);
+        text.y = percentToPixelY(cmd.y_percent || 5);
+        if (cmd.align === 'center') text.anchor.x = 0.5;
+        stageContainer.addChild(text);
+    }
+    function drawShape(cmd) {
+        const g = new PIXI.Graphics();
+        g.beginFill(parseColor(cmd.color || '#f3f4f6'));
+        g.lineStyle(2, parseColor(cmd.stroke || '#000000'));
+        if (cmd.shape === 'circle') g.drawCircle(percentToPixelX(cmd.x_percent) + percentToPixelX(cmd.width_percent) / 2, percentToPixelY(cmd.y_percent) + percentToPixelY(cmd.height_percent) / 2, Math.min(percentToPixelX(cmd.width_percent), percentToPixelY(cmd.height_percent)) / 2);
+        else g.drawRoundedRect(percentToPixelX(cmd.x_percent), percentToPixelY(cmd.y_percent), percentToPixelX(cmd.width_percent), percentToPixelY(cmd.height_percent), 8);
+        g.endFill();
+        stageContainer.addChild(g);
+    }
+    function drawArrow(cmd) {
+        const [x1, y1, x2, y2] = cmd.points.map((p, i) => i % 2 === 0 ? percentToPixelX(p) : percentToPixelY(p));
+        const g = new PIXI.Graphics().lineStyle(3, parseColor(cmd.color));
+        g.moveTo(x1, y1).lineTo(x2, y2);
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        g.moveTo(x2, y2).lineTo(x2 - 12 * Math.cos(angle - Math.PI / 6), y2 - 12 * Math.sin(angle - Math.PI / 6));
+        g.moveTo(x2, y2).lineTo(x2 - 12 * Math.cos(angle + Math.PI / 6), y2 - 12 * Math.sin(angle + Math.PI / 6));
+        stageContainer.addChild(g);
+    }
+    function showNotesAndQuiz(data) {
+        ui.notesAndQuizContainer.classList.remove('hidden');
+        ui.notesContent.innerHTML = data.notes_content || '';
+        renderQuiz(data.quiz || []);
+    }
+    function renderQuiz(quiz) {
+        if (!Array.isArray(quiz) || quiz.length === 0) { ui.quizSection.innerHTML = '<p>No quiz available.</p>'; return; }
+        ui.quizSection.innerHTML = quiz.map((q, idx) => `<div class="mb-4 p-2 border rounded"><div class="font-medium">${idx+1}. ${escapeHtml(q.question)}</div><div id="q-${idx}-opts" class="mt-2 space-y-1">${q.options.map((opt, oi) => `<div class="quiz-option p-2 border rounded cursor-pointer" data-q="${idx}" data-i="${oi}">${escapeHtml(opt)}</div>`).join('')}</div><div id="q-${idx}-fb" class="mt-1 font-semibold text-sm"></div></div>`).join('');
+        document.querySelectorAll('.quiz-option').forEach(el => el.addEventListener('click', e => {
+            const qIdx = parseInt(e.currentTarget.dataset.q), choiceIdx = parseInt(e.currentTarget.dataset.i), q = quiz[qIdx];
+            document.querySelectorAll(`#q-${qIdx}-opts .quiz-option`).forEach((o, idx) => {
+                o.classList.add('disabled');
+                if (idx === q.correct) o.classList.add('correct');
+                if (idx === choiceIdx && idx !== q.correct) o.classList.add('incorrect');
             });
-
-            document.getElementById('next-quiz-btn').addEventListener('click', () => {
-                currentQuizIndex++;
-                displayQuizQuestion(currentQuizIndex);
-            });
-        }
-        
-        function checkAnswer(selectedOptionDiv, correctIndex, feedback) {
-            const selectedIndex = parseInt(selectedOptionDiv.dataset.index);
-            const isCorrect = selectedIndex === correctIndex;
-
-            document.querySelectorAll('.quiz-option').forEach((opt, idx) => {
-                opt.classList.add('disabled');
-                if (idx === correctIndex) opt.classList.add('correct');
-                else if (idx === selectedIndex) opt.classList.add('incorrect');
-            });
-            
-            const feedbackEl = document.getElementById('quiz-feedback');
-            feedbackEl.textContent = feedback;
-            feedbackEl.style.color = isCorrect ? '#16a34a' : '#dc2626';
-            document.getElementById('next-quiz-btn').classList.remove('hidden');
-        }
-
-        // --- Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
-            stage = new Konva.Stage({
-                container: 'whiteboard-container',
-                width: whiteboardContainer.clientWidth,
-                height: 2000
-            });
-            layer = new Konva.Layer();
-            stage.add(layer);
-
-            window.addEventListener('resize', () => {
-                stage.width(whiteboardContainer.clientWidth);
-                stage.height(whiteboardContainer.clientHeight);
-            });
-        });
-
-    </script>
+            document.getElementById(`q-${qIdx}-fb`).textContent = q.feedback || '';
+        }));
+    }
+    function escapeHtml(s) { return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+});
+</script>
 </body>
 </html>
