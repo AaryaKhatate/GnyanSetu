@@ -68,6 +68,7 @@ python manage.py migrate
 
 # Start Daphne server
 daphne -b 0.0.0.0 -p 8000 yourproject.asgi:application
+```
 
 ## 👥 Contributors
 
