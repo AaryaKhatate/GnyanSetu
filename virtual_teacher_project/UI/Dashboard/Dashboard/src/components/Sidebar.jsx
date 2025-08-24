@@ -6,6 +6,8 @@ export default function Sidebar({
   onNewChat,
   history,
   onHistoryUpdate,
+  onHistoryItemClick,
+  currentSessionId,
   onToggleSidebar,
   collapsed,
 }) {
@@ -231,8 +233,15 @@ export default function Sidebar({
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-slate-800/40 hover:bg-slate-800/70 transition-colors">
-                      <span className="text-slate-200 truncate flex-1">
+                    <button
+                      onClick={() => onHistoryItemClick?.(item)}
+                      className={`w-full flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${
+                        currentSessionId === item.id
+                          ? "bg-blue-500/20 ring-1 ring-blue-500/40"
+                          : "bg-slate-800/40 hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <span className="text-slate-200 truncate flex-1 text-left">
                         {item.title}
                       </span>
                       <div className="flex items-center gap-2 ml-2">
@@ -292,7 +301,7 @@ export default function Sidebar({
                           )}
                         </div>
                       </div>
-                    </div>
+                    </button>
                   )}
                 </li>
               ))}

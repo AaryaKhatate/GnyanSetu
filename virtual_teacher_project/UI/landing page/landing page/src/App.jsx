@@ -10,10 +10,35 @@ import classNames from "classnames";
 function useLockBodyScroll(locked) {
   React.useEffect(() => {
     if (!locked) return;
-    const original = document.body.style.overflow;
+
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    // Calculate scrollbar width
+    const scrollBarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    // Apply styles to prevent layout shift
     document.body.style.overflow = "hidden";
+    document.body.style.paddingRight = `${scrollBarWidth}px`;
+
+    // Also apply to fixed positioned elements (like navbar)
+    const fixedElements = document.querySelectorAll('header[class*="fixed"]');
+    const originalFixedStyles = [];
+
+    fixedElements.forEach((element, index) => {
+      originalFixedStyles[index] = element.style.paddingRight;
+      element.style.paddingRight = `${scrollBarWidth}px`;
+    });
+
     return () => {
-      document.body.style.overflow = original;
+      document.body.style.overflow = originalStyle;
+      document.body.style.paddingRight = originalPaddingRight;
+
+      // Restore fixed elements
+      fixedElements.forEach((element, index) => {
+        element.style.paddingRight = originalFixedStyles[index];
+      });
     };
   }, [locked]);
 }
@@ -419,7 +444,6 @@ const Footer = () => (
 const Modal = ({ isOpen, title, children, onClose }) => {
   const [mounted, setMounted] = React.useState(isOpen);
   const [visible, setVisible] = React.useState(false);
-  useLockBodyScroll(mounted);
   const dialogRef = useRef(null);
 
   React.useEffect(() => {
@@ -432,7 +456,7 @@ const Modal = ({ isOpen, title, children, onClose }) => {
       const t = setTimeout(() => setMounted(false), 200);
       return () => clearTimeout(t);
     }
-  }, [isOpen]);
+  }, [isOpen, mounted]);
 
   if (!mounted) return null;
 
@@ -443,10 +467,15 @@ const Modal = ({ isOpen, title, children, onClose }) => {
           "absolute inset-0 bg-slate-900/30 backdrop-blur-md transition-opacity duration-200",
           visible ? "opacity-100" : "opacity-0"
         )}
+        onClick={onClose}
       />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
         <div
           ref={dialogRef}
+          onClick={(e) => e.stopPropagation()}
           className={classNames(
             "w-full max-w-md overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 shadow-2xl backdrop-blur-xl transition duration-200",
             visible
@@ -454,15 +483,8 @@ const Modal = ({ isOpen, title, children, onClose }) => {
               : "opacity-0 scale-95 translate-y-2"
           )}
         >
-          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
+          <div className="flex items-center justify-center border-b border-slate-800 px-5 py-3">
             <h3 className="text-lg font-semibold text-white">{title}</h3>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="p-2 rounded hover:bg-slate-800"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
           </div>
           <div className="px-5 py-5">{children}</div>
         </div>
@@ -634,6 +656,9 @@ const ForgotPasswordForm = ({ onLogin }) => (
 export default function App() {
   const [modal, setModal] = useState(null); // 'login' | 'signup' | 'forgot' | null
 
+  // Apply scroll lock when any modal is open
+  useLockBodyScroll(modal !== null);
+
   const openLogin = () => setModal("login");
   const openSignup = () => setModal("signup");
   const openForgot = () => setModal("forgot");
@@ -657,14 +682,8 @@ export default function App() {
         onClose={closeModal}
       >
         <LoginForm
-          onForgot={() => {
-            closeModal();
-            openForgot();
-          }}
-          onSignup={() => {
-            closeModal();
-            openSignup();
-          }}
+          onForgot={() => setModal("forgot")}
+          onSignup={() => setModal("signup")}
         />
       </Modal>
       <Modal
@@ -672,24 +691,14 @@ export default function App() {
         title="Create your account"
         onClose={closeModal}
       >
-        <SignupForm
-          onLogin={() => {
-            closeModal();
-            openLogin();
-          }}
-        />
+        <SignupForm onLogin={() => setModal("login")} />
       </Modal>
       <Modal
         isOpen={modal === "forgot"}
         title="Reset Password"
         onClose={closeModal}
       >
-        <ForgotPasswordForm
-          onLogin={() => {
-            closeModal();
-            openLogin();
-          }}
-        />
+        <ForgotPasswordForm onLogin={() => setModal("login")} />
       </Modal>
     </div>
   );

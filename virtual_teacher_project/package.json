@@ -1,5 +1,9 @@
 {
   "devDependencies": {
     "tailwindcss": "^4.1.12"
+  },
+  "dependencies": {
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.541.0"
   }
 }
