@@ -12,6 +12,8 @@ const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
     quizScore: 0,
     totalQuestions: 0,
     slides: [],
+    quizData: null,
+    notesData: null,
   });
 
   const toggleFullscreen = () => {
@@ -47,12 +49,25 @@ const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
         document.exitFullscreen();
       }
     }
+
     setSessionData((prev) => ({ ...prev, lessonCompleted: true }));
-    setCurrentStage("quiz");
+
+    // Add a small delay for smooth transition
+    setTimeout(() => {
+      setCurrentStage("quiz");
+    }, 500);
   };
 
   const handleSlidesGenerated = (slides) => {
     setSessionData((prev) => ({ ...prev, slides }));
+  };
+
+  const handleQuizDataReceived = (quizData, notesData) => {
+    setSessionData((prev) => ({
+      ...prev,
+      quizData: quizData,
+      notesData: notesData,
+    }));
   };
 
   const handleQuizComplete = (score, totalQuestions) => {
@@ -86,6 +101,7 @@ const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
             onLessonComplete={handleLessonComplete}
             onExit={onExitSession}
             onSlidesGenerated={handleSlidesGenerated}
+            onQuizDataReceived={handleQuizDataReceived}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
           />
@@ -95,6 +111,7 @@ const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
           <Quiz
             onQuizComplete={handleQuizComplete}
             onRetakeLesson={handleRetakeLesson}
+            quizData={sessionData.quizData}
           />
         );
       case "notes":
@@ -103,6 +120,7 @@ const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
             onRetakeLesson={handleRetakeLesson}
             onEndSession={handleEndSession}
             slides={sessionData.slides}
+            notesContent={sessionData.notesData}
           />
         );
       default:

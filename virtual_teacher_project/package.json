@@ -1,4 +1,14 @@
 {
+  "name": "gnyansetu",
+  "version": "1.0.0",
+  "description": "AI-Powered Interactive Learning Platform",
+  "scripts": {
+    "dev": "start cmd /k \"cd /d d:\\Virtual-Tutor\\virtual_teacher_project && python -m daphne -b 0.0.0.0 -p 8000 virtual_teacher_project.asgi:application\" && timeout /t 3 /nobreak > nul && cd UI\\Dashboard\\Dashboard && npm install && npm start",
+    "backend": "python -m daphne -b 0.0.0.0 -p 8000 virtual_teacher_project.asgi:application",
+    "frontend": "cd UI\\Dashboard\\Dashboard && npm install && npm start",
+    "install-deps": "pip install -r requirements.txt",
+    "setup": "pip install -r requirements.txt && cd UI\\Dashboard\\Dashboard && npm install"
+  },
   "devDependencies": {
     "tailwindcss": "^4.1.12"
   },

@@ -1,18 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, RotateCcw, ArrowRight } from "lucide-react";
 
-const Quiz = ({ onQuizComplete, onRetakeLesson }) => {
+const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
 
-  // Mock quiz data
-  const questions = [
+  // Use provided quiz data or fallback to mock data
+  const questions = quizData || [
     {
-      id: 1,
       question: "What is the main concept discussed in this lesson?",
       options: [
         "Advanced mathematics",
@@ -21,11 +20,10 @@ const Quiz = ({ onQuizComplete, onRetakeLesson }) => {
         "Scientific theories",
       ],
       correct: 1,
-      explanation:
-        "The lesson focuses on understanding fundamental principles as the foundation for advanced learning. This approach ensures better comprehension and retention of complex topics.",
+      feedback:
+        "The lesson focuses on understanding fundamental principles as the foundation for advanced learning.",
     },
     {
-      id: 2,
       question: "Which of the following best describes the key takeaway?",
       options: [
         "Memorization is key",
@@ -34,11 +32,10 @@ const Quiz = ({ onQuizComplete, onRetakeLesson }) => {
         "Theory over practice",
       ],
       correct: 1,
-      explanation:
-        "Understanding fundamentals is crucial because it provides the building blocks for more complex concepts. Without a solid foundation, advanced topics become difficult to grasp.",
+      feedback:
+        "Understanding fundamentals is crucial because it provides the building blocks for more complex concepts.",
     },
     {
-      id: 3,
       question: "How should you apply this knowledge?",
       options: [
         "Only in exams",
@@ -47,31 +44,52 @@ const Quiz = ({ onQuizComplete, onRetakeLesson }) => {
         "Share with friends only",
       ],
       correct: 1,
-      explanation:
-        "Applying knowledge in real-world scenarios helps reinforce learning and demonstrates practical understanding. This approach makes the knowledge more meaningful and memorable.",
-    },
-    {
-      id: 4,
-      question: "What is the most important aspect of learning?",
-      options: ["Speed", "Comprehension", "Repetition", "Competition"],
-      correct: 1,
-      explanation:
-        "Comprehension is the most important aspect because it ensures you truly understand the material rather than just memorizing it. This leads to better retention and application.",
-    },
-    {
-      id: 5,
-      question: "Which approach leads to better retention?",
-      options: [
-        "Cramming",
-        "Active learning",
-        "Passive reading",
-        "Avoiding practice",
-      ],
-      correct: 1,
-      explanation:
-        "Active learning engages your mind in the learning process, making connections and applying concepts. This approach leads to much better retention than passive methods.",
+      feedback:
+        "Applying knowledge in real-world scenarios helps reinforce learning and demonstrates practical understanding.",
     },
   ];
+
+  // Save quiz results to backend
+  useEffect(() => {
+    if (showResult) {
+      saveQuizResults();
+      onQuizComplete(score, questions.length);
+    }
+  }, [showResult, score, questions.length]);
+
+  const saveQuizResults = async () => {
+    try {
+      const quizResults = {
+        student_id: sessionStorage.getItem("studentId") || "default_student",
+        lesson_id: sessionStorage.getItem("lessonId") || "default_lesson",
+        questions: questions.map((q, index) => ({
+          question: q.question,
+          options: q.options,
+          correct_answer: q.correct,
+          user_answer: index <= currentQuestion ? selectedAnswer : null,
+        })),
+        score: score,
+        time_taken: "5 minutes", // You could track actual time
+      };
+
+      const response = await fetch("http://localhost:8000/api/quizzes/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(quizResults),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Quiz results saved:", result);
+      } else {
+        console.error("Failed to save quiz results");
+      }
+    } catch (error) {
+      console.error("Error saving quiz results:", error);
+    }
+  };
 
   const handleAnswerSelect = (answerIndex) => {
     if (answered) return;
@@ -259,7 +277,9 @@ const Quiz = ({ onQuizComplete, onRetakeLesson }) => {
             >
               <h4 className="text-blue-400 font-semibold mb-2">Explanation:</h4>
               <p className="text-slate-200 text-sm leading-relaxed">
-                {currentQ.explanation}
+                {currentQ.feedback ||
+                  currentQ.explanation ||
+                  "No explanation available."}
               </p>
             </motion.div>
           )}

@@ -9,18 +9,31 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 
-const Notes = ({ onRetakeLesson, onEndSession, slides = [] }) => {
-  // Mock notes data
-  const lessonNotes = [
-    "Understanding fundamental principles is crucial for advanced learning",
-    "Active engagement leads to better retention and comprehension",
-    "Real-world application reinforces theoretical knowledge",
-    "Regular practice and review improve long-term memory",
-    "Breaking complex concepts into smaller parts aids understanding",
-    "Visual and interactive learning methods enhance engagement",
-    "Consistent study habits lead to better academic performance",
-    "Collaborative learning can provide new perspectives and insights",
-  ];
+const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
+  // Use provided notes content or fallback to mock data
+  const lessonNotes = notesContent
+    ? // If notesContent is HTML, extract text content or parse it
+      typeof notesContent === "string" && notesContent.includes("<")
+      ? // Simple HTML to text conversion for display
+        notesContent
+          .replace(/<[^>]*>/g, " ")
+          .split(/\s+/)
+          .filter((word) => word.length > 0)
+          .join(" ")
+          .split(/[.!?]+/)
+          .filter((sentence) => sentence.trim().length > 10)
+          .map((sentence) => sentence.trim())
+      : [notesContent]
+    : [
+        "Understanding fundamental principles is crucial for advanced learning",
+        "Active engagement leads to better retention and comprehension",
+        "Real-world application reinforces theoretical knowledge",
+        "Regular practice and review improve long-term memory",
+        "Breaking complex concepts into smaller parts aids understanding",
+        "Visual and interactive learning methods enhance engagement",
+        "Consistent study habits lead to better academic performance",
+        "Collaborative learning can provide new perspectives and insights",
+      ];
 
   const handleDownloadNotes = async () => {
     try {

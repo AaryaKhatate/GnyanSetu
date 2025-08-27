@@ -94,7 +94,11 @@ def strip_code_fences(text: str) -> str:
 class TeacherConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
-        genai.configure(api_key=getattr(settings, "GOOGLE_API_KEY", None))
+        api_key = getattr(settings, "GOOGLE_API_KEY", None)
+        print(f"DEBUG: Google API Key configured: {bool(api_key)}")
+        if api_key:
+            print(f"DEBUG: API Key starts with: {api_key[:10]}...")
+        genai.configure(api_key=api_key)
         self._buffer = ""
         self._seen_hashes = set()
         await self.send_json({"type": "status", "message": "Connected! Ready for a topic or PDF."})
@@ -103,10 +107,12 @@ class TeacherConsumer(AsyncWebsocketConsumer):
         logger.info("WebSocket disconnected: %s", close_code)
 
     async def receive(self, text_data=None, bytes_data=None):
+        print(f"DEBUG: Received WebSocket message: {text_data[:200]}...")
         try:
             payload = json.loads(text_data)
             topic = payload.get("topic", "").strip()
             pdf_text = payload.get("pdf_text", "").strip()
+            print(f"DEBUG: Topic: {topic[:50]}, PDF text length: {len(pdf_text)}")
 
             if not topic and not pdf_text:
                 await self.send_json({"type": "error", "message": "Please provide a topic or a PDF."})
@@ -118,6 +124,7 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                 lesson_content += f"\n\nUse the following content to create the lesson:\n\n---\n{pdf_text[:max_pdf_text_length]}\n---"
 
         except json.JSONDecodeError:
+            print("DEBUG: JSON decode error")
             await self.send_json({"type": "error", "message": "Invalid JSON payload."})
             return
 
@@ -155,14 +162,23 @@ class TeacherConsumer(AsyncWebsocketConsumer):
         await self.send_json({"type": "status", "message": "Generating lesson..."})
 
         try:
+            print("DEBUG: Starting Google Generative AI model call...")
             model = genai.GenerativeModel("gemini-1.5-flash")
+            print("DEBUG: Model created, starting stream...")
             stream = await model.generate_content_async(prompt, stream=True)
+            print("DEBUG: Stream started, processing chunks...")
 
+            chunk_count = 0
             async for chunk in stream:
+                chunk_count += 1
+                print(f"DEBUG: Processing chunk {chunk_count}")
                 text = getattr(chunk, "text", "") or ""
+                print(f"DEBUG: Chunk text length: {len(text)}")
                 if not text:
+                    print("DEBUG: Empty chunk, continuing...")
                     continue
                 self._buffer += text
+                print(f"DEBUG: Buffer length now: {len(self._buffer)}")
 
                 if len(self._buffer) % 100 < 20:
                      await self.send_json({"type": "status", "message": f"Streaming... (buf {len(self._buffer)})"})
@@ -176,12 +192,16 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                     if e == -1:
                         break
                     
+                    print(f"DEBUG: Found step block from {s} to {e}")
                     block = self._buffer[s + len(STEP_START): e]
                     
                     try:
                         raw = strip_code_fences(block)
+                        print(f"DEBUG: Raw block after strip: {raw[:200]}...")
                         step_obj = json.loads(raw)
-                    except Exception:
+                        print(f"DEBUG: Parsed step object keys: {list(step_obj.keys())}")
+                    except Exception as ex:
+                        print(f"DEBUG: JSON parse error: {str(ex)}")
                         preview = (block[:200] + "...") if len(block) > 200 else block
                         await self.send_json({"type": "status", "message": "JSON parse failed. Preview: " + preview})
                         start = e + len(STEP_END)
@@ -189,24 +209,38 @@ class TeacherConsumer(AsyncWebsocketConsumer):
 
                     h = hash(json.dumps(step_obj, sort_keys=True))
                     if h in self._seen_hashes:
+                        print(f"DEBUG: Duplicate step detected, skipping")
                         start = e + len(STEP_END)
                         continue
                     self._seen_hashes.add(h)
 
                     if isinstance(step_obj, dict) and "notes_and_quiz_ready" in step_obj:
+                        print(f"DEBUG: Sending notes and quiz")
                         await self.send_json({"type": "notes_and_quiz_ready", "data": step_obj["notes_and_quiz_ready"]})
                     elif isinstance(step_obj, dict):
+                        print(f"DEBUG: Processing lesson step with text: {step_obj.get('text_explanation', '')[:100]}...")
                         cmds = step_obj.get("whiteboard_commands", [])
                         sanitized = [sc for c in cmds if (sc := sanitize_command(c))]
                         step_obj["whiteboard_commands"] = sanitized
                         step_obj["text_explanation"] = step_obj.get("text_explanation", "")
                         step_obj["tts_text"] = step_obj.get("tts_text", step_obj.get("text_explanation", ""))
+                        print(f"DEBUG: Sending lesson step to frontend")
                         await self.send_json({"type": "lesson_step", "data": step_obj})
+                        print(f"DEBUG: Lesson step sent successfully")
                     
                     self._buffer = self._buffer[e + len(STEP_END):]
                     start = 0
+            
+            print(f"DEBUG: Stream finished. Total chunks: {chunk_count}, final buffer length: {len(self._buffer)}")
+            
+            # Check for lesson end marker
+            if LESSON_END in self._buffer:
+                print("DEBUG: Found lesson end marker")
+            else:
+                print("DEBUG: No lesson end marker found")
 
         except Exception as e:
+            print(f"DEBUG: Exception occurred: {str(e)}")
             logger.exception("Error during lesson generation: %s", e)
             preview = (self._buffer[:2000] + "...") if len(self._buffer) > 2000 else self._buffer
             await self.send_json({"type": "error", "message": f"An error occurred: {str(e)}", "raw_preview": preview})

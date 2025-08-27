@@ -51,12 +51,57 @@ export default function UploadBox({ onStartSession }) {
     }
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (selectedFile) {
-      // TODO: Integrate upload API here
-      console.log("Uploading file:", selectedFile.name);
-      // Start the session flow
-      onStartSession(selectedFile.name);
+      try {
+        console.log("Starting PDF upload...", selectedFile);
+
+        // Upload PDF to Django backend
+        const formData = new FormData();
+        formData.append("pdf_file", selectedFile);
+
+        console.log("Sending request to backend...");
+        const response = await fetch("http://localhost:8000/upload_pdf/", {
+          method: "POST",
+          body: formData,
+          headers: {
+            // Don't set Content-Type, let browser set it for FormData
+          },
+        });
+
+        console.log("Response received:", response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server error:", errorText);
+          throw new Error(
+            `HTTP error! status: ${response.status} - ${errorText}`
+          );
+        }
+
+        const result = await response.json();
+        console.log("Upload result:", result);
+
+        if (result.error) {
+          alert(`Error: ${result.error}`);
+          return;
+        }
+
+        console.log("PDF uploaded successfully:", result);
+
+        // Store PDF text and filename for WebSocket communication
+        sessionStorage.setItem("pdfText", result.text);
+        sessionStorage.setItem(
+          "pdfFilename",
+          result.filename || selectedFile.name
+        );
+
+        // Start the session flow
+        onStartSession(result.filename || selectedFile.name);
+      } catch (error) {
+        console.error("Error uploading PDF:", error);
+        alert(`Failed to upload PDF: ${error.message}`);
+      }
     }
   };
 

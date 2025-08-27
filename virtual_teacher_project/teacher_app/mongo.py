@@ -3,6 +3,10 @@ import motor.motor_asyncio
 from django.conf import settings
 from datetime import datetime
 
+# MongoDB connection
+client = motor.motor_asyncio.AsyncIOMotorClient(settings.MONGO_DB_URI)
+db = client[settings.MONGO_DB_NAME]
+
 # ---------------- Document Structures ----------------
 def create_student(name, email, password_hash):
     return {

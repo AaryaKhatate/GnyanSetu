@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-67)8z1qalde_j@=n)3gg14g_3ayn=2f#4u@o7yhj9@nm4ios30
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
 
 # Application definition
@@ -45,10 +45,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "teacher_app", 
-    "channels", 
+    "channels",
+    "corsheaders",
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -57,6 +59,14 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'virtual_teacher_project.urls'
 
@@ -81,17 +91,18 @@ TEMPLATES = [
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-
+# Using SQLite for Django's built-in features (admin, auth, sessions)
+# MongoDB is used separately via Motor for our custom collections
 DATABASES = {
     'default': {
-        'ENGINE': 'djongo',
-        'NAME': 'Gnyansetu',   
-        'CLIENT': {
-            'host': '127.0.0.1',
-            'port': 27017,
-        }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# MongoDB configuration for async operations
+MONGO_DB_NAME = "Gnyansetu"
+MONGO_DB_URI = "mongodb://localhost:27017"
 
 # Channels config
 ASGI_APPLICATION = "virtual_teacher_project.asgi.application"
