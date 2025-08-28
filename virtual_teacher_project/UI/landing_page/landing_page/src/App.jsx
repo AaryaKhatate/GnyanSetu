@@ -899,26 +899,30 @@ export default function App() {
 
       {/* Error/Success Messages */}
       {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-500 text-white p-4 rounded-lg shadow-lg">
-          {error}
-          <button
-            onClick={() => setError("")}
-            className="ml-2 text-white hover:text-gray-200"
-          >
-            ✕
-          </button>
+        <div className="fixed top-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-lg shadow-lg max-w-md">
+          <div className="flex items-start justify-between">
+            <span className="text-sm">{error}</span>
+            <button
+              onClick={() => setError("")}
+              className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
       {success && (
-        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white p-4 rounded-lg shadow-lg">
-          {success}
-          <button
-            onClick={() => setSuccess("")}
-            className="ml-2 text-white hover:text-gray-200"
-          >
-            ✕
-          </button>
+        <div className="fixed top-4 right-4 z-[200] bg-green-500 text-white p-4 rounded-lg shadow-lg max-w-md">
+          <div className="flex items-start justify-between">
+            <span className="text-sm">{success}</span>
+            <button
+              onClick={() => setSuccess("")}
+              className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 

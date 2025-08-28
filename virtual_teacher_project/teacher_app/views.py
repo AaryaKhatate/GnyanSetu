@@ -7,6 +7,9 @@ from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
 import fitz  # PyMuPDF
 from .mongo_collections import students, lessons, quizzes, progress, analytics
 from .mongo import create_student, create_lesson, create_quiz, create_progress
@@ -20,14 +23,27 @@ def teacher_view(request: HttpRequest):
     """Renders the main teacher page."""
     return render(request, "teacher_app/teacher.html")
 
+def landing_page(request: HttpRequest):
+    """Serves the landing page."""
+    # For now, we'll serve a simple HTML that will load the React app
+    # In production, you'd serve the built React files
+    return render(request, "teacher_app/landing.html")
+
 @csrf_exempt
 @require_POST
 def upload_pdf(request: HttpRequest):
     """Handles PDF file uploads, extracts text, and returns it as JSON."""
+    print(f"Upload PDF request received: {request.method}")
+    print(f"Request headers: {dict(request.headers)}")
+    print(f"Request FILES: {list(request.FILES.keys())}")
+    print(f"Request META: {request.META.get('HTTP_ORIGIN', 'No origin')}")
+    
     if not request.FILES.get('pdf_file'):
+        print("No pdf_file in request.FILES")
         return JsonResponse({'error': 'No PDF file found in the request.'}, status=400)
 
     pdf_file = request.FILES['pdf_file']
+    print(f"PDF file received: {pdf_file.name}, size: {pdf_file.size}")
     
     # Validate that it's a PDF file
     if not pdf_file.name.lower().endswith('.pdf'):
@@ -44,7 +60,10 @@ def upload_pdf(request: HttpRequest):
              return JsonResponse({'error': 'Could not extract any text from the PDF.'}, status=400)
 
         # Return only the text, as that's what the consumer needs
-        return JsonResponse({'text': text_content, 'filename': pdf_file.name})
+        response = JsonResponse({'text': text_content, 'filename': pdf_file.name})
+        response["Access-Control-Allow-Origin"] = "http://localhost:3001"
+        response["Access-Control-Allow-Credentials"] = "true"
+        return response
     
     except Exception as e:
         logger.error(f"Error processing PDF '{pdf_file.name}': {e}")
@@ -292,3 +311,155 @@ def api_progress(request: HttpRequest):
             return JsonResponse({'error': str(e)}, status=500)
         finally:
             loop.close()
+
+# Authentication Views
+@csrf_exempt
+@require_POST
+def api_login(request: HttpRequest):
+    """Handle user login."""
+    try:
+        data = json.loads(request.body)
+        email = data.get('email')
+        password = data.get('password')
+        
+        if not email or not password:
+            return JsonResponse({'error': 'Email and password are required'}, status=400)
+        
+        # Authenticate user
+        user = authenticate(request, username=email, password=password)
+        
+        if user is not None:
+            login(request, user)
+            return JsonResponse({
+                'success': True,
+                'message': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name
+                }
+            })
+        else:
+            return JsonResponse({'error': 'Invalid email or password'}, status=401)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error during login: {e}")
+        return JsonResponse({'error': 'An error occurred during login'}, status=500)
+
+@csrf_exempt
+@require_POST
+def api_signup(request: HttpRequest):
+    """Handle user registration."""
+    try:
+        data = json.loads(request.body)
+        name = data.get('name')
+        email = data.get('email')
+        password = data.get('password')
+        confirm_password = data.get('confirm_password')
+        
+        if not all([name, email, password, confirm_password]):
+            return JsonResponse({'error': 'All fields are required'}, status=400)
+        
+        if password != confirm_password:
+            return JsonResponse({'error': 'Passwords do not match'}, status=400)
+        
+        if len(password) < 8:
+            return JsonResponse({'error': 'Password must be at least 8 characters long'}, status=400)
+        
+        # Check if user already exists
+        if User.objects.filter(username=email).exists():
+            return JsonResponse({'error': 'User with this email already exists'}, status=400)
+        
+        # Create new user
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            first_name=name.split(' ')[0] if ' ' in name else name,
+            last_name=' '.join(name.split(' ')[1:]) if ' ' in name else ''
+        )
+        
+        # Automatically log in the user after registration
+        login(request, user)
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Registration successful',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error during registration: {e}")
+        return JsonResponse({'error': 'An error occurred during registration'}, status=500)
+
+@csrf_exempt
+@require_POST
+def api_logout(request: HttpRequest):
+    """Handle user logout."""
+    try:
+        logout(request)
+        return JsonResponse({'success': True, 'message': 'Logout successful'})
+    except Exception as e:
+        logger.error(f"Error during logout: {e}")
+        return JsonResponse({'error': 'An error occurred during logout'}, status=500)
+
+@csrf_exempt
+@require_POST
+def api_forgot_password(request: HttpRequest):
+    """Handle forgot password request."""
+    try:
+        data = json.loads(request.body)
+        email = data.get('email')
+        
+        if not email:
+            return JsonResponse({'error': 'Email is required'}, status=400)
+        
+        # Check if user exists
+        try:
+            user = User.objects.get(email=email)
+            # In a real application, you would send an email with a reset link
+            # For now, we'll just return a success message
+            return JsonResponse({
+                'success': True,
+                'message': 'If an account with this email exists, you will receive a password reset link.'
+            })
+        except User.DoesNotExist:
+            # Don't reveal whether the email exists or not for security
+            return JsonResponse({
+                'success': True,
+                'message': 'If an account with this email exists, you will receive a password reset link.'
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error during forgot password: {e}")
+        return JsonResponse({'error': 'An error occurred'}, status=500)
+
+@login_required
+def api_user_profile(request: HttpRequest):
+    """Get current user profile."""
+    try:
+        user = request.user
+        return JsonResponse({
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'is_authenticated': True
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error getting user profile: {e}")
+        return JsonResponse({'error': 'An error occurred'}, status=500)
