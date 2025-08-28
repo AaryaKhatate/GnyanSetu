@@ -20,14 +20,22 @@ timeout /t 3 >nul
 
 echo.
 echo Starting Dashboard Frontend...
-start "Dashboard Frontend" cmd /k "cd UI\Dashboard\Dashboard && set PORT=3001 && npm start"
+start "Dashboard Frontend" cmd /k "cd UI\Dashboard\Dashboard && set BROWSER=none && set PORT=3001 && npm start"
 
 echo Waiting for dashboard to start...
 timeout /t 3 >nul
 
 echo.
 echo Starting Landing Page Frontend...
-start "Landing Page Frontend" cmd /k "cd \"UI\landing page\landing page\" && npm start"
+start "Landing Page Frontend" cmd /k "cd \"UI\landing_page\landing_page\" && set BROWSER=none && npm start"
+
+echo.
+echo Waiting 5 seconds for all services to start...
+timeout /t 5 >nul
+
+echo.
+echo Opening Landing Page in browser...
+start http://localhost:3000
 
 echo.
 echo ================================
