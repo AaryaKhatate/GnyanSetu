@@ -8,7 +8,7 @@ import {
 import classNames from "classnames";
 
 // API Configuration
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://localhost:8001";
 
 // API functions
 const apiCall = async (endpoint, options = {}) => {

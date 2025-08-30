@@ -5,9 +5,9 @@ echo ========================================
 
 echo.
 echo [1/3] Starting Django Backend (ASGI Server)...
-echo Backend will run at: http://localhost:8000
-cd /d "d:\Virtual-Tutor\virtual_teacher_project"
-start "GnyanSetu Backend" cmd /k "python -m daphne -b localhost -p 8000 virtual_teacher_project.asgi:application"
+echo Backend will run at: http://localhost:8001
+cd /d "d:\GnyanSetu\virtual_teacher_project"
+start "GnyanSetu Backend" powershell -ExecutionPolicy Bypass -File "d:\GnyanSetu\virtual_teacher_project\start_asgi.ps1"
 
 echo.
 echo Waiting 3 seconds for backend to start...
@@ -16,7 +16,7 @@ timeout /t 3 /nobreak > nul
 echo.
 echo [2/3] Starting Dashboard...
 echo Dashboard will run at: http://localhost:3001
-cd /d "d:\Virtual-Tutor\virtual_teacher_project\UI\Dashboard\Dashboard"
+cd /d "d:\GnyanSetu\virtual_teacher_project\UI\Dashboard\Dashboard"
 start "GnyanSetu Dashboard" cmd /k "npm start"
 
 echo.
@@ -26,7 +26,7 @@ timeout /t 3 /nobreak > nul
 echo.
 echo [3/3] Starting Landing Page...
 echo Landing Page will run at: http://localhost:3000
-cd /d "d:\Virtual-Tutor\virtual_teacher_project\UI\landing_page\landing_page"
+cd /d "d:\GnyanSetu\virtual_teacher_project\UI\landing_page\landing_page"
 start "GnyanSetu Landing" cmd /k "npm start"
 
 echo.
@@ -45,7 +45,7 @@ echo.
 echo 🌐 Access Points:
 echo   Landing Page: http://localhost:3000
 echo   Dashboard:    http://localhost:3001  
-echo   Backend:      http://localhost:8000
+echo   Backend:      http://localhost:8001
 echo.
 echo 📝 Note: Three terminal windows will open
 echo.

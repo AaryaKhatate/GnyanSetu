@@ -10,6 +10,8 @@ export default function Sidebar({
   currentSessionId,
   onToggleSidebar,
   collapsed,
+  onDeleteConversation,
+  onRenameConversation,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -36,21 +38,27 @@ export default function Sidebar({
   };
 
   const handleDelete = (itemId) => {
-    if (onHistoryUpdate) {
+    if (onDeleteConversation) {
+      onDeleteConversation(itemId);
+    } else if (onHistoryUpdate) {
+      // Fallback to local handling
       onHistoryUpdate(history.filter((item) => item.id !== itemId));
     }
     setOpenMenuId(null); // Close menu after clicking delete
   };
 
   const handleSaveRename = (itemId) => {
-    if (onHistoryUpdate && editTitle.trim()) {
+    if (onRenameConversation && editTitle.trim()) {
+      onRenameConversation(itemId, editTitle.trim());
+    } else if (onHistoryUpdate && editTitle.trim()) {
+      // Fallback to local handling
       const updatedHistory = history.map((item) =>
         item.id === itemId ? { ...item, title: editTitle.trim() } : item
       );
       onHistoryUpdate(updatedHistory);
-      setEditingId(null);
-      setEditTitle("");
     }
+    setEditingId(null);
+    setEditTitle("");
   };
 
   const handleCancelRename = () => {

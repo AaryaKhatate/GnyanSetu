@@ -2,6 +2,7 @@
 
 import logging
 import json
+from datetime import datetime
 from django.shortcuts import render
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_POST, require_http_methods
@@ -11,7 +12,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 import fitz  # PyMuPDF
-from .mongo_collections import students, lessons, quizzes, progress, analytics
+import asyncio
+from .mongo_collections import students, lessons, quizzes, progress, analytics, conversations, messages, conversations, messages
 from .mongo import create_student, create_lesson, create_quiz, create_progress
 from bson import ObjectId
 import asyncio
@@ -87,14 +89,11 @@ def api_students(request: HttpRequest):
                 return []
         
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            students_data = loop.run_until_complete(get_students())
+            students_data = asyncio.run(get_students())
             return JsonResponse({'students': students_data})
         except Exception as e:
+            logger.error(f"Error getting students: {e}")
             return JsonResponse({'error': str(e)}, status=500)
-        finally:
-            loop.close()
     
     elif request.method == 'POST':
         # Create a new student
@@ -113,9 +112,7 @@ def api_students(request: HttpRequest):
                 student_doc['_id'] = str(result.inserted_id)
                 return student_doc
             
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            new_student = loop.run_until_complete(create_student_async())
+            new_student = asyncio.run(create_student_async())
             return JsonResponse({'student': new_student}, status=201)
             
         except json.JSONDecodeError:
@@ -123,8 +120,6 @@ def api_students(request: HttpRequest):
         except Exception as e:
             logger.error(f"Error creating student: {e}")
             return JsonResponse({'error': str(e)}, status=500)
-        finally:
-            loop.close()
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
@@ -463,3 +458,248 @@ def api_user_profile(request: HttpRequest):
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
         return JsonResponse({'error': 'An error occurred'}, status=500)
+
+# Chat History Endpoints
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_conversations(request: HttpRequest):
+    """Get user's conversation history."""
+    try:
+        user_id = request.GET.get('user_id', 'anonymous')
+        
+        async def get_conversations():
+            try:
+                conversations_list = []
+                async for conversation in conversations.find({"user_id": user_id, "is_active": True}).sort("updated_at", -1):
+                    conversation['_id'] = str(conversation['_id'])
+                    # Format for frontend sidebar
+                    conversation['id'] = conversation['_id']
+                    conversation['timestamp'] = conversation['updated_at'].strftime("%I:%M %p") if conversation.get('updated_at') else ""
+                    conversations_list.append(conversation)
+                return conversations_list
+            except Exception as e:
+                logger.error(f"Error fetching conversations: {e}")
+                return []
+        
+        # Use asyncio.run() instead of manual event loop management
+        try:
+            conversations_data = asyncio.run(get_conversations())
+            return JsonResponse({'conversations': conversations_data})
+        except Exception as e:
+            logger.error(f"Error in get_conversations: {e}")
+            return JsonResponse({'error': str(e)}, status=500)
+            
+    except Exception as e:
+        logger.error(f"Error in api_conversations: {e}")
+        return JsonResponse({'error': 'An error occurred'}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_conversation_messages(request: HttpRequest, conversation_id: str):
+    """Get messages for a specific conversation."""
+    try:
+        async def get_messages():
+            try:
+                messages_list = []
+                async for message in messages.find({"conversation_id": ObjectId(conversation_id)}).sort("timestamp", 1):
+                    message['_id'] = str(message['_id'])
+                    message['conversation_id'] = str(message['conversation_id'])
+                    messages_list.append(message)
+                return messages_list
+            except Exception as e:
+                logger.error(f"Error fetching messages: {e}")
+                return []
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            messages_data = loop.run_until_complete(get_messages())
+            return JsonResponse({'messages': messages_data})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"Error in api_conversation_messages: {e}")
+        return JsonResponse({'error': 'An error occurred'}, status=500)
+
+@csrf_exempt
+@require_POST
+def api_delete_conversation(request: HttpRequest, conversation_id: str):
+    """Delete a conversation (soft delete)."""
+    try:
+        async def delete_conversation():
+            result = await conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+            )
+            return result.modified_count > 0
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            success = loop.run_until_complete(delete_conversation())
+            if success:
+                return JsonResponse({'success': True, 'message': 'Conversation deleted'})
+            else:
+                return JsonResponse({'error': 'Conversation not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"Error deleting conversation: {e}")
+        return JsonResponse({'error': 'An error occurred'}, status=500)
+
+@csrf_exempt
+@require_POST  
+def api_rename_conversation(request: HttpRequest, conversation_id: str):
+    """Rename a conversation."""
+    try:
+        data = json.loads(request.body)
+        new_title = data.get('title', '').strip()
+        
+        if not new_title:
+            return JsonResponse({'error': 'Title is required'}, status=400)
+        
+        async def rename_conversation():
+            result = await conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": {"title": new_title, "updated_at": datetime.utcnow()}}
+            )
+            return result.modified_count > 0
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            success = loop.run_until_complete(rename_conversation())
+            if success:
+                return JsonResponse({'success': True, 'message': 'Conversation renamed', 'title': new_title})
+            else:
+                return JsonResponse({'error': 'Conversation not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        finally:
+            loop.close()
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error renaming conversation: {e}")
+        return JsonResponse({'error': 'An error occurred'}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def api_conversations(request: HttpRequest):
+    """Handle conversation CRUD operations."""
+    if request.method == 'GET':
+        # List user's conversations
+        user_id = request.GET.get('user_id')
+        if not user_id:
+            return JsonResponse({'error': 'User ID is required'}, status=400)
+            
+        async def get_conversations():
+            try:
+                conversations_list = []
+                async for conversation in conversations.find({"user_id": user_id}).sort("updated_at", -1):
+                    conversation['_id'] = str(conversation['_id'])
+                    conversations_list.append(conversation)
+                return conversations_list
+            except Exception as e:
+                logger.error(f"Error fetching conversations: {e}")
+                return []
+        
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            conversations_data = loop.run_until_complete(get_conversations())
+            return JsonResponse({'conversations': conversations_data})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        finally:
+            loop.close()
+    
+    elif request.method == 'POST':
+        # Create a new conversation (usually handled by WebSocket, but backup endpoint)
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            title = data.get('title', 'New Conversation')
+            topic = data.get('topic')
+            
+            async def create_conversation_async():
+                from .mongo import create_conversation
+                conversation_doc = create_conversation(user_id, title, topic)
+                result = await conversations.insert_one(conversation_doc)
+                conversation_doc['_id'] = str(result.inserted_id)
+                return conversation_doc
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            new_conversation = loop.run_until_complete(create_conversation_async())
+            return JsonResponse({'conversation': new_conversation}, status=201)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            logger.error(f"Error creating conversation: {e}")
+            return JsonResponse({'error': str(e)}, status=500)
+        finally:
+            loop.close()
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_conversation_messages(request: HttpRequest, conversation_id: str):
+    """Get messages for a specific conversation."""
+    try:
+        async def get_messages():
+            try:
+                messages_list = []
+                async for message in messages.find({"conversation_id": ObjectId(conversation_id)}).sort("timestamp", 1):
+                    message['_id'] = str(message['_id'])
+                    message['conversation_id'] = str(message['conversation_id'])
+                    messages_list.append(message)
+                return messages_list
+            except Exception as e:
+                logger.error(f"Error fetching messages: {e}")
+                return []
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        messages_data = loop.run_until_complete(get_messages())
+        return JsonResponse({'messages': messages_data})
+        
+    except Exception as e:
+        logger.error(f"Error getting conversation messages: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+    finally:
+        loop.close()
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def api_conversation_delete(request: HttpRequest, conversation_id: str):
+    """Delete a conversation and all its messages."""
+    try:
+        async def delete_conversation_async():
+            # Delete all messages in the conversation
+            await messages.delete_many({"conversation_id": ObjectId(conversation_id)})
+            # Delete the conversation
+            result = await conversations.delete_one({"_id": ObjectId(conversation_id)})
+            return result.deleted_count > 0
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        deleted = loop.run_until_complete(delete_conversation_async())
+        
+        if deleted:
+            return JsonResponse({'success': True, 'message': 'Conversation deleted successfully'})
+        else:
+            return JsonResponse({'error': 'Conversation not found'}, status=404)
+            
+    except Exception as e:
+        logger.error(f"Error deleting conversation: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+    finally:
+        loop.close()

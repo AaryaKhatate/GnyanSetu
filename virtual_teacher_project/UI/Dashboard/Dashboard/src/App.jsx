@@ -5,40 +5,64 @@ import ProfileMenu from "./components/ProfileMenu";
 import GlowingBackground from "./components/GlowingBackground";
 import SessionManager from "./components/SessionManager";
 
-const initialHistory = [
-  { id: "1", title: "Physics Chapter 1", timestamp: "Today, 10:24 AM" },
-  { id: "2", title: "Chemistry Notes", timestamp: "Yesterday, 7:12 PM" },
-  { id: "3", title: "Biology MCQs", timestamp: "Mon, 4:02 PM" },
-  { id: "4", title: "Maths Formula Sheet", timestamp: "Sun, 11:41 AM" },
-];
+// API Configuration
+const API_BASE_URL = "http://localhost:8001";
 
-// Initialize with an untitled chat
-const getInitialState = () => {
-  const timestamp = new Date().toLocaleString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const newItem = {
-    id: String(Date.now()),
-    title: "Untitled Chat",
-    timestamp: `Today, ${timestamp}`,
+// API Helper function
+const apiCall = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const defaultOptions = {
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+    credentials: "include",
   };
-  return {
-    historyItems: [newItem, ...initialHistory],
-    currentSessionId: newItem.id,
-  };
+
+  const response = await fetch(url, { ...defaultOptions, ...options });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "An error occurred");
+  }
+
+  return data;
 };
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isSessionFullscreen, setIsSessionFullscreen] = useState(false);
-  const initialState = getInitialState();
-  const [historyItems, setHistoryItems] = useState(initialState.historyItems);
+  const [historyItems, setHistoryItems] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
-  const [currentSessionId, setCurrentSessionId] = useState(
-    initialState.currentSessionId
-  );
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState("anonymous");
+
+  // Load chat history on component mount
+  useEffect(() => {
+    loadChatHistory();
+  }, []);
+
+  const loadChatHistory = async () => {
+    try {
+      const response = await apiCall(
+        `/api/conversations/?user_id=${currentUserId}`
+      );
+      setHistoryItems(response.conversations || []);
+
+      // If no conversations, create a new one
+      if (!response.conversations || response.conversations.length === 0) {
+        handleNewChat();
+      } else {
+        // Set the most recent conversation as current
+        setCurrentSessionId(response.conversations[0].id);
+      }
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+      // Fallback to creating a new chat
+      handleNewChat();
+    }
+  };
 
   const handleNewChat = () => {
     const timestamp = new Date().toLocaleString([], {
@@ -100,8 +124,60 @@ export default function App() {
     setHistoryItems(updatedHistory);
   };
 
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      await apiCall(`/api/conversations/${conversationId}/delete/`, {
+        method: "POST",
+      });
+
+      // Remove from local state
+      setHistoryItems((prev) =>
+        prev.filter((item) => item.id !== conversationId)
+      );
+
+      // If the deleted conversation was current, create a new one
+      if (currentSessionId === conversationId) {
+        handleNewChat();
+      }
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+    }
+  };
+
+  const handleRenameConversation = async (conversationId, newTitle) => {
+    try {
+      await apiCall(`/api/conversations/${conversationId}/rename/`, {
+        method: "POST",
+        body: JSON.stringify({ title: newTitle }),
+      });
+
+      // Update local state
+      setHistoryItems((prev) =>
+        prev.map((item) =>
+          item.id === conversationId ? { ...item, title: newTitle } : item
+        )
+      );
+    } catch (error) {
+      console.error("Error renaming conversation:", error);
+    }
+  };
+
   const handleFullscreenChange = (isFullscreen) => {
     setIsSessionFullscreen(isFullscreen);
+  };
+
+  const handleConversationCreated = (conversationId, title) => {
+    // Update the current session to use the new conversation ID
+    setCurrentSessionId(conversationId);
+
+    // Update the history item with the new conversation ID
+    setHistoryItems((prev) =>
+      prev.map((item) =>
+        item.id === currentSessionId
+          ? { ...item, id: conversationId, title: title }
+          : item
+      )
+    );
   };
 
   const toggleSidebar = () => {
@@ -168,6 +244,8 @@ export default function App() {
           currentSessionId={currentSessionId}
           onToggleSidebar={toggleSidebar}
           collapsed={sidebarCollapsed}
+          onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
         />
       )}
 
@@ -180,6 +258,9 @@ export default function App() {
             pdfName={currentSession}
             onExitSession={handleExitSession}
             onFullscreenChange={handleFullscreenChange}
+            currentUserId={currentUserId}
+            currentConversationId={currentSessionId}
+            onConversationCreated={handleConversationCreated}
           />
         ) : (
           <div className="mx-auto max-w-5xl px-4 lg:px-8">

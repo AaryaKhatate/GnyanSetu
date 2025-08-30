@@ -61,11 +61,11 @@ export default function UploadBox({ onStartSession }) {
         formData.append("pdf_file", selectedFile);
 
         console.log("Sending request to backend...");
-        console.log("URL:", "http://localhost:8000/upload_pdf/");
+        console.log("URL:", "http://localhost:8001/upload_pdf/");
         console.log("FormData:", formData);
         console.log("File:", selectedFile);
 
-        const response = await fetch("http://localhost:8000/upload_pdf/", {
+        const response = await fetch("http://localhost:8001/upload_pdf/", {
           method: "POST",
           body: formData,
           headers: {

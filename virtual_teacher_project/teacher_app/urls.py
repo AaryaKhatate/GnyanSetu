@@ -20,4 +20,15 @@ urlpatterns = [
     path('api/lessons/', views.api_lessons, name='api_lessons'),
     path('api/quizzes/', views.api_quizzes, name='api_quizzes'),
     path('api/progress/', views.api_progress, name='api_progress'),
+    
+    # Chat History endpoints
+    path('api/conversations/', views.api_conversations, name='api_conversations'),
+    path('api/conversations/<str:conversation_id>/messages/', views.api_conversation_messages, name='api_conversation_messages'),
+    path('api/conversations/<str:conversation_id>/delete/', views.api_delete_conversation, name='api_delete_conversation'),
+    path('api/conversations/<str:conversation_id>/rename/', views.api_rename_conversation, name='api_rename_conversation'),
+    
+    # Chat History endpoints
+    path('api/conversations/', views.api_conversations, name='api_conversations'),
+    path('api/conversations/<str:conversation_id>/messages/', views.api_conversation_messages, name='api_conversation_messages'),
+    path('api/conversations/<str:conversation_id>/delete/', views.api_conversation_delete, name='api_conversation_delete'),
 ]

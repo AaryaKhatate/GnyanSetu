@@ -4,7 +4,14 @@ import Whiteboard from "./Whiteboard";
 import Quiz from "./Quiz";
 import Notes from "./Notes";
 
-const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
+const SessionManager = ({
+  pdfName,
+  onExitSession,
+  onFullscreenChange,
+  currentUserId,
+  currentConversationId,
+  onConversationCreated,
+}) => {
   const [currentStage, setCurrentStage] = useState("whiteboard"); // whiteboard, quiz, notes
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sessionData, setSessionData] = useState({
@@ -104,6 +111,9 @@ const SessionManager = ({ pdfName, onExitSession, onFullscreenChange }) => {
             onQuizDataReceived={handleQuizDataReceived}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
+            currentUserId={currentUserId}
+            currentConversationId={currentConversationId}
+            onConversationCreated={onConversationCreated}
           />
         );
       case "quiz":

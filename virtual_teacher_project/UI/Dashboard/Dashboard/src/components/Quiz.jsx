@@ -72,7 +72,7 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
         time_taken: "5 minutes", // You could track actual time
       };
 
-      const response = await fetch("http://localhost:8000/api/quizzes/", {
+      const response = await fetch("http://localhost:8001/api/quizzes/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -4,11 +4,17 @@ import json
 import re
 import logging
 from typing import Optional
+from bson import ObjectId
 
 import google.generativeai as genai
 from django.conf import settings
 from channels.generic.websocket import AsyncWebsocketConsumer
 from langchain.prompts import PromptTemplate # Corrected import
+from .mongo_collections import conversations, messages
+from .mongo import create_conversation, create_message
+from .mongo_collections import conversations, messages
+from .mongo import create_conversation, create_message
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +107,7 @@ class TeacherConsumer(AsyncWebsocketConsumer):
         genai.configure(api_key=api_key)
         self._buffer = ""
         self._seen_hashes = set()
+        self.current_conversation_id = None
         await self.send_json({"type": "status", "message": "Connected! Ready for a topic or PDF."})
 
     async def disconnect(self, close_code):
@@ -112,11 +119,70 @@ class TeacherConsumer(AsyncWebsocketConsumer):
             payload = json.loads(text_data)
             topic = payload.get("topic", "").strip()
             pdf_text = payload.get("pdf_text", "").strip()
+            pdf_filename = payload.get("pdf_filename", "").strip()
+            user_id = payload.get("user_id")  # Should be passed from frontend
+            conversation_id = payload.get("conversation_id")  # For continuing existing conversation
+            
             print(f"DEBUG: Topic: {topic[:50]}, PDF text length: {len(pdf_text)}")
 
             if not topic and not pdf_text:
                 await self.send_json({"type": "error", "message": "Please provide a topic or a PDF."})
                 return
+
+            # Create or get conversation
+            if conversation_id:
+                try:
+                    # Validate ObjectId format (24-character hex string)
+                    if isinstance(conversation_id, str) and len(conversation_id) == 24:
+                        self.current_conversation_id = ObjectId(conversation_id)
+                        print(f"DEBUG: Using existing conversation: {conversation_id}")
+                    else:
+                        print(f"DEBUG: Invalid conversation ID format '{conversation_id}', creating new conversation")
+                        conversation_id = None
+                except Exception as e:
+                    print(f"DEBUG: Invalid conversation ID '{conversation_id}', creating new conversation: {e}")
+                    conversation_id = None
+                    
+            if not conversation_id:
+                # Create new conversation (only if MongoDB is available)
+                if conversations is not None:
+                    try:
+                        title = topic if topic else f"PDF: {pdf_filename}" if pdf_filename else "New Lesson"
+                        conversation_doc = create_conversation(
+                            user_id=user_id or "anonymous",
+                            title=title,
+                            topic=topic,
+                            pdf_filename=pdf_filename
+                        )
+                        result = await conversations.insert_one(conversation_doc)
+                        self.current_conversation_id = result.inserted_id
+                        
+                        # Send conversation ID back to frontend
+                        await self.send_json({
+                            "type": "conversation_created", 
+                            "conversation_id": str(self.current_conversation_id),
+                            "title": title
+                        })
+                    except Exception as e:
+                        print(f"DEBUG: Error creating conversation: {e}")
+                        self.current_conversation_id = None
+                else:
+                    print("MongoDB not available - skipping conversation creation")
+                    self.current_conversation_id = None
+
+            # Save user message (only if MongoDB is available)
+            if messages is not None and self.current_conversation_id:
+                try:
+                    user_content = f"Topic: {topic}" if topic else f"PDF: {pdf_filename}"
+                    user_message = create_message(
+                        conversation_id=self.current_conversation_id,
+                        sender="user",
+                        content=user_content,
+                        message_type="topic_request"
+                    )
+                    await messages.insert_one(user_message)
+                except Exception as e:
+                    print(f"DEBUG: Error saving user message: {e}")
 
             lesson_content = f"Topic: {topic}"
             if pdf_text:
@@ -165,23 +231,30 @@ class TeacherConsumer(AsyncWebsocketConsumer):
             print("DEBUG: Starting Google Generative AI model call...")
             model = genai.GenerativeModel("gemini-1.5-flash")
             print("DEBUG: Model created, starting stream...")
-            stream = await model.generate_content_async(prompt, stream=True)
-            print("DEBUG: Stream started, processing chunks...")
+            
+            # Add error handling for AI generation
+            try:
+                stream = await model.generate_content_async(prompt, stream=True)
+                print("DEBUG: Stream started, processing chunks...")
 
-            chunk_count = 0
-            async for chunk in stream:
-                chunk_count += 1
-                print(f"DEBUG: Processing chunk {chunk_count}")
-                text = getattr(chunk, "text", "") or ""
-                print(f"DEBUG: Chunk text length: {len(text)}")
-                if not text:
-                    print("DEBUG: Empty chunk, continuing...")
-                    continue
-                self._buffer += text
-                print(f"DEBUG: Buffer length now: {len(self._buffer)}")
+                chunk_count = 0
+                async for chunk in stream:
+                    chunk_count += 1
+                    print(f"DEBUG: Processing chunk {chunk_count}")
+                    text = getattr(chunk, "text", "") or ""
+                    print(f"DEBUG: Chunk text length: {len(text)}")
+                    if not text:
+                        print("DEBUG: Empty chunk, continuing...")
+                        continue
+                    self._buffer += text
+                    print(f"DEBUG: Buffer length now: {len(self._buffer)}")
 
-                if len(self._buffer) % 100 < 20:
-                     await self.send_json({"type": "status", "message": f"Streaming... (buf {len(self._buffer)})"})
+                    if len(self._buffer) % 100 < 20:
+                         await self.send_json({"type": "status", "message": f"Streaming... (buf {len(self._buffer)})"})
+            except Exception as ai_error:
+                print(f"DEBUG: AI generation error: {ai_error}")
+                await self.send_json({"type": "error", "message": f"AI service error: {str(ai_error)}"})
+                return
 
                 start = 0
                 while True:
@@ -217,6 +290,18 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                     if isinstance(step_obj, dict) and "notes_and_quiz_ready" in step_obj:
                         print(f"DEBUG: Sending notes and quiz")
                         await self.send_json({"type": "notes_and_quiz_ready", "data": step_obj["notes_and_quiz_ready"]})
+                        
+                        # Save notes and quiz to chat history
+                        if self.current_conversation_id:
+                            notes_message = create_message(
+                                conversation_id=self.current_conversation_id,
+                                sender="ai",
+                                content="Notes and quiz generated",
+                                message_type="notes_and_quiz",
+                                step_data=step_obj["notes_and_quiz_ready"]
+                            )
+                            await messages.insert_one(notes_message)
+                            
                     elif isinstance(step_obj, dict):
                         print(f"DEBUG: Processing lesson step with text: {step_obj.get('text_explanation', '')[:100]}...")
                         cmds = step_obj.get("whiteboard_commands", [])
@@ -227,6 +312,17 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                         print(f"DEBUG: Sending lesson step to frontend")
                         await self.send_json({"type": "lesson_step", "data": step_obj})
                         print(f"DEBUG: Lesson step sent successfully")
+                        
+                        # Save lesson step to chat history
+                        if self.current_conversation_id:
+                            step_message = create_message(
+                                conversation_id=self.current_conversation_id,
+                                sender="ai",
+                                content=step_obj.get("text_explanation", ""),
+                                message_type="lesson_step",
+                                step_data=step_obj
+                            )
+                            await messages.insert_one(step_message)
                     
                     self._buffer = self._buffer[e + len(STEP_END):]
                     start = 0

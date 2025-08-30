@@ -18,6 +18,9 @@ const Whiteboard = ({
   onQuizDataReceived,
   isFullscreen,
   onToggleFullscreen,
+  currentUserId,
+  currentConversationId,
+  onConversationCreated,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -34,10 +37,26 @@ const Whiteboard = ({
   const canvasRef = useRef(null);
   const timerRef = useRef(null);
 
+  // Helper function to safely send WebSocket messages
+  const sendWebSocketMessage = (message) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log("Sending WebSocket message:", message);
+      wsRef.current.send(JSON.stringify(message));
+      return true;
+    } else {
+      console.error(
+        "WebSocket not ready. Current state:",
+        wsRef.current?.readyState
+      );
+      setStatus("Connection error - please try again");
+      return false;
+    }
+  };
+
   // WebSocket connection
   useEffect(() => {
     const connectWebSocket = () => {
-      const wsUrl = `ws://localhost:8000/ws/teacher/`;
+      const wsUrl = `ws://localhost:8001/ws/teacher/`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
@@ -45,14 +64,21 @@ const Whiteboard = ({
         setIsConnected(true);
         setStatus("Connected! Starting lesson generation...");
 
-        // Send PDF data to start lesson generation
-        const pdfText = sessionStorage.getItem("pdfText");
-        const message = {
-          topic: pdfName,
-          pdf_text: pdfText || "",
-        };
+        // Add a small delay to ensure WebSocket is fully ready
+        setTimeout(() => {
+          // Send PDF data to start lesson generation
+          const pdfText = sessionStorage.getItem("pdfText");
+          const pdfFilename = sessionStorage.getItem("pdfFilename") || pdfName;
+          const message = {
+            topic: pdfName,
+            pdf_text: pdfText || "",
+            pdf_filename: pdfFilename,
+            user_id: currentUserId || "anonymous",
+            conversation_id: currentConversationId || null,
+          };
 
-        wsRef.current.send(JSON.stringify(message));
+          sendWebSocketMessage(message);
+        }, 100); // 100ms delay
       };
 
       wsRef.current.onmessage = (event) => {
@@ -96,6 +122,14 @@ const Whiteboard = ({
       case "status":
         setStatus(data.message);
         console.log("Status updated:", data.message);
+        break;
+
+      case "conversation_created":
+        console.log("Conversation created:", data.conversation_id, data.title);
+        // Notify parent component about new conversation
+        if (onConversationCreated) {
+          onConversationCreated(data.conversation_id, data.title);
+        }
         break;
 
       case "lesson_step":
