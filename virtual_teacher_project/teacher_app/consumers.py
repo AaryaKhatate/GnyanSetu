@@ -251,81 +251,17 @@ class TeacherConsumer(AsyncWebsocketConsumer):
 
                     if len(self._buffer) % 100 < 20:
                          await self.send_json({"type": "status", "message": f"Streaming... (buf {len(self._buffer)})"})
+                    
+                    # Process lesson steps as they arrive
+                    await self.process_buffer_for_steps()
+                    
             except Exception as ai_error:
                 print(f"DEBUG: AI generation error: {ai_error}")
                 await self.send_json({"type": "error", "message": f"AI service error: {str(ai_error)}"})
                 return
 
-                start = 0
-                while True:
-                    s = self._buffer.find(STEP_START, start)
-                    if s == -1:
-                        break
-                    e = self._buffer.find(STEP_END, s + len(STEP_START))
-                    if e == -1:
-                        break
-                    
-                    print(f"DEBUG: Found step block from {s} to {e}")
-                    block = self._buffer[s + len(STEP_START): e]
-                    
-                    try:
-                        raw = strip_code_fences(block)
-                        print(f"DEBUG: Raw block after strip: {raw[:200]}...")
-                        step_obj = json.loads(raw)
-                        print(f"DEBUG: Parsed step object keys: {list(step_obj.keys())}")
-                    except Exception as ex:
-                        print(f"DEBUG: JSON parse error: {str(ex)}")
-                        preview = (block[:200] + "...") if len(block) > 200 else block
-                        await self.send_json({"type": "status", "message": "JSON parse failed. Preview: " + preview})
-                        start = e + len(STEP_END)
-                        continue
-
-                    h = hash(json.dumps(step_obj, sort_keys=True))
-                    if h in self._seen_hashes:
-                        print(f"DEBUG: Duplicate step detected, skipping")
-                        start = e + len(STEP_END)
-                        continue
-                    self._seen_hashes.add(h)
-
-                    if isinstance(step_obj, dict) and "notes_and_quiz_ready" in step_obj:
-                        print(f"DEBUG: Sending notes and quiz")
-                        await self.send_json({"type": "notes_and_quiz_ready", "data": step_obj["notes_and_quiz_ready"]})
-                        
-                        # Save notes and quiz to chat history
-                        if self.current_conversation_id:
-                            notes_message = create_message(
-                                conversation_id=self.current_conversation_id,
-                                sender="ai",
-                                content="Notes and quiz generated",
-                                message_type="notes_and_quiz",
-                                step_data=step_obj["notes_and_quiz_ready"]
-                            )
-                            await messages.insert_one(notes_message)
-                            
-                    elif isinstance(step_obj, dict):
-                        print(f"DEBUG: Processing lesson step with text: {step_obj.get('text_explanation', '')[:100]}...")
-                        cmds = step_obj.get("whiteboard_commands", [])
-                        sanitized = [sc for c in cmds if (sc := sanitize_command(c))]
-                        step_obj["whiteboard_commands"] = sanitized
-                        step_obj["text_explanation"] = step_obj.get("text_explanation", "")
-                        step_obj["tts_text"] = step_obj.get("tts_text", step_obj.get("text_explanation", ""))
-                        print(f"DEBUG: Sending lesson step to frontend")
-                        await self.send_json({"type": "lesson_step", "data": step_obj})
-                        print(f"DEBUG: Lesson step sent successfully")
-                        
-                        # Save lesson step to chat history
-                        if self.current_conversation_id:
-                            step_message = create_message(
-                                conversation_id=self.current_conversation_id,
-                                sender="ai",
-                                content=step_obj.get("text_explanation", ""),
-                                message_type="lesson_step",
-                                step_data=step_obj
-                            )
-                            await messages.insert_one(step_message)
-                    
-                    self._buffer = self._buffer[e + len(STEP_END):]
-                    start = 0
+            # Process any remaining content in buffer
+            await self.process_buffer_for_steps()
             
             print(f"DEBUG: Stream finished. Total chunks: {chunk_count}, final buffer length: {len(self._buffer)}")
             
@@ -343,6 +279,85 @@ class TeacherConsumer(AsyncWebsocketConsumer):
         finally:
             # FIX: Ensure the client UI is re-enabled even if generation finishes abruptly
             await self.send_json({"type": "lesson_end", "message": "Lesson generation finished."})
+
+    async def process_buffer_for_steps(self):
+        """Process buffer for complete lesson steps and send them to frontend"""
+        start = 0
+        while True:
+            s = self._buffer.find(STEP_START, start)
+            if s == -1:
+                break
+            e = self._buffer.find(STEP_END, s + len(STEP_START))
+            if e == -1:
+                break
+            
+            print(f"DEBUG: Found step block from {s} to {e}")
+            block = self._buffer[s + len(STEP_START): e]
+            
+            try:
+                raw = strip_code_fences(block)
+                print(f"DEBUG: Raw block after strip: {raw[:200]}...")
+                step_obj = json.loads(raw)
+                print(f"DEBUG: Parsed step object keys: {list(step_obj.keys())}")
+            except Exception as ex:
+                print(f"DEBUG: JSON parse error: {str(ex)}")
+                preview = (block[:200] + "...") if len(block) > 200 else block
+                await self.send_json({"type": "status", "message": "JSON parse failed. Preview: " + preview})
+                start = e + len(STEP_END)
+                continue
+
+            h = hash(json.dumps(step_obj, sort_keys=True))
+            if h in self._seen_hashes:
+                print(f"DEBUG: Duplicate step detected, skipping")
+                start = e + len(STEP_END)
+                continue
+            self._seen_hashes.add(h)
+
+            if isinstance(step_obj, dict) and "notes_and_quiz_ready" in step_obj:
+                print(f"DEBUG: Sending notes and quiz")
+                await self.send_json({"type": "notes_and_quiz_ready", "data": step_obj["notes_and_quiz_ready"]})
+                
+                # Save notes and quiz to chat history
+                if self.current_conversation_id and messages is not None:
+                    try:
+                        notes_message = create_message(
+                            conversation_id=self.current_conversation_id,
+                            sender="ai",
+                            content="Notes and quiz generated",
+                            message_type="notes_and_quiz",
+                            step_data=step_obj["notes_and_quiz_ready"]
+                        )
+                        await messages.insert_one(notes_message)
+                    except Exception as e:
+                        print(f"DEBUG: Error saving notes message: {e}")
+                        
+            elif isinstance(step_obj, dict):
+                print(f"DEBUG: Processing lesson step with text: {step_obj.get('text_explanation', '')[:100]}...")
+                cmds = step_obj.get("whiteboard_commands", [])
+                sanitized = [sc for c in cmds if (sc := sanitize_command(c))]
+                step_obj["whiteboard_commands"] = sanitized
+                step_obj["text_explanation"] = step_obj.get("text_explanation", "")
+                step_obj["tts_text"] = step_obj.get("tts_text", step_obj.get("text_explanation", ""))
+                print(f"DEBUG: Sending lesson step to frontend")
+                await self.send_json({"type": "lesson_step", "data": step_obj})
+                print(f"DEBUG: Lesson step sent successfully")
+                
+                # Save lesson step to chat history
+                if self.current_conversation_id and messages is not None:
+                    try:
+                        step_message = create_message(
+                            conversation_id=self.current_conversation_id,
+                            sender="ai",
+                            content=step_obj.get("text_explanation", ""),
+                            message_type="lesson_step",
+                            step_data=step_obj
+                        )
+                        await messages.insert_one(step_message)
+                    except Exception as e:
+                        print(f"DEBUG: Error saving step message: {e}")
+            
+            self._buffer = self._buffer[e + len(STEP_END):]
+            start = 0
 
 
     async def send_json(self, obj):

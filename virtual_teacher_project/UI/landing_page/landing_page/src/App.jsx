@@ -56,6 +56,12 @@ const authAPI = {
     }),
 };
 
+// Google OAuth handler
+const handleGoogleSignup = () => {
+  // Redirect to Google OAuth endpoint
+  window.location.href = `${API_BASE_URL}/accounts/google/login/?next=/dashboard/`;
+};
+
 function useLockBodyScroll(locked) {
   React.useEffect(() => {
     if (!locked) return;
@@ -563,9 +569,10 @@ const Checkbox = ({ label, ...props }) => (
   </label>
 );
 
-const GoogleButton = ({ text }) => (
+const GoogleButton = ({ text, onClick }) => (
   <button
     type="button"
+    onClick={onClick}
     className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-2 text-slate-200 hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
   >
     <svg
@@ -657,7 +664,7 @@ const LoginForm = ({ onForgot, onSignup, onSuccess, onError }) => {
       >
         {loading ? "Logging in..." : "Login"}
       </button>
-      <GoogleButton text="Login using Google" />
+      <GoogleButton text="Login using Google" onClick={handleGoogleSignup} />
       <div className="text-center text-sm text-slate-400">
         New to GyanSetu?{" "}
         <button
@@ -759,7 +766,7 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
       >
         {loading ? "Creating account..." : "Create account"}
       </button>
-      <GoogleButton text="Continue with Google" />
+      <GoogleButton text="Continue with Google" onClick={handleGoogleSignup} />
       <div className="text-center text-sm text-slate-400">
         Already a user?{" "}
         <button

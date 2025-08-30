@@ -11,3 +11,7 @@ python-dotenv==1.0.0
 django-cors-headers==4.3.1
 bson==0.5.10
 channels-redis==4.1.0
+django-allauth==0.57.0
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
