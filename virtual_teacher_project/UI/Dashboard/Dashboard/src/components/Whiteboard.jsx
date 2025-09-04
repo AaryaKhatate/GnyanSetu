@@ -8,7 +8,78 @@ import {
   Maximize2,
   Minimize2,
   X,
+  Volume2,
+  VolumeX,
+  Square,
+  Layers,
 } from "lucide-react";
+import TeachingCanvas from "./TeachingCanvas";
+
+// Text-to-Speech Hook
+const useTTS = () => {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const speechSynthRef = useRef(null);
+
+  const speak = useCallback((text, onEnd) => {
+    if (!text || !window.speechSynthesis) {
+      console.warn("Text-to-Speech not available");
+      if (onEnd) onEnd();
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setIsPaused(false);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setIsPaused(false);
+      if (onEnd) onEnd();
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setIsPaused(false);
+      console.error("Speech synthesis error");
+      if (onEnd) onEnd();
+    };
+
+    speechSynthRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  const pauseResume = useCallback(() => {
+    if (!window.speechSynthesis) return;
+
+    if (isSpeaking && !isPaused) {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+    } else if (isSpeaking && isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+    }
+  }, [isSpeaking, isPaused]);
+
+  const stop = useCallback(() => {
+    if (!window.speechSynthesis) return;
+
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    setIsPaused(false);
+  }, []);
+
+  return { speak, pauseResume, stop, isSpeaking, isPaused };
+};
 
 const Whiteboard = ({
   pdfName,
@@ -33,9 +104,22 @@ const Whiteboard = ({
   const [notesData, setNotesData] = useState(null);
   const [whiteboardCommands, setWhiteboardCommands] = useState([]);
 
+  // TTS state
+  const { speak, pauseResume, stop, isSpeaking, isPaused } = useTTS();
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [currentSpeakingStep, setCurrentSpeakingStep] = useState(null);
+
+  // Teaching mode state
+  const [teachingMode, setTeachingMode] = useState(true); // Start with new teaching mode
+  const [teachingSteps, setTeachingSteps] = useState([]);
+  const [currentTeachingStep, setCurrentTeachingStep] = useState(null);
+  const [currentTeachingStepIndex, setCurrentTeachingStepIndex] = useState(0);
+  const [isTeaching, setIsTeaching] = useState(false);
+
   const wsRef = useRef(null);
   const canvasRef = useRef(null);
   const timerRef = useRef(null);
+  const teachingCanvasRef = useRef(null);
 
   // Helper function to safely send WebSocket messages
   const sendWebSocketMessage = (message) => {
@@ -55,29 +139,43 @@ const Whiteboard = ({
 
   // WebSocket connection
   useEffect(() => {
+    // Prevent multiple connections
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log("WebSocket already connected, skipping reconnection");
+      return;
+    }
+    
     const connectWebSocket = () => {
       const wsUrl = `ws://localhost:8001/ws/teacher/`;
+      console.log("Creating new WebSocket connection to:", wsUrl);
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log("WebSocket connected");
+        console.log("WebSocket connected successfully");
         setIsConnected(true);
         setStatus("Connected! Starting lesson generation...");
 
         // Add a small delay to ensure WebSocket is fully ready
         setTimeout(() => {
-          // Send PDF data to start lesson generation
-          const pdfText = sessionStorage.getItem("pdfText");
-          const pdfFilename = sessionStorage.getItem("pdfFilename") || pdfName;
-          const message = {
-            topic: pdfName,
-            pdf_text: pdfText || "",
-            pdf_filename: pdfFilename,
-            user_id: currentUserId || "anonymous",
-            conversation_id: currentConversationId || null,
-          };
+          // Only send lesson generation request if we don't already have synchronized steps
+          if (teachingSteps.length === 0) {
+            // Send PDF data to start lesson generation
+            const pdfText = sessionStorage.getItem("pdfText");
+            const pdfFilename = sessionStorage.getItem("pdfFilename") || pdfName;
+            const message = {
+              topic: pdfName,
+              pdf_text: pdfText || "",
+              pdf_filename: pdfFilename,
+              user_id: currentUserId || "anonymous",
+              conversation_id: currentConversationId || null,
+            };
 
-          sendWebSocketMessage(message);
+            console.log("Sending lesson generation request via WebSocket");
+            sendWebSocketMessage(message);
+          } else {
+            console.log("Synchronized lesson already loaded, skipping automatic lesson generation");
+            setStatus("Ready - Synchronized lesson loaded");
+          }
         }, 100); // 100ms delay
       };
 
@@ -110,10 +208,11 @@ const Whiteboard = ({
     // Cleanup on unmount
     return () => {
       if (wsRef.current) {
+        console.log("Closing WebSocket connection on cleanup");
         wsRef.current.close();
       }
     };
-  }, [pdfName]);
+  }, []); // Remove pdfName dependency to prevent reconnections
 
   const handleWebSocketMessage = (data) => {
     console.log("Received WebSocket message:", data);
@@ -124,6 +223,53 @@ const Whiteboard = ({
         console.log("Status updated:", data.message);
         break;
 
+      case "lesson_start":
+        // Reset everything for new lesson
+        setSlides([]);
+        setCurrentSlide(0);
+        setCurrentSpeakingStep(null);
+        setTeachingSteps([]);
+        setCurrentTeachingStep(null);
+        setIsTeaching(false);
+        clearQueue();
+        setStatus(data.message || 'Generating lesson content...');
+        console.log("New lesson generation started");
+        break;
+        
+      case "generation_progress":
+        // Show generation progress
+        setStatus(data.status || `Generating... (${data.buffer_length} characters)`);
+        break;
+        
+      case "lesson_ready":
+        // All teaching steps received - now we can start synchronized lesson
+        console.log(`Lesson ready with ${data.total_steps} steps:`, data.teaching_steps);
+        
+        // Log each step for debugging
+        if (data.teaching_steps) {
+          data.teaching_steps.forEach((step, index) => {
+            console.log(`Step ${index + 1}:`, {
+              step: step.step,
+              speech_text: step.speech_text?.substring(0, 100) + "...",
+              drawing_commands: step.drawing_commands?.length || 0
+            });
+          });
+        }
+        
+        setTeachingSteps(data.teaching_steps || []);
+        setStatus(`Lesson ready! ${data.total_steps} steps prepared.`);
+        
+        // Auto-switch to teaching mode
+        setTeachingMode(true);
+        
+        // Auto-start the lesson after a brief delay (if autoPlay is enabled)
+        if (autoPlay) {
+          setTimeout(() => {
+            startSynchronizedLesson(data.teaching_steps || []);
+          }, 2000); // 2 second delay to let user see the "lesson ready" message
+        }
+        break;
+
       case "conversation_created":
         console.log("Conversation created:", data.conversation_id, data.title);
         // Notify parent component about new conversation
@@ -132,48 +278,98 @@ const Whiteboard = ({
         }
         break;
 
-      case "lesson_step":
-        const stepData = data.data;
-        console.log("Lesson step received:", stepData);
-        setLessonSteps((prev) => [...prev, stepData]);
+      case "teaching_step":
+        // Legacy support - but don't auto-start if we're using the new system
+        const teachingStepData = data.data;
+        console.log("Legacy teaching step received:", teachingStepData);
 
-        // Process whiteboard commands
-        if (stepData.whiteboard_commands) {
-          setWhiteboardCommands((prev) => [
-            ...prev,
-            ...stepData.whiteboard_commands,
-          ]);
-          executeWhiteboardCommands(stepData.whiteboard_commands);
-        }
+        // Only process if we don't already have synchronized steps
+        if (teachingSteps.length === 0) {
+          // Add to teaching steps array (legacy support)
+          setTeachingSteps((prev) => {
+            const newSteps = [...prev];
+            const existingIndex = newSteps.findIndex(s => s.step === teachingStepData.step);
+            if (existingIndex >= 0) {
+              newSteps[existingIndex] = teachingStepData;
+            } else {
+              newSteps.push(teachingStepData);
+              newSteps.sort((a, b) => a.step - b.step);
+            }
+            console.log("Legacy total teaching steps now:", newSteps.length);
+            return newSteps;
+          });
 
-        // Convert to slide format for UI
-        const slide = {
-          id: Date.now(),
-          title: `Step ${lessonSteps.length + 1}`,
-          content: stepData.text_explanation,
-          tts_text: stepData.tts_text,
-          commands: stepData.whiteboard_commands,
-        };
+          // Auto-switch to teaching mode when first step arrives (legacy behavior)
+          console.log("First legacy teaching step received, switching to teaching mode");
+          setTeachingMode(true);
+          setCurrentTeachingStep(teachingStepData);
+          setIsTeaching(true);
 
-        setSlides((prev) => {
-          const newSlides = [...prev, slide];
-          console.log("Slides updated, total count:", newSlides.length);
-          return newSlides;
-        });
-
-        // Start playing if this is the first step and not already playing
-        if (lessonSteps.length === 0 && !isPlaying) {
-          console.log("Auto-starting lesson playback for first slide");
-          setIsPlaying(true);
-          setCurrentSlide(0);
-          setStatus("Lesson started!");
+          // Start the teaching step after a short delay
+          setTimeout(() => {
+            startTeachingStep(teachingStepData, 0);
+          }, 500);
         } else {
-          console.log(
-            "Not auto-starting: lessonSteps.length =",
-            lessonSteps.length,
-            "isPlaying =",
-            isPlaying
-          );
+          console.log("Ignoring legacy teaching step - synchronized lesson already loaded");
+        }
+        break;
+
+      case "lesson_step":
+        // Legacy lesson step - disable if using new synchronized system
+        if (teachingSteps.length === 0) {
+          const stepData = data.data;
+          console.log("Legacy lesson step received:", stepData);
+          setLessonSteps((prev) => [...prev, stepData]);
+
+          // Process whiteboard commands
+          if (stepData.whiteboard_commands) {
+            setWhiteboardCommands((prev) => [
+              ...prev,
+              ...stepData.whiteboard_commands,
+            ]);
+            executeWhiteboardCommands(stepData.whiteboard_commands);
+          }
+
+          // Convert to slide format for UI
+          const slide = {
+            id: Date.now(),
+            title: `Step ${lessonSteps.length + 1}`,
+            content: stepData.text_explanation,
+            tts_text: stepData.tts_text || stepData.text_explanation,
+            commands: stepData.whiteboard_commands,
+          };
+
+          setSlides((prev) => {
+            const newSlides = [...prev, slide];
+            console.log("Legacy slides updated, total count:", newSlides.length);
+            return newSlides;
+          });
+
+          // Auto-speak the content if autoPlay is enabled
+          if (autoPlay && slide.tts_text) {
+            const stepNumber = lessonSteps.length + 1;
+            setCurrentSpeakingStep(stepNumber);
+            speak(slide.tts_text, () => {
+              setCurrentSpeakingStep(null);
+            });
+          }
+
+          // Start playing if this is the first step and not already playing
+          if (lessonSteps.length === 0 && !isPlaying) {
+            console.log("Auto-starting legacy lesson playback for first slide");
+            setIsPlaying(true);
+            setCurrentSlide(0);
+            setStatus("Lesson started!");
+          } else {
+            console.log(
+              "Not auto-starting: lessonSteps.length =",
+              lessonSteps.length,
+              "isPlaying =",
+              isPlaying
+            );
+          }
+        } else {
+          console.log("Ignoring legacy lesson step - synchronized lesson already loaded");
         }
         break;
 
@@ -185,8 +381,16 @@ const Whiteboard = ({
         break;
 
       case "lesson_end":
-        setStatus("Lesson generation completed!");
-        // Lesson will auto-advance through slides, user can manually start quiz when ready
+        // Only process lesson_end for legacy lessons, ignore for synchronized lessons
+        if (teachingSteps.length === 0) {
+          setStatus("Lesson generation completed!");
+          if (autoPlay) {
+            speak("Lesson completed. Great job!", () => {});
+          }
+          // Lesson will auto-advance through slides, user can manually start quiz when ready
+        } else {
+          console.log("Ignoring legacy lesson_end - synchronized lesson already loaded");
+        }
         break;
 
       case "error":
@@ -382,6 +586,183 @@ const Whiteboard = ({
     });
   };
 
+  // Manual speak function for current slide
+  const speakCurrentSlide = useCallback(() => {
+    if (slides[currentSlide] && slides[currentSlide].tts_text) {
+      setCurrentSpeakingStep(currentSlide + 1);
+      speak(slides[currentSlide].tts_text, () => {
+        setCurrentSpeakingStep(null);
+      });
+    }
+  }, [slides, currentSlide, speak]);
+
+  // Teaching step management functions
+  // Synchronized lesson playback functions
+  const startSynchronizedLesson = useCallback((steps) => {
+    if (!steps || steps.length === 0) return;
+    
+    console.log(`Starting synchronized lesson with ${steps.length} steps`);
+    setCurrentTeachingStepIndex(0);
+    setStatus('Lesson starting...');
+    
+    // Start with first step
+    setTimeout(() => {
+      startTeachingStep(steps[0], 0);
+    }, 1000);
+  }, []);
+
+  const playLesson = useCallback(() => {
+    if (teachingSteps.length > 0) {
+      startSynchronizedLesson(teachingSteps);
+    }
+  }, [teachingSteps, startSynchronizedLesson]);
+
+  const pauseLesson = useCallback(() => {
+    stop(); // Stop current speech
+    setStatus('Lesson paused');
+  }, [stop]);
+
+  const nextStep = useCallback(() => {
+    const nextIndex = currentTeachingStepIndex + 1;
+    if (nextIndex < teachingSteps.length) {
+      stop(); // Stop current speech
+      startTeachingStep(teachingSteps[nextIndex], nextIndex);
+    }
+  }, [currentTeachingStepIndex, teachingSteps, stop]);
+
+  const previousStep = useCallback(() => {
+    const prevIndex = currentTeachingStepIndex - 1;
+    if (prevIndex >= 0) {
+      stop(); // Stop current speech
+      startTeachingStep(teachingSteps[prevIndex], prevIndex);
+    }
+  }, [currentTeachingStepIndex, teachingSteps, stop]);
+
+  const startTeachingStep = useCallback(
+    (step, stepIndex) => {
+      if (!step) {
+        console.log("No step provided to startTeachingStep");
+        return;
+      }
+
+      console.log(`Starting teaching step ${step.step}: ${step.speech_text?.substring(0, 50)}...`);
+      setCurrentSpeakingStep(step.step);
+      setCurrentTeachingStepIndex(stepIndex !== undefined ? stepIndex : 0);
+      setCurrentTeachingStep(step);
+
+      // Ensure we have speech text
+      const speechText = step.speech_text || "Let me explain this concept to you.";
+
+      // Start speech with improved error handling
+      speak(speechText, () => {
+        console.log("Speech completed for step:", step.step);
+        setCurrentSpeakingStep(null);
+
+        // Automatically move to next step after a pause (if autoPlay is enabled)
+        setTimeout(() => {
+          const nextStepIndex = (stepIndex !== undefined ? stepIndex : 0) + 1;
+          if (nextStepIndex < teachingSteps.length && autoPlay) {
+            startTeachingStep(teachingSteps[nextStepIndex], nextStepIndex);
+          } else {
+            // All steps completed
+            setStatus('Lesson completed! Great job!');
+            setIsTeaching(false);
+            if (autoPlay) {
+              speak("Lesson completed. Great job! You can review the lesson or start a new one.");
+            }
+          }
+        }, 2000); // 2 second pause between steps
+      }, true);
+
+      // Start drawing commands with proper timing
+      if (step.drawing_commands && step.drawing_commands.length > 0) {
+        step.drawing_commands.forEach(command => {
+          setTimeout(() => {
+            // Send drawing command to TeachingCanvas
+            if (teachingCanvasRef.current) {
+              teachingCanvasRef.current.addDrawingCommand(command);
+            }
+          }, command.time || 0);
+        });
+      }
+    },
+    [teachingSteps, speak, autoPlay, stop]
+  );
+
+  // Legacy startTeachingStep function for backward compatibility
+  const startTeachingStepLegacy = useCallback(
+    (step) => {
+      if (!step) {
+        console.log("No step provided to startTeachingStep");
+        return;
+      }
+
+      console.log(
+        "Starting teaching step:",
+        step.step,
+        "Speech text:",
+        step.speech_text?.substring(0, 50) + "..."
+      );
+      setCurrentSpeakingStep(step.step);
+
+      // Ensure we have speech text
+      const speechText =
+        step.speech_text || "Let me explain this concept to you.";
+
+      // Start speech with improved error handling
+      speak(speechText, () => {
+        console.log("Speech completed for step:", step.step);
+        setCurrentSpeakingStep(null);
+
+        // Auto-advance to next step if available
+        const currentIndex = teachingSteps.findIndex(
+          (s) => s.step === step.step
+        );
+        console.log(
+          "Current step index:",
+          currentIndex,
+          "Total steps:",
+          teachingSteps.length
+        );
+
+        if (currentIndex >= 0 && currentIndex < teachingSteps.length - 1) {
+          setTimeout(() => {
+            const nextStep = teachingSteps[currentIndex + 1];
+            console.log("Auto-advancing to next step:", nextStep.step);
+            setCurrentTeachingStep(nextStep);
+            startTeachingStepLegacy(nextStep);
+          }, 1500); // 1.5 second pause between steps
+        } else {
+          console.log("No more steps to advance to, ending teaching session");
+          setIsTeaching(false);
+        }
+      });
+    },
+    [speak, teachingSteps]
+  );
+
+  const handleTeachingStepComplete = useCallback(() => {
+    console.log("Teaching step drawing completed");
+    // Drawing animation completed, but speech might still be ongoing
+  }, []);
+
+  const switchToTeachingMode = useCallback(() => {
+    setTeachingMode(true);
+    // Start with first teaching step if available
+    if (teachingSteps.length > 0 && !isTeaching) {
+      setCurrentTeachingStep(teachingSteps[0]);
+      setIsTeaching(true);
+      startTeachingStep(teachingSteps[0]);
+    }
+  }, [teachingSteps, isTeaching, startTeachingStep]);
+
+  const switchToSlideMode = useCallback(() => {
+    setTeachingMode(false);
+    stop(); // Stop any ongoing speech
+    setIsTeaching(false);
+    setCurrentTeachingStep(null);
+  }, [stop]);
+
   return (
     <div
       className={`relative h-screen overflow-hidden ${
@@ -411,6 +792,125 @@ const Whiteboard = ({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-300 text-sm">{status}</span>
+
+            {/* Audio Controls */}
+            <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
+              <button
+                onClick={() => setAutoPlay(!autoPlay)}
+                className={`px-3 py-1 rounded text-xs transition-colors ${
+                  autoPlay
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "bg-slate-600 hover:bg-slate-500 text-slate-300"
+                }`}
+                title={`Auto-speak: ${autoPlay ? "ON" : "OFF"}`}
+              >
+                <Volume2 size={14} />
+              </button>
+
+              <button
+                onClick={speakCurrentSlide}
+                disabled={isSpeaking}
+                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs disabled:opacity-50 transition-colors"
+                title="Speak current slide"
+              >
+                🔊
+              </button>
+
+              <button
+                onClick={pauseResume}
+                disabled={!isSpeaking}
+                className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-xs disabled:opacity-50 transition-colors"
+                title={isPaused ? "Resume" : "Pause"}
+              >
+                {isPaused ? "▶️" : "⏸️"}
+              </button>
+
+              <button
+                onClick={stop}
+                disabled={!isSpeaking}
+                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs disabled:opacity-50 transition-colors"
+                title="Stop speaking"
+              >
+                <Square size={12} />
+              </button>
+
+              {currentSpeakingStep && (
+                <span className="text-xs text-blue-300">
+                  🔊 Step {currentSpeakingStep}
+                </span>
+              )}
+            </div>
+
+            {/* Mode Toggle */}
+            <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
+              <button
+                onClick={
+                  teachingMode ? switchToSlideMode : switchToTeachingMode
+                }
+                className={`px-3 py-1 rounded text-xs transition-colors ${
+                  teachingMode
+                    ? "bg-purple-600 hover:bg-purple-700 text-white"
+                    : "bg-slate-600 hover:bg-slate-500 text-slate-300"
+                }`}
+                title={`Mode: ${
+                  teachingMode ? "Interactive Teaching" : "Static Slides"
+                }`}
+              >
+                <Layers size={14} className="mr-1" />
+                {teachingMode ? "Teaching" : "Slides"}
+              </button>
+
+              {teachingSteps.length > 0 && (
+                <span className="text-xs text-slate-400">
+                  {teachingSteps.length} steps
+                </span>
+              )}
+            </div>
+
+            {/* Synchronized Teaching Controls */}
+            {teachingMode && teachingSteps.length > 0 && (
+              <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
+                <button
+                  onClick={playLesson}
+                  disabled={isSpeaking}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Start lesson"
+                >
+                  ▶️ Play
+                </button>
+                
+                <button
+                  onClick={pauseLesson}
+                  disabled={!isSpeaking}
+                  className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Pause lesson"
+                >
+                  ⏸️ Pause
+                </button>
+                
+                <button
+                  onClick={previousStep}
+                  disabled={currentTeachingStepIndex <= 0 || isSpeaking}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Previous step"
+                >
+                  ⏮️ Prev
+                </button>
+                
+                <button
+                  onClick={nextStep}
+                  disabled={currentTeachingStepIndex >= teachingSteps.length - 1 || isSpeaking}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Next step"
+                >
+                  ⏭️ Next
+                </button>
+                
+                <span className="text-sm text-slate-400">
+                  Step {currentTeachingStepIndex + 1} / {teachingSteps.length}
+                </span>
+              </div>
+            )}
 
             {/* Quiz button - show when lesson is completed and quiz data is available */}
             {!isPlaying && quizData && (
@@ -452,7 +952,11 @@ const Whiteboard = ({
         }`}
       >
         <motion.div
-          key={currentSlide}
+          key={
+            teachingMode
+              ? `teaching-${currentTeachingStep?.step || 0}`
+              : `slide-${currentSlide}`
+          }
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
@@ -460,77 +964,56 @@ const Whiteboard = ({
             isFullscreen ? "max-w-none max-h-none h-full" : "max-w-4xl"
           }`}
         >
-          {/* Canvas for whiteboard commands */}
-          <canvas
-            ref={canvasRef}
-            width={1200}
-            height={800}
-            className="absolute inset-0 w-full h-full"
-            style={{ imageRendering: "crisp-edges" }}
-          />
+          {teachingMode ? (
+            /* Interactive Teaching Canvas */
+            <TeachingCanvas
+              ref={teachingCanvasRef}
+              teachingStep={currentTeachingStep}
+              isPlaying={isTeaching}
+              onStepComplete={handleTeachingStepComplete}
+              canvasWidth={isFullscreen ? window.innerWidth * 0.9 : 800}
+              canvasHeight={isFullscreen ? window.innerHeight * 0.7 : 600}
+            />
+          ) : (
+            /* Traditional Slide Mode */
+            <>
+              {/* Canvas for whiteboard commands */}
+              <canvas
+                ref={canvasRef}
+                width={1200}
+                height={800}
+                className="absolute inset-0 w-full h-full"
+                style={{ imageRendering: "crisp-edges" }}
+              />
 
-          {/* Content overlay */}
-          <div className="relative z-10 text-center p-8">
-            {slides.length > 0 && slides[currentSlide] ? (
-              <>
-                <h2
-                  className={`font-bold text-slate-800 mb-4 ${
-                    isFullscreen ? "text-4xl mb-6" : "text-3xl"
-                  }`}
-                >
-                  {slides[currentSlide].title}
-                </h2>
-                <p
-                  className={`text-slate-600 ${
-                    isFullscreen ? "text-2xl" : "text-xl"
-                  }`}
-                >
-                  {slides[currentSlide].content}
-                </p>
-                <div
-                  className={`text-slate-500 ${
-                    isFullscreen ? "mt-8 text-lg" : "mt-6 text-sm"
-                  }`}
-                >
-                  Slide {currentSlide + 1} of {slides.length}
-                </div>
-              </>
-            ) : (
-              <div className="text-center">
-                {/* Enhanced Loading UI */}
-                <div className="flex flex-col items-center space-y-6">
-                  {/* Animated Loading Spinner */}
-                  <div className="relative">
-                    <div className="w-16 h-16 border-4 border-slate-300 rounded-full animate-spin border-t-blue-500"></div>
-                    <div className="absolute inset-0 w-16 h-16 border-4 border-transparent rounded-full animate-pulse border-t-blue-400"></div>
-                  </div>
-
-                  {/* Status Text */}
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-semibold text-slate-800">
-                      Generating AI Lesson
-                    </h3>
-                    <p className="text-slate-600 text-lg max-w-md mx-auto">
-                      {status}
+              {/* Content overlay */}
+              <div className="relative z-10 text-center p-8">
+                {slides.length > 0 && slides[currentSlide] ? (
+                  <>
+                    <h2
+                      className={`font-bold text-slate-800 mb-4 ${
+                        isFullscreen ? "text-4xl mb-6" : "text-3xl"
+                      }`}
+                    >
+                      {slides[currentSlide].title}
+                    </h2>
+                    <p
+                      className={`text-slate-600 ${
+                        isFullscreen ? "text-2xl leading-relaxed" : "text-xl"
+                      }`}
+                    >
+                      {slides[currentSlide].content}
                     </p>
-                    {isConnected && (
-                      <div className="flex items-center justify-center mt-3 space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-green-600 text-sm">
-                          Connected
-                        </span>
-                      </div>
-                    )}
+                  </>
+                ) : (
+                  <div className="text-slate-400">
+                    <div className="text-6xl mb-4">📚</div>
+                    <p className="text-xl">Upload a PDF to start your lesson</p>
                   </div>
-
-                  {/* Progress Animation */}
-                  <div className="w-48 h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full animate-pulse"></div>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </motion.div>
       </div>
 
@@ -600,15 +1083,22 @@ const Whiteboard = ({
                 <button
                   key={slide.id}
                   onClick={() => handleSlideClick(index)}
-                  className={`flex-shrink-0 w-16 h-12 rounded-lg transition-all duration-200 ${
+                  className={`relative flex-shrink-0 w-16 h-12 rounded-lg transition-all duration-200 ${
                     index === currentSlide
                       ? "bg-blue-500 ring-2 ring-blue-400 scale-110"
                       : "bg-slate-700/60 hover:bg-slate-600/60"
+                  } ${
+                    currentSpeakingStep === index + 1
+                      ? "ring-2 ring-green-400 animate-pulse"
+                      : ""
                   }`}
                 >
                   <div className="text-xs text-white font-medium flex items-center justify-center h-full">
                     {index + 1}
                   </div>
+                  {currentSpeakingStep === index + 1 && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-ping"></div>
+                  )}
                 </button>
               ))}
             </div>

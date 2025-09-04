@@ -4,6 +4,7 @@ import json
 import re
 import logging
 from typing import Optional
+from datetime import datetime
 from bson import ObjectId
 
 import google.generativeai as genai
@@ -97,6 +98,37 @@ def strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+def clean_text_for_speech(text: str) -> str:
+    """Clean text to make it more suitable for speech synthesis"""
+    if not text:
+        return ""
+    
+    # Remove markdown formatting
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Bold
+    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italic  
+    text = re.sub(r'`(.*?)`', r'\1', text)        # Code
+    
+    # Replace abbreviations with full words
+    text = text.replace('e.g.', 'for example')
+    text = text.replace('i.e.', 'that is')
+    text = text.replace('etc.', 'and so on')
+    text = text.replace('vs.', 'versus')
+    text = text.replace('w/', 'with')
+    text = text.replace('w/o', 'without')
+    
+    # Add pauses for better speech rhythm
+    text = re.sub(r'\.', '. ', text)
+    text = re.sub(r'\?', '? ', text)
+    text = re.sub(r'!', '! ', text)
+    text = re.sub(r';', '; ', text)
+    text = re.sub(r':', ': ', text)
+    
+    # Clean up extra spaces
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
+
+
 class TeacherConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
@@ -108,6 +140,8 @@ class TeacherConsumer(AsyncWebsocketConsumer):
         self._buffer = ""
         self._seen_hashes = set()
         self.current_conversation_id = None
+        self.is_generating = False  # Prevent duplicate processing
+        self.teaching_steps = []    # Buffer for synchronized lesson
         await self.send_json({"type": "status", "message": "Connected! Ready for a topic or PDF."})
 
     async def disconnect(self, close_code):
@@ -115,6 +149,12 @@ class TeacherConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data=None, bytes_data=None):
         print(f"DEBUG: Received WebSocket message: {text_data[:200]}...")
+        
+        # Prevent duplicate processing
+        if hasattr(self, 'is_generating') and self.is_generating:
+            print("DEBUG: Lesson generation already in progress, ignoring duplicate request")
+            return
+            
         try:
             payload = json.loads(text_data)
             topic = payload.get("topic", "").strip()
@@ -128,6 +168,21 @@ class TeacherConsumer(AsyncWebsocketConsumer):
             if not topic and not pdf_text:
                 await self.send_json({"type": "error", "message": "Please provide a topic or a PDF."})
                 return
+
+            # Set generation flag
+            self.is_generating = True
+            
+            # Reset for new lesson
+            self._buffer = ""
+            self._seen_hashes = set()
+            self.teaching_steps = []
+            
+            # Send lesson start message
+            await self.send_json({
+                "type": "lesson_start", 
+                "message": f"Generating lesson content for: {topic or pdf_filename}",
+                "status": "generating"
+            })
 
             # Create or get conversation
             if conversation_id:
@@ -189,96 +244,18 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                 max_pdf_text_length = 15000 
                 lesson_content += f"\n\nUse the following content to create the lesson:\n\n---\n{pdf_text[:max_pdf_text_length]}\n---"
 
+            # Generate lesson content synchronously
+            await self.generate_complete_lesson(lesson_content)
+
         except json.JSONDecodeError:
             print("DEBUG: JSON decode error")
             await self.send_json({"type": "error", "message": "Invalid JSON payload."})
+            self.is_generating = False
             return
-
-        prompt_template = PromptTemplate(
-            input_variables=["lesson_content", "step_start", "step_end", "lesson_end"],
-            template=(
-                "You are an engaging AI Virtual Teacher. Your student is a complete beginner. "
-                "Your task is to create a simple, step-by-step lesson based on the provided content:\n'{lesson_content}'.\n\n"
-                "**VERY IMPORTANT RULES**:\n"
-                "1.  Break the lesson into 4-8 small, easily digestible steps.\n"
-                "2.  For each step, generate a JSON object wrapped between the exact markers {step_start} and {step_end}.\n"
-                "3.  After the final step, generate one last JSON object for notes and a quiz, also wrapped in the markers.\n"
-                "4.  End the entire generation with the single token {lesson_end} on a new line.\n"
-                "5.  Use the whiteboard creatively! Use shapes to create diagrams, use text of different sizes and colors, and arrows to show connections. Make it feel like a real teacher at a whiteboard.\n\n"
-                "**JSON Schemas**:\n\n"
-                "// For a lesson step:\n"
-                "{{\n"
-                '  "text_explanation": "Simple explanation for the student.",\n'
-                '  "tts_text": "Slightly more conversational text for text-to-speech.",\n'
-                '  "whiteboard_commands": [ /* Array of whiteboard drawing commands */ ]\n'
-                "}}\n\n"
-                "// For the final notes & quiz object:\n"
-                "{{\n"
-                '  "notes_and_quiz_ready": {{\n'
-                '      "notes_content": "<h2>Key Takeaways</h2><ul><li>...</li></ul>",\n'
-                '      "quiz": [ {{ "question": "...", "options":[...], "correct": 0, "feedback":"..." }} ]\n'
-                "  }}\n"
-                "}}\n\n"
-                "Now, begin the lesson.\n"
-            )
-        )
-
-        prompt = prompt_template.format(lesson_content=lesson_content, step_start=STEP_START, step_end=STEP_END, lesson_end=LESSON_END)
-
-        await self.send_json({"type": "status", "message": "Generating lesson..."})
-
-        try:
-            print("DEBUG: Starting Google Generative AI model call...")
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            print("DEBUG: Model created, starting stream...")
-            
-            # Add error handling for AI generation
-            try:
-                stream = await model.generate_content_async(prompt, stream=True)
-                print("DEBUG: Stream started, processing chunks...")
-
-                chunk_count = 0
-                async for chunk in stream:
-                    chunk_count += 1
-                    print(f"DEBUG: Processing chunk {chunk_count}")
-                    text = getattr(chunk, "text", "") or ""
-                    print(f"DEBUG: Chunk text length: {len(text)}")
-                    if not text:
-                        print("DEBUG: Empty chunk, continuing...")
-                        continue
-                    self._buffer += text
-                    print(f"DEBUG: Buffer length now: {len(self._buffer)}")
-
-                    if len(self._buffer) % 100 < 20:
-                         await self.send_json({"type": "status", "message": f"Streaming... (buf {len(self._buffer)})"})
-                    
-                    # Process lesson steps as they arrive
-                    await self.process_buffer_for_steps()
-                    
-            except Exception as ai_error:
-                print(f"DEBUG: AI generation error: {ai_error}")
-                await self.send_json({"type": "error", "message": f"AI service error: {str(ai_error)}"})
-                return
-
-            # Process any remaining content in buffer
-            await self.process_buffer_for_steps()
-            
-            print(f"DEBUG: Stream finished. Total chunks: {chunk_count}, final buffer length: {len(self._buffer)}")
-            
-            # Check for lesson end marker
-            if LESSON_END in self._buffer:
-                print("DEBUG: Found lesson end marker")
-            else:
-                print("DEBUG: No lesson end marker found")
-
         except Exception as e:
-            print(f"DEBUG: Exception occurred: {str(e)}")
-            logger.exception("Error during lesson generation: %s", e)
-            preview = (self._buffer[:2000] + "...") if len(self._buffer) > 2000 else self._buffer
-            await self.send_json({"type": "error", "message": f"An error occurred: {str(e)}", "raw_preview": preview})
-        finally:
-            # FIX: Ensure the client UI is re-enabled even if generation finishes abruptly
-            await self.send_json({"type": "lesson_end", "message": "Lesson generation finished."})
+            print(f"DEBUG: Error in receive: {e}")
+            await self.send_json({"type": "error", "message": f"Error processing request: {str(e)}"})
+            self.is_generating = False
 
     async def process_buffer_for_steps(self):
         """Process buffer for complete lesson steps and send them to frontend"""
@@ -358,6 +335,212 @@ class TeacherConsumer(AsyncWebsocketConsumer):
             
             self._buffer = self._buffer[e + len(STEP_END):]
             start = 0
+
+    async def generate_complete_lesson(self, lesson_content):
+        """Generate complete lesson content and send synchronized steps"""
+        try:
+            prompt_template = PromptTemplate(
+                input_variables=["lesson_content", "step_start", "step_end", "lesson_end"],
+                template=(
+                    "You are an engaging AI Virtual Teacher with a whiteboard. Create an interactive visual lesson based on: '{lesson_content}'.\n\n"
+                    "**CRITICAL FORMAT REQUIREMENTS**:\n"
+                    "1. Create exactly 4-6 teaching steps, each with proper JSON format.\n"
+                    "2. Each step MUST be wrapped between {step_start} and {step_end} markers.\n"
+                    "3. Use this EXACT JSON format for each step:\n\n"
+                    "{step_start}\n"
+                    "{{\n"
+                    '  "step": 1,\n'
+                    '  "speech_text": "Hello everyone! Today we will learn about [topic]. Let me start by writing the main concept on our whiteboard.",\n'
+                    '  "speech_duration": 8000,\n'
+                    '  "drawing_commands": [\n'
+                    '    {{\n'
+                    '      "time": 1000,\n'
+                    '      "action": "draw_text",\n'
+                    '      "text": "Main Topic Title",\n'
+                    '      "x": 400,\n'
+                    '      "y": 80,\n'
+                    '      "fontSize": 32,\n'
+                    '      "color": "#2563eb",\n'
+                    '      "fontStyle": "bold"\n'
+                    '    }},\n'
+                    '    {{\n'
+                    '      "time": 4000,\n'
+                    '      "action": "draw_rectangle",\n'
+                    '      "x": 200,\n'
+                    '      "y": 150,\n'
+                    '      "width": 400,\n'
+                    '      "height": 100,\n'
+                    '      "color": "#059669",\n'
+                    '      "strokeWidth": 3\n'
+                    '    }}\n'
+                    '  ]\n'
+                    "}}\n"
+                    "{step_end}\n\n"
+                    "**SPEECH GUIDELINES**:\n"
+                    "- Make speech natural and conversational (like 'Hello everyone!', 'Now let me show you...', 'As you can see here...')\n"
+                    "- Speech should be 6-10 seconds long (speech_duration: 6000-10000)\n"
+                    "- Explain what you're drawing as you draw it\n"
+                    "- Use encouraging teacher language\n\n"
+                    "**DRAWING COMMANDS**:\n"
+                    "- draw_text: {{'action': 'draw_text', 'text': 'Your Text', 'x': 400, 'y': 100, 'fontSize': 24, 'color': '#333', 'fontStyle': 'normal'}}\n"
+                    "- draw_rectangle: {{'action': 'draw_rectangle', 'x': 100, 'y': 100, 'width': 200, 'height': 100, 'color': '#0066cc', 'strokeWidth': 2}}\n"
+                    "- draw_circle: {{'action': 'draw_circle', 'x': 200, 'y': 200, 'radius': 50, 'color': '#dc2626', 'strokeWidth': 2}}\n"
+                    "- draw_arrow: {{'action': 'draw_arrow', 'points': [100, 100, 200, 200], 'color': '#059669', 'strokeWidth': 3}}\n\n"
+                    "**COORDINATE SYSTEM**: Canvas is 800x600, (0,0) is top-left\n"
+                    "**TIMING**: time in milliseconds from speech start (0 = immediately, 3000 = after 3 seconds)\n\n"
+                    "Create a complete lesson with clear step-by-step teaching, then end with {lesson_end}.\n"
+                )
+            )
+
+            prompt = prompt_template.format(lesson_content=lesson_content, step_start=STEP_START, step_end=STEP_END, lesson_end=LESSON_END)
+
+            await self.send_json({"type": "generation_progress", "status": "Starting AI generation...", "buffer_length": 0})
+
+            print("DEBUG: Starting Google Generative AI model call...")
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            print("DEBUG: Model created, starting stream...")
+            
+            # Generate complete content first
+            full_content = ""
+            chunk_count = 0
+            
+            try:
+                stream = await model.generate_content_async(prompt, stream=True)
+                print("DEBUG: Stream started, processing chunks...")
+
+                async for chunk in stream:
+                    chunk_count += 1
+                    print(f"DEBUG: Processing chunk {chunk_count}")
+                    text = getattr(chunk, "text", "") or ""
+                    print(f"DEBUG: Chunk text length: {len(text)}")
+                    
+                    if not text:
+                        print("DEBUG: Empty chunk, continuing...")
+                        continue
+                        
+                    full_content += text
+                    print(f"DEBUG: Full content length now: {len(full_content)}")
+
+                    # Send progress updates
+                    if len(full_content) % 200 < 50:  # Update every ~200 characters
+                        await self.send_json({
+                            "type": "generation_progress", 
+                            "buffer_length": len(full_content),
+                            "status": f"Generating... ({len(full_content)} characters)"
+                        })
+                        
+            except Exception as ai_error:
+                print(f"DEBUG: AI generation error: {ai_error}")
+                await self.send_json({"type": "error", "message": f"AI service error: {str(ai_error)}"})
+                return
+
+            print(f"DEBUG: Complete content generated, length: {len(full_content)}")
+            
+            # Process all teaching steps at once
+            teaching_steps = await self.parse_all_teaching_steps(full_content)
+            
+            if teaching_steps:
+                # Send all steps to frontend for synchronized playback
+                await self.send_json({
+                    "type": "lesson_ready",
+                    "total_steps": len(teaching_steps),
+                    "teaching_steps": teaching_steps,
+                    "message": f"Lesson ready with {len(teaching_steps)} steps"
+                })
+                
+                # Store the lesson in database
+                await self.store_lesson_steps(teaching_steps)
+                
+                print(f"DEBUG: Lesson sent with {len(teaching_steps)} synchronized steps")
+            else:
+                await self.send_json({
+                    "type": "error",
+                    "message": "Failed to parse teaching steps from generated content"
+                })
+
+        except Exception as e:
+            print(f"DEBUG: Error in lesson generation: {e}")
+            await self.send_json({"type": "error", "message": f"Error generating lesson: {str(e)}"})
+        finally:
+            # Reset generation flag
+            self.is_generating = False
+            # Only send lesson_end if we actually generated content (not for duplicate requests)
+            if hasattr(self, 'teaching_steps') and len(self.teaching_steps) > 0:
+                await self.send_json({"type": "lesson_end", "message": "Lesson generation finished."})
+            else:
+                print("DEBUG: Skipping lesson_end - no content generated (likely duplicate request)")
+
+    async def parse_all_teaching_steps(self, content):
+        """Parse all teaching steps from complete content"""
+        teaching_steps = []
+        
+        try:
+            # Look for step blocks in the content
+            start = 0
+            while True:
+                s = content.find(STEP_START, start)
+                if s == -1:
+                    break
+                e = content.find(STEP_END, s + len(STEP_START))
+                if e == -1:
+                    break
+                
+                print(f"DEBUG: Found step block from {s} to {e}")
+                block = content[s + len(STEP_START): e]
+                
+                try:
+                    # Clean and parse the JSON
+                    clean_block = strip_code_fences(block.strip())
+                    step_data = json.loads(clean_block)
+                    
+                    # Validate required fields
+                    if all(key in step_data for key in ['step', 'speech_text', 'speech_duration', 'drawing_commands']):
+                        # Clean speech text
+                        step_data['speech_text'] = clean_text_for_speech(step_data['speech_text'])
+                        teaching_steps.append(step_data)
+                        print(f"DEBUG: Parsed teaching step {step_data.get('step', len(teaching_steps))}")
+                    else:
+                        print(f"DEBUG: Invalid step format: {step_data}")
+                        
+                except json.JSONDecodeError as json_error:
+                    print(f"DEBUG: JSON parse error for step: {json_error}")
+                    print(f"DEBUG: Block content: {block[:200]}...")
+                    
+                start = e + len(STEP_END)
+                
+        except Exception as e:
+            print(f"DEBUG: Error parsing teaching steps: {e}")
+        
+        # Sort steps by step number
+        teaching_steps.sort(key=lambda x: x.get('step', 0))
+        print(f"DEBUG: Total teaching steps parsed: {len(teaching_steps)}")
+        
+        return teaching_steps
+
+    async def store_lesson_steps(self, teaching_steps):
+        """Store all teaching steps in database"""
+        if not self.current_conversation_id or messages is None:
+            print("DEBUG: Skipping database storage - no conversation ID or MongoDB unavailable")
+            return
+            
+        try:
+            for step in teaching_steps:
+                message_doc = {
+                    "conversation_id": self.current_conversation_id,
+                    "sender": "ai",
+                    "content": step['speech_text'],
+                    "message_type": "teaching_step",
+                    "step_data": step,
+                    "timestamp": datetime.utcnow()
+                }
+                
+                try:
+                    await messages.insert_one(message_doc)
+                except Exception as e:
+                    print(f"DEBUG: Error storing step {step.get('step')}: {e}")
+                    
+        except Exception as e:
+            print(f"DEBUG: Error storing lesson steps: {e}")
 
 
     async def send_json(self, obj):
