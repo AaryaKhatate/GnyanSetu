@@ -22,20 +22,38 @@ const TeachingCanvas = forwardRef(
   ) => {
     const [drawnElements, setDrawnElements] = useState([]);
     const [currentElementIndex, setCurrentElementIndex] = useState(0);
+    const [nextTextY, setNextTextY] = useState(60); // Track next available Y position for text
+    const [nextShapeY, setNextShapeY] = useState(80); // Track next available Y position for shapes
     const stageRef = useRef();
     const animationTimeoutRef = useRef();
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
       addDrawingCommand: (command) => {
-        const element = createElementFromCommand(command);
+        const element = createElementFromCommand(command, drawnElements.length);
         if (element) {
-          setDrawnElements((prev) => [...prev, element]);
+          setDrawnElements(prev => {
+            const newElements = [...prev, element];
+            
+            // Update position trackers
+            if (element.type === 'text') {
+              const textHeight = (element.fontSize || 18) + 20;
+              const lines = Math.ceil(element.text.length / 50);
+              setNextTextY(prev => prev + (textHeight * lines) + 10);
+            } else if (element.type === 'rect' || element.type === 'circle') {
+              const elementHeight = element.type === 'rect' ? element.height : element.radius * 2;
+              setNextShapeY(prev => prev + elementHeight + 30);
+            }
+            
+            return newElements;
+          });
         }
       },
       clearCanvas: () => {
         setDrawnElements([]);
         setCurrentElementIndex(0);
+        setNextTextY(60);
+        setNextShapeY(80);
       },
     }));
 
@@ -45,6 +63,9 @@ const TeachingCanvas = forwardRef(
         // Force clear canvas and reset state for new step
         setDrawnElements([]);
         setCurrentElementIndex(0);
+        // Reset position trackers
+        setNextTextY(60);
+        setNextShapeY(80);
 
         // Clear any pending animations
         if (animationTimeoutRef.current) {
@@ -99,14 +120,25 @@ const TeachingCanvas = forwardRef(
         const delay = command.time || commandIndex * 1000; // Default 1 second between commands
 
         animationTimeoutRef.current = setTimeout(() => {
-          // Add the new element to drawn elements
-          const element = createElementFromCommand(command, commandIndex);
-          if (element) {
-            setDrawnElements((prev) => [...prev, element]);
-            setCurrentElementIndex(commandIndex + 1);
-          }
-
-          commandIndex++;
+        const element = createElementFromCommand(command, commandIndex);
+        if (element) {
+          setDrawnElements((prev) => {
+            const newElements = [...prev, element];
+            
+            // Update position trackers based on element type
+            if (element.type === 'text') {
+              const textHeight = (element.fontSize || 18) + 20; // fontSize + padding
+              const lines = Math.ceil(element.text.length / 50); // Estimate lines
+              setNextTextY(prev => prev + (textHeight * lines) + 10);
+            } else if (element.type === 'rect' || element.type === 'circle') {
+              const elementHeight = element.type === 'rect' ? element.height : element.radius * 2;
+              setNextShapeY(prev => prev + elementHeight + 30);
+            }
+            
+            return newElements;
+          });
+          setCurrentElementIndex(commandIndex + 1);
+        }          commandIndex++;
           executeNextCommand();
         }, delay);
       };
@@ -120,62 +152,90 @@ const TeachingCanvas = forwardRef(
         key: `element-${index}`,
       };
 
+      // Use current position trackers to prevent overlapping
+      const getNextPosition = (elementType) => {
+        const margin = 30;
+        
+        switch (elementType) {
+          case 'text':
+            return {
+              x: margin,
+              y: nextTextY
+            };
+            
+          case 'shape':
+            return {
+              x: canvasWidth - 250,
+              y: nextShapeY
+            };
+            
+          default:
+            return {
+              x: margin,
+              y: nextTextY
+            };
+        }
+      };
+
       switch (command.action) {
         case "draw_text":
+          const textPos = getNextPosition('text');
+          const fontSize = command.fontSize || 18;
+          
           return {
             ...baseProps,
             type: "text",
-            x: command.x || 50,
-            y: command.y || 50,
+            x: textPos.x,
+            y: textPos.y,
             text: command.text || "",
-            fontSize: command.fontSize || (command.style === "title" ? 24 : 16),
+            fontSize: fontSize,
             fontFamily: command.fontFamily || "Arial",
-            fontStyle:
-              command.fontStyle ||
-              (command.style === "title" ? "bold" : "normal"),
+            fontStyle: command.fontStyle || "normal",
             fill: command.color || "#000000",
+            width: canvasWidth - textPos.x - 280, // Leave space for shapes on right
           };
 
         case "draw_rectangle":
+          const rectPos = getNextPosition('shape');
           return {
             ...baseProps,
             type: "rect",
-            x: command.x || 50,
-            y: command.y || 50,
-            width: command.width || 100,
-            height: command.height || 60,
+            x: rectPos.x,
+            y: rectPos.y,
+            width: Math.min(command.width || 150, 200),
+            height: Math.min(command.height || 80, 100),
             fill: command.fill || "transparent",
             stroke: command.color || "#0066cc",
             strokeWidth: command.strokeWidth || 2,
           };
 
         case "draw_circle":
+          const circlePos = getNextPosition('shape');
           return {
             ...baseProps,
             type: "circle",
-            x: command.x || 50,
-            y: command.y || 50,
-            radius: command.radius || 30,
+            x: circlePos.x + 50, // Offset for circle center
+            y: circlePos.y + 50,
+            radius: Math.min(command.radius || 40, 50),
             fill: command.fill || "transparent",
             stroke: command.color || "#0066cc",
             strokeWidth: command.strokeWidth || 2,
           };
 
         case "draw_arrow":
-          // Handle both old format (from/to) and new format (points array)
+          // Arrows use fixed safe positions to avoid overlap
+          const arrowStartY = Math.max(nextTextY + 30, nextShapeY + 30);
           let points;
           if (command.points && Array.isArray(command.points)) {
             points = command.points;
-          } else if (command.from && command.to) {
-            points = [
-              command.from[0],
-              command.from[1],
-              command.to[0],
-              command.to[1],
-            ];
           } else {
-            points = [50, 50, 150, 150]; // Default arrow
+            // Default arrow pointing from text area to shape area
+            points = [300, arrowStartY, 500, arrowStartY];
           }
+
+          // Update position tracker for arrows
+          setNextTextY(prev => Math.max(prev, arrowStartY + 50));
+          setNextShapeY(prev => Math.max(prev, arrowStartY + 50));
 
           return {
             ...baseProps,
@@ -183,16 +243,20 @@ const TeachingCanvas = forwardRef(
             points: points,
             pointerLength: command.pointerLength || 10,
             pointerWidth: command.pointerWidth || 10,
-            fill: command.color || "#ff0000",
-            stroke: command.color || "#ff0000",
+            fill: command.color || "#059669",
+            stroke: command.color || "#059669",
             strokeWidth: command.strokeWidth || 2,
           };
 
         case "draw_line":
+          const lineY = Math.max(nextTextY + 20, nextShapeY + 20);
+          setNextTextY(prev => Math.max(prev, lineY + 30));
+          setNextShapeY(prev => Math.max(prev, lineY + 30));
+          
           return {
             ...baseProps,
             type: "line",
-            points: command.points || [50, 50, 150, 150],
+            points: command.points || [30, lineY, canvasWidth - 30, lineY],
             stroke: command.color || "#000000",
             strokeWidth: command.strokeWidth || 2,
             lineCap: "round",
@@ -200,17 +264,19 @@ const TeachingCanvas = forwardRef(
           };
 
         case "highlight":
+          // Highlight goes behind the most recent text
+          const highlightY = Math.max(nextTextY - 40, 60);
           return {
             ...baseProps,
             type: "rect",
-            x: command.x || 50,
-            y: command.y || 50,
-            width: command.width || 100,
-            height: command.height || 30,
+            x: 25,
+            y: highlightY - 5,
+            width: canvasWidth - 310,
+            height: 35,
             fill: "yellow",
             opacity: 0.3,
             stroke: "orange",
-            strokeWidth: 2,
+            strokeWidth: 1,
           };
 
         default:
@@ -237,6 +303,10 @@ const TeachingCanvas = forwardRef(
               fontFamily={element.fontFamily}
               fill={element.fill}
               fontStyle={element.fontStyle}
+              width={element.width}
+              align="left"
+              verticalAlign="top"
+              wrap="word"
             />
           );
 
