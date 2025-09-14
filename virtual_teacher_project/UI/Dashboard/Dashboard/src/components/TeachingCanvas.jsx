@@ -32,19 +32,20 @@ const TeachingCanvas = forwardRef(
       addDrawingCommand: (command) => {
         const element = createElementFromCommand(command, drawnElements.length);
         if (element) {
-          setDrawnElements(prev => {
+          setDrawnElements((prev) => {
             const newElements = [...prev, element];
-            
+
             // Update position trackers
-            if (element.type === 'text') {
+            if (element.type === "text") {
               const textHeight = (element.fontSize || 18) + 20;
               const lines = Math.ceil(element.text.length / 50);
-              setNextTextY(prev => prev + (textHeight * lines) + 10);
-            } else if (element.type === 'rect' || element.type === 'circle') {
-              const elementHeight = element.type === 'rect' ? element.height : element.radius * 2;
-              setNextShapeY(prev => prev + elementHeight + 30);
+              setNextTextY((prev) => prev + textHeight * lines + 10);
+            } else if (element.type === "rect" || element.type === "circle") {
+              const elementHeight =
+                element.type === "rect" ? element.height : element.radius * 2;
+              setNextShapeY((prev) => prev + elementHeight + 30);
             }
-            
+
             return newElements;
           });
         }
@@ -120,25 +121,27 @@ const TeachingCanvas = forwardRef(
         const delay = command.time || commandIndex * 1000; // Default 1 second between commands
 
         animationTimeoutRef.current = setTimeout(() => {
-        const element = createElementFromCommand(command, commandIndex);
-        if (element) {
-          setDrawnElements((prev) => {
-            const newElements = [...prev, element];
-            
-            // Update position trackers based on element type
-            if (element.type === 'text') {
-              const textHeight = (element.fontSize || 18) + 20; // fontSize + padding
-              const lines = Math.ceil(element.text.length / 50); // Estimate lines
-              setNextTextY(prev => prev + (textHeight * lines) + 10);
-            } else if (element.type === 'rect' || element.type === 'circle') {
-              const elementHeight = element.type === 'rect' ? element.height : element.radius * 2;
-              setNextShapeY(prev => prev + elementHeight + 30);
-            }
-            
-            return newElements;
-          });
-          setCurrentElementIndex(commandIndex + 1);
-        }          commandIndex++;
+          const element = createElementFromCommand(command, commandIndex);
+          if (element) {
+            setDrawnElements((prev) => {
+              const newElements = [...prev, element];
+
+              // Update position trackers based on element type
+              if (element.type === "text") {
+                const textHeight = (element.fontSize || 18) + 20; // fontSize + padding
+                const lines = Math.ceil(element.text.length / 50); // Estimate lines
+                setNextTextY((prev) => prev + textHeight * lines + 10);
+              } else if (element.type === "rect" || element.type === "circle") {
+                const elementHeight =
+                  element.type === "rect" ? element.height : element.radius * 2;
+                setNextShapeY((prev) => prev + elementHeight + 30);
+              }
+
+              return newElements;
+            });
+            setCurrentElementIndex(commandIndex + 1);
+          }
+          commandIndex++;
           executeNextCommand();
         }, delay);
       };
@@ -155,33 +158,33 @@ const TeachingCanvas = forwardRef(
       // Use current position trackers to prevent overlapping
       const getNextPosition = (elementType) => {
         const margin = 30;
-        
+
         switch (elementType) {
-          case 'text':
+          case "text":
             return {
               x: margin,
-              y: nextTextY
+              y: nextTextY,
             };
-            
-          case 'shape':
+
+          case "shape":
             return {
               x: canvasWidth - 250,
-              y: nextShapeY
+              y: nextShapeY,
             };
-            
+
           default:
             return {
               x: margin,
-              y: nextTextY
+              y: nextTextY,
             };
         }
       };
 
       switch (command.action) {
         case "draw_text":
-          const textPos = getNextPosition('text');
+          const textPos = getNextPosition("text");
           const fontSize = command.fontSize || 18;
-          
+
           return {
             ...baseProps,
             type: "text",
@@ -196,7 +199,7 @@ const TeachingCanvas = forwardRef(
           };
 
         case "draw_rectangle":
-          const rectPos = getNextPosition('shape');
+          const rectPos = getNextPosition("shape");
           return {
             ...baseProps,
             type: "rect",
@@ -210,7 +213,7 @@ const TeachingCanvas = forwardRef(
           };
 
         case "draw_circle":
-          const circlePos = getNextPosition('shape');
+          const circlePos = getNextPosition("shape");
           return {
             ...baseProps,
             type: "circle",
@@ -234,8 +237,8 @@ const TeachingCanvas = forwardRef(
           }
 
           // Update position tracker for arrows
-          setNextTextY(prev => Math.max(prev, arrowStartY + 50));
-          setNextShapeY(prev => Math.max(prev, arrowStartY + 50));
+          setNextTextY((prev) => Math.max(prev, arrowStartY + 50));
+          setNextShapeY((prev) => Math.max(prev, arrowStartY + 50));
 
           return {
             ...baseProps,
@@ -250,9 +253,9 @@ const TeachingCanvas = forwardRef(
 
         case "draw_line":
           const lineY = Math.max(nextTextY + 20, nextShapeY + 20);
-          setNextTextY(prev => Math.max(prev, lineY + 30));
-          setNextShapeY(prev => Math.max(prev, lineY + 30));
-          
+          setNextTextY((prev) => Math.max(prev, lineY + 30));
+          setNextShapeY((prev) => Math.max(prev, lineY + 30));
+
           return {
             ...baseProps,
             type: "line",
