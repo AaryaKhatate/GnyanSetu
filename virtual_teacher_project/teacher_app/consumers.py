@@ -309,15 +309,11 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                         print(f"DEBUG: Error saving notes message: {e}")
                         
             elif isinstance(step_obj, dict):
-                print(f"DEBUG: Processing lesson step with text: {step_obj.get('text_explanation', '')[:100]}...")
-                cmds = step_obj.get("whiteboard_commands", [])
-                sanitized = [sc for c in cmds if (sc := sanitize_command(c))]
-                step_obj["whiteboard_commands"] = sanitized
-                step_obj["text_explanation"] = step_obj.get("text_explanation", "")
-                step_obj["tts_text"] = step_obj.get("tts_text", step_obj.get("text_explanation", ""))
-                print(f"DEBUG: Sending lesson step to frontend")
-                await self.send_json({"type": "lesson_step", "data": step_obj})
-                print(f"DEBUG: Lesson step sent successfully")
+                print(f"DEBUG: LEGACY lesson step detected but DISABLED to prevent duplicate content")
+                print(f"DEBUG: Step text: {step_obj.get('text_explanation', '')[:100]}...")
+                # Legacy lesson step sending disabled - using synchronized lesson system instead
+                # await self.send_json({"type": "lesson_step", "data": step_obj})
+                print(f"DEBUG: Legacy lesson step sending SKIPPED")
                 
                 # Save lesson step to chat history
                 if self.current_conversation_id and messages is not None:
@@ -350,8 +346,9 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                     "{step_start}\n"
                     "{{\n"
                     '  "step": 1,\n'
-                    '  "speech_text": "Hello everyone! Today we will learn about [topic]. Let me start by writing the main concept on our whiteboard.",\n'
-                    '  "speech_duration": 8000,\n'
+                    '  "speech_text": "Welcome to today\'s lesson! We\'re going to explore [specific topic concept]. This is fundamental because [explain importance]. Let me introduce the key concept we\'ll be learning about.",\n'
+                    '  "speech_duration": 10000,\n'
+                    '  "text_explanation": "Detailed explanation of the concept being taught in this step.",\n'
                     '  "drawing_commands": [\n'
                     '    {{\n'
                     '      "time": 1000,\n'
@@ -376,11 +373,19 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                     '  ]\n'
                     "}}\n"
                     "{step_end}\n\n"
-                    "**SPEECH GUIDELINES**:\n"
-                    "- Make speech natural and conversational (like 'Hello everyone!', 'Now let me show you...', 'As you can see here...')\n"
-                    "- Speech should be 6-10 seconds long (speech_duration: 6000-10000)\n"
-                    "- Explain what you're drawing as you draw it\n"
-                    "- Use encouraging teacher language\n\n"
+                    "**SPEECH GUIDELINES FOR STEP 1**:\n"
+                    "- Start with substantive content, NOT generic greetings\n"
+                    "- First step should introduce the specific topic and its importance\n"
+                    "- Speech should be 8-12 seconds long (speech_duration: 8000-12000)\n" 
+                    "- Explain what the lesson will cover and why it matters\n"
+                    "- Be engaging and educational from the first word\n"
+                    "- NO phrases like 'Hello everyone' or 'Welcome to the lesson'\n\n"
+                    "**SPEECH GUIDELINES FOR ALL STEPS**:\n"
+                    "- Make speech natural and conversational for teaching\n"
+                    "- Each step should build on the previous one\n"
+                    "- Focus on specific concepts, not generic statements\n"
+                    "- Use encouraging educational language\n"
+                    "- Each step should have unique, relevant content\n\n"
                     "**DRAWING COMMANDS** (Keep it simple and clear):\n"
                     "- draw_text: {{'action': 'draw_text', 'text': 'Your explanation here', 'fontSize': 18, 'color': '#333'}}\n"
                     "- draw_rectangle: {{'action': 'draw_rectangle', 'width': 150, 'height': 80, 'color': '#0066cc'}}\n"
@@ -499,13 +504,54 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                     step_data = json.loads(clean_block)
                     
                     # Validate required fields
-                    if all(key in step_data for key in ['step', 'speech_text', 'speech_duration', 'drawing_commands']):
-                        # Clean speech text
+                    if 'step' in step_data and 'speech_text' in step_data:
+                        step_number = step_data.get('step', len(teaching_steps) + 1)
+                        
+                        # Special validation for first step
+                        if step_number == 1:
+                            print(f"DEBUG: === VALIDATING FIRST STEP ===")
+                            print(f"DEBUG: Original speech_text: '{step_data['speech_text']}'")
+                            
+                            # Check for generic/empty content
+                            speech_text = step_data['speech_text'].strip()
+                            if not speech_text or len(speech_text) < 20:
+                                print(f"ERROR: First step has insufficient speech content: '{speech_text}'")
+                                # Generate fallback content
+                                if 'text_explanation' in step_data:
+                                    step_data['speech_text'] = step_data['text_explanation']
+                                else:
+                                    step_data['speech_text'] = "Today we're exploring an important concept. Let me introduce the key ideas we'll be learning about and why they matter."
+                                print(f"DEBUG: Using fallback speech_text: '{step_data['speech_text']}'")
+                            
+                            # Check for generic greetings
+                            if 'hello everyone' in speech_text.lower() or 'welcome to' in speech_text.lower():
+                                print(f"WARNING: First step contains generic greeting, enhancing content")
+                                # Enhance with actual content
+                                if 'text_explanation' in step_data:
+                                    step_data['speech_text'] = step_data['text_explanation']
+                                
+                            print(f"DEBUG: Final first step speech_text: '{step_data['speech_text']}'")
+                            print(f"DEBUG: ===============================")
+                        
+                        # Ensure we have text_explanation as fallback
+                        if 'text_explanation' not in step_data:
+                            step_data['text_explanation'] = step_data['speech_text']
+                        
+                        # Ensure drawing_commands exists
+                        if 'drawing_commands' not in step_data:
+                            step_data['drawing_commands'] = []
+                        
+                        # Clean speech text for better synthesis
                         step_data['speech_text'] = clean_text_for_speech(step_data['speech_text'])
+                        
                         teaching_steps.append(step_data)
-                        print(f"DEBUG: Parsed teaching step {step_data.get('step', len(teaching_steps))}")
+                        print(f"DEBUG: Parsed teaching step {step_number}")
+                        
+                        # Log speech text length for debugging
+                        print(f"DEBUG: Step {step_number} speech length: {len(step_data['speech_text'])} characters")
+                        
                     else:
-                        print(f"DEBUG: Invalid step format: {step_data}")
+                        print(f"DEBUG: Invalid step format - missing required fields: {list(step_data.keys())}")
                         
                 except json.JSONDecodeError as json_error:
                     print(f"DEBUG: JSON parse error for step: {json_error}")
@@ -519,6 +565,16 @@ class TeacherConsumer(AsyncWebsocketConsumer):
         # Sort steps by step number
         teaching_steps.sort(key=lambda x: x.get('step', 0))
         print(f"DEBUG: Total teaching steps parsed: {len(teaching_steps)}")
+        
+        # Final validation of first step
+        if teaching_steps:
+            first_step = teaching_steps[0]
+            print(f"DEBUG: === FIRST STEP FINAL VALIDATION ===")
+            print(f"DEBUG: First step keys: {list(first_step.keys())}")
+            print(f"DEBUG: First step speech_text: '{first_step.get('speech_text', 'MISSING')}'")
+            print(f"DEBUG: First step speech_text length: {len(first_step.get('speech_text', ''))}")
+            print(f"DEBUG: First step drawing_commands: {len(first_step.get('drawing_commands', []))}")
+            print(f"DEBUG: ================================")
         
         return teaching_steps
 

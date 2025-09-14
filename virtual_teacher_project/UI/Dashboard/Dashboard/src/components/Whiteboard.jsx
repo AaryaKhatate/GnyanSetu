@@ -115,11 +115,18 @@ const Whiteboard = ({
   const [currentTeachingStep, setCurrentTeachingStep] = useState(null);
   const [currentTeachingStepIndex, setCurrentTeachingStepIndex] = useState(0);
   const [isTeaching, setIsTeaching] = useState(false);
+  const [isGeneratingLesson, setIsGeneratingLesson] = useState(false); // Track lesson generation
 
   const wsRef = useRef(null);
   const canvasRef = useRef(null);
   const timerRef = useRef(null);
   const teachingCanvasRef = useRef(null);
+  const teachingStepsRef = useRef([]); // Add ref to track latest teaching steps
+
+  // Update ref whenever teachingSteps changes
+  useEffect(() => {
+    teachingStepsRef.current = teachingSteps;
+  }, [teachingSteps]);
 
   // Helper function to safely send WebSocket messages
   const sendWebSocketMessage = (message) => {
@@ -139,13 +146,27 @@ const Whiteboard = ({
 
   // WebSocket connection
   useEffect(() => {
-    // Prevent multiple connections
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log("WebSocket already connected, skipping reconnection");
+    // Prevent multiple connections - check all possible states
+    if (
+      wsRef.current &&
+      (wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING)
+    ) {
+      console.log(
+        "WebSocket already connected or connecting, skipping reconnection. State:",
+        wsRef.current.readyState
+      );
       return;
     }
-    
+
     const connectWebSocket = () => {
+      // Close any existing connection first
+      if (wsRef.current) {
+        console.log("Closing existing WebSocket before creating new one");
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
       const wsUrl = `ws://localhost:8001/ws/teacher/`;
       console.log("Creating new WebSocket connection to:", wsUrl);
       wsRef.current = new WebSocket(wsUrl);
@@ -157,11 +178,15 @@ const Whiteboard = ({
 
         // Add a small delay to ensure WebSocket is fully ready
         setTimeout(() => {
-          // Only send lesson generation request if we don't already have synchronized steps
-          if (teachingSteps.length === 0) {
+          // Only send lesson generation request if we don't already have synchronized steps and not already generating
+          if (teachingSteps.length === 0 && !isGeneratingLesson) {
+            console.log("Starting lesson generation...");
+            setIsGeneratingLesson(true);
+
             // Send PDF data to start lesson generation
             const pdfText = sessionStorage.getItem("pdfText");
-            const pdfFilename = sessionStorage.getItem("pdfFilename") || pdfName;
+            const pdfFilename =
+              sessionStorage.getItem("pdfFilename") || pdfName;
             const message = {
               topic: pdfName,
               pdf_text: pdfText || "",
@@ -172,9 +197,25 @@ const Whiteboard = ({
 
             console.log("Sending lesson generation request via WebSocket");
             sendWebSocketMessage(message);
-          } else {
-            console.log("Synchronized lesson already loaded, skipping automatic lesson generation");
+          } else if (isGeneratingLesson) {
+            console.log(
+              "Lesson generation already in progress, skipping duplicate request"
+            );
+            setStatus("Lesson generation in progress...");
+          } else if (teachingSteps.length > 0) {
+            console.log(
+              "Synchronized lesson already loaded, skipping automatic lesson generation"
+            );
+            console.log("Current teaching steps:", teachingSteps.length);
             setStatus("Ready - Synchronized lesson loaded");
+
+            // If lesson is already loaded but not started, start it
+            if (!isTeaching && autoPlay) {
+              console.log("🚀 Auto-starting existing lesson");
+              setTimeout(() => {
+                startTeachingStep(teachingSteps[0], 0);
+              }, 1000);
+            }
           }
         }, 100); // 100ms delay
       };
@@ -193,8 +234,14 @@ const Whiteboard = ({
         setIsConnected(false);
         setStatus("Disconnected");
 
-        // Attempt to reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
+        // Only attempt to reconnect if the closure wasn't intentional
+        if (event.code !== 1000) {
+          // 1000 = normal closure
+          console.log("Attempting to reconnect in 3 seconds...");
+          setTimeout(connectWebSocket, 3000);
+        } else {
+          console.log("WebSocket closed normally, not reconnecting");
+        }
       };
 
       wsRef.current.onerror = (error) => {
@@ -208,14 +255,15 @@ const Whiteboard = ({
     // Cleanup on unmount
     return () => {
       if (wsRef.current) {
-        console.log("Closing WebSocket connection on cleanup");
-        wsRef.current.close();
+        console.log("Closing WebSocket connection on cleanup with normal code");
+        wsRef.current.close(1000, "Component unmounting"); // 1000 = normal closure
+        wsRef.current = null;
       }
     };
   }, []); // Remove pdfName dependency to prevent reconnections
 
   const handleWebSocketMessage = (data) => {
-    console.log("Received WebSocket message:", data);
+    console.log("📥 WebSocket message received:", data.type);
 
     switch (data.type) {
       case "status":
@@ -232,41 +280,99 @@ const Whiteboard = ({
         setCurrentTeachingStep(null);
         setIsTeaching(false);
         clearQueue();
-        setStatus(data.message || 'Generating lesson content...');
+        setStatus(data.message || "Generating lesson content...");
         console.log("New lesson generation started");
         break;
-        
+
       case "generation_progress":
         // Show generation progress
-        setStatus(data.status || `Generating... (${data.buffer_length} characters)`);
+        setStatus(
+          data.status || `Generating... (${data.buffer_length} characters)`
+        );
         break;
-        
+
       case "lesson_ready":
         // All teaching steps received - now we can start synchronized lesson
-        console.log(`Lesson ready with ${data.total_steps} steps:`, data.teaching_steps);
-        
-        // Log each step for debugging
+        console.log("🎓 === LESSON READY DEBUG ===");
+        console.log("Total steps received:", data.total_steps);
+        console.log(
+          "Teaching steps array length:",
+          data.teaching_steps?.length
+        );
+        console.log("Current teaching steps length:", teachingSteps.length);
+        console.log("Currently teaching:", isTeaching);
+        console.log("Current speaking step:", currentSpeakingStep);
+
+        // Prevent overwriting lesson if one is already in progress
+        if (
+          teachingSteps.length > 0 &&
+          (isTeaching || currentSpeakingStep !== null)
+        ) {
+          console.log(
+            "🚫 Lesson already in progress, ignoring duplicate lesson_ready"
+          );
+          return;
+        }
+
+        if (data.teaching_steps && data.teaching_steps.length > 0) {
+          // Debug first step specifically
+          const firstStep = data.teaching_steps[0];
+          console.log("🔍 === FIRST STEP ANALYSIS ===");
+          console.log("Step 1 object:", firstStep);
+          console.log("Step 1 keys:", Object.keys(firstStep));
+          console.log("Step 1 speech_text:", firstStep.speech_text);
+          console.log(
+            "Step 1 speech_text length:",
+            firstStep.speech_text?.length
+          );
+          console.log("Step 1 speech_text type:", typeof firstStep.speech_text);
+          console.log("Step 1 drawing_commands:", firstStep.drawing_commands);
+          console.log(
+            "Step 1 drawing_commands count:",
+            firstStep.drawing_commands?.length
+          );
+          console.log("================================");
+        }
+
+        // Log each step content in detail for debugging
         if (data.teaching_steps) {
           data.teaching_steps.forEach((step, index) => {
-            console.log(`Step ${index + 1}:`, {
-              step: step.step,
-              speech_text: step.speech_text?.substring(0, 100) + "...",
-              drawing_commands: step.drawing_commands?.length || 0
-            });
+            console.log(`=== STEP ${index + 1} CONTENT ===`);
+            console.log(`Step number: ${step.step}`);
+            console.log(`Speech text: "${step.speech_text}"`);
+            console.log(`Speech text length: ${step.speech_text?.length}`);
+            console.log(
+              `Drawing commands: ${step.drawing_commands?.length || 0}`
+            );
+            if (step.drawing_commands?.length > 0) {
+              step.drawing_commands.forEach((cmd, cmdIndex) => {
+                console.log(
+                  `  Command ${cmdIndex + 1}: ${cmd.action} - ${
+                    cmd.text || "no text"
+                  }`
+                );
+              });
+            }
+            console.log("========================");
           });
         }
-        
+
         setTeachingSteps(data.teaching_steps || []);
         setStatus(`Lesson ready! ${data.total_steps} steps prepared.`);
-        
+        setIsGeneratingLesson(false); // Reset generation flag
+
         // Auto-switch to teaching mode
         setTeachingMode(true);
-        
+
         // Auto-start the lesson after a brief delay (if autoPlay is enabled)
-        if (autoPlay) {
+        if (autoPlay && data.teaching_steps && data.teaching_steps.length > 0) {
+          console.log("🚀 Auto-starting synchronized lesson in 2 seconds...");
           setTimeout(() => {
-            startSynchronizedLesson(data.teaching_steps || []);
+            console.log("🎬 Starting lesson with first step");
+            startTeachingStep(data.teaching_steps[0], 0);
           }, 2000); // 2 second delay to let user see the "lesson ready" message
+        } else {
+          console.log("⏸️ Auto-play disabled or no steps available");
         }
         break;
 
@@ -279,98 +385,19 @@ const Whiteboard = ({
         break;
 
       case "teaching_step":
-        // Legacy support - but don't auto-start if we're using the new system
-        const teachingStepData = data.data;
-        console.log("Legacy teaching step received:", teachingStepData);
-
-        // Only process if we don't already have synchronized steps
-        if (teachingSteps.length === 0) {
-          // Add to teaching steps array (legacy support)
-          setTeachingSteps((prev) => {
-            const newSteps = [...prev];
-            const existingIndex = newSteps.findIndex(s => s.step === teachingStepData.step);
-            if (existingIndex >= 0) {
-              newSteps[existingIndex] = teachingStepData;
-            } else {
-              newSteps.push(teachingStepData);
-              newSteps.sort((a, b) => a.step - b.step);
-            }
-            console.log("Legacy total teaching steps now:", newSteps.length);
-            return newSteps;
-          });
-
-          // Auto-switch to teaching mode when first step arrives (legacy behavior)
-          console.log("First legacy teaching step received, switching to teaching mode");
-          setTeachingMode(true);
-          setCurrentTeachingStep(teachingStepData);
-          setIsTeaching(true);
-
-          // Start the teaching step after a short delay
-          setTimeout(() => {
-            startTeachingStep(teachingStepData, 0);
-          }, 500);
-        } else {
-          console.log("Ignoring legacy teaching step - synchronized lesson already loaded");
-        }
+        // COMPLETELY DISABLED - Legacy system that causes duplicate content
+        console.log(
+          "LEGACY teaching_step message IGNORED - using synchronized lesson system"
+        );
+        console.log("Received data:", data.data);
         break;
 
       case "lesson_step":
-        // Legacy lesson step - disable if using new synchronized system
-        if (teachingSteps.length === 0) {
-          const stepData = data.data;
-          console.log("Legacy lesson step received:", stepData);
-          setLessonSteps((prev) => [...prev, stepData]);
-
-          // Process whiteboard commands
-          if (stepData.whiteboard_commands) {
-            setWhiteboardCommands((prev) => [
-              ...prev,
-              ...stepData.whiteboard_commands,
-            ]);
-            executeWhiteboardCommands(stepData.whiteboard_commands);
-          }
-
-          // Convert to slide format for UI
-          const slide = {
-            id: Date.now(),
-            title: `Step ${lessonSteps.length + 1}`,
-            content: stepData.text_explanation,
-            tts_text: stepData.tts_text || stepData.text_explanation,
-            commands: stepData.whiteboard_commands,
-          };
-
-          setSlides((prev) => {
-            const newSlides = [...prev, slide];
-            console.log("Legacy slides updated, total count:", newSlides.length);
-            return newSlides;
-          });
-
-          // Auto-speak the content if autoPlay is enabled
-          if (autoPlay && slide.tts_text) {
-            const stepNumber = lessonSteps.length + 1;
-            setCurrentSpeakingStep(stepNumber);
-            speak(slide.tts_text, () => {
-              setCurrentSpeakingStep(null);
-            });
-          }
-
-          // Start playing if this is the first step and not already playing
-          if (lessonSteps.length === 0 && !isPlaying) {
-            console.log("Auto-starting legacy lesson playback for first slide");
-            setIsPlaying(true);
-            setCurrentSlide(0);
-            setStatus("Lesson started!");
-          } else {
-            console.log(
-              "Not auto-starting: lessonSteps.length =",
-              lessonSteps.length,
-              "isPlaying =",
-              isPlaying
-            );
-          }
-        } else {
-          console.log("Ignoring legacy lesson step - synchronized lesson already loaded");
-        }
+        // COMPLETELY DISABLED - Legacy system that causes duplicate content
+        console.log(
+          "LEGACY lesson_step message IGNORED - using synchronized lesson system"
+        );
+        console.log("Received data:", data.data);
         break;
 
       case "notes_and_quiz_ready":
@@ -381,6 +408,7 @@ const Whiteboard = ({
         break;
 
       case "lesson_end":
+        setIsGeneratingLesson(false); // Reset generation flag
         // Only process lesson_end for legacy lessons, ignore for synchronized lessons
         if (teachingSteps.length === 0) {
           setStatus("Lesson generation completed!");
@@ -389,12 +417,15 @@ const Whiteboard = ({
           }
           // Lesson will auto-advance through slides, user can manually start quiz when ready
         } else {
-          console.log("Ignoring legacy lesson_end - synchronized lesson already loaded");
+          console.log(
+            "Ignoring legacy lesson_end - synchronized lesson already loaded"
+          );
         }
         break;
 
       case "error":
         setStatus(`Error: ${data.message}`);
+        setIsGeneratingLesson(false); // Reset generation flag on error
         console.error("WebSocket error:", data);
         break;
 
@@ -600,11 +631,11 @@ const Whiteboard = ({
   // Synchronized lesson playback functions
   const startSynchronizedLesson = useCallback((steps) => {
     if (!steps || steps.length === 0) return;
-    
+
     console.log(`Starting synchronized lesson with ${steps.length} steps`);
     setCurrentTeachingStepIndex(0);
-    setStatus('Lesson starting...');
-    
+    setStatus("Lesson starting...");
+
     // Start with first step
     setTimeout(() => {
       startTeachingStep(steps[0], 0);
@@ -619,7 +650,7 @@ const Whiteboard = ({
 
   const pauseLesson = useCallback(() => {
     stop(); // Stop current speech
-    setStatus('Lesson paused');
+    setStatus("Lesson paused");
   }, [stop]);
 
   const nextStep = useCallback(() => {
@@ -641,52 +672,136 @@ const Whiteboard = ({
   const startTeachingStep = useCallback(
     (step, stepIndex) => {
       if (!step) {
-        console.log("No step provided to startTeachingStep");
+        console.error("❌ No step provided to startTeachingStep");
         return;
       }
 
-      console.log(`Starting teaching step ${step.step}: ${step.speech_text?.substring(0, 50)}...`);
+      console.log(`🎯 === STARTING STEP ${stepIndex + 1} ===`);
+      console.log("Step object:", step);
+      console.log("Speech text:", step.speech_text);
+      console.log("Speech text type:", typeof step.speech_text);
+      console.log(
+        "Speech text empty?",
+        !step.speech_text || step.speech_text.trim() === ""
+      );
+      console.log("Drawing commands:", step.drawing_commands);
+      console.log("Drawing commands count:", step.drawing_commands?.length);
+
       setCurrentSpeakingStep(step.step);
       setCurrentTeachingStepIndex(stepIndex !== undefined ? stepIndex : 0);
       setCurrentTeachingStep(step);
+      setIsTeaching(true); // Ensure we're in teaching mode
 
-      // Ensure we have speech text
-      const speechText = step.speech_text || "Let me explain this concept to you.";
-
-      // Start speech with improved error handling
-      speak(speechText, () => {
-        console.log("Speech completed for step:", step.step);
-        setCurrentSpeakingStep(null);
-
-        // Automatically move to next step after a pause (if autoPlay is enabled)
-        setTimeout(() => {
-          const nextStepIndex = (stepIndex !== undefined ? stepIndex : 0) + 1;
-          if (nextStepIndex < teachingSteps.length && autoPlay) {
-            startTeachingStep(teachingSteps[nextStepIndex], nextStepIndex);
-          } else {
-            // All steps completed
-            setStatus('Lesson completed! Great job!');
-            setIsTeaching(false);
-            if (autoPlay) {
-              speak("Lesson completed. Great job! You can review the lesson or start a new one.");
-            }
-          }
-        }, 2000); // 2 second pause between steps
-      }, true);
-
-      // Start drawing commands with proper timing
-      if (step.drawing_commands && step.drawing_commands.length > 0) {
-        step.drawing_commands.forEach(command => {
-          setTimeout(() => {
-            // Send drawing command to TeachingCanvas
-            if (teachingCanvasRef.current) {
-              teachingCanvasRef.current.addDrawingCommand(command);
-            }
-          }, command.time || 0);
-        });
+      // Clear canvas for new step
+      if (teachingCanvasRef.current) {
+        teachingCanvasRef.current.clearCanvas();
+        console.log("🎨 Canvas cleared for step", stepIndex + 1);
       }
+
+      // Validate and prepare speech text
+      let speechText = step.speech_text;
+      if (!speechText || speechText.trim() === "") {
+        console.warn("⚠️ Empty speech text for step", stepIndex + 1);
+        console.log("Raw speech_text value:", JSON.stringify(step.speech_text));
+
+        // Try to find alternative text
+        if (step.text_explanation) {
+          console.log(
+            "📝 Using text_explanation as fallback:",
+            step.text_explanation
+          );
+          speechText = step.text_explanation;
+        } else {
+          console.error(
+            "❌ No valid speech content found for step",
+            stepIndex + 1
+          );
+          speechText = `This is step ${
+            stepIndex + 1
+          } of the lesson. Let's continue with the next concept.`;
+        }
+      }
+
+      // Execute drawing commands first
+      if (step.drawing_commands && step.drawing_commands.length > 0) {
+        console.log(
+          `🎨 Executing ${step.drawing_commands.length} drawing commands`
+        );
+        step.drawing_commands.forEach((command, index) => {
+          console.log(`Drawing command ${index + 1}:`, command);
+          if (teachingCanvasRef.current) {
+            setTimeout(() => {
+              teachingCanvasRef.current.addDrawingCommand(command);
+            }, command.time || index * 500); // Stagger commands by 500ms
+          }
+        });
+      } else {
+        console.warn("⚠️ No drawing commands for step", stepIndex + 1);
+      }
+
+      // Start speech with proper completion callback
+      console.log(
+        `🗣️ Starting speech for step ${stepIndex + 1}:`,
+        speechText.substring(0, 100) + "..."
+      );
+      console.log(`🎮 AutoPlay enabled:`, autoPlay);
+      console.log(`📊 Teaching steps length:`, teachingSteps.length);
+      setStatus(`Teaching step ${stepIndex + 1} of ${teachingSteps.length}`);
+
+      speak(
+        speechText,
+        () => {
+          console.log(`✅ Step ${stepIndex + 1} speech completed`);
+          console.log(
+            `🔍 Completion callback triggered for step ${stepIndex + 1}`
+          );
+          setCurrentSpeakingStep(null);
+
+          // Auto-advance to next step
+          const nextStepIndex = stepIndex + 1;
+          const currentTeachingSteps = teachingStepsRef.current; // Use ref to get latest state
+          console.log(`📈 Next step index would be: ${nextStepIndex}`);
+          console.log(
+            `📏 Total steps available: ${currentTeachingSteps.length}`
+          );
+          console.log(`🎮 AutoPlay status: ${autoPlay}`);
+
+          if (nextStepIndex < currentTeachingSteps.length && autoPlay) {
+            console.log(`⏭️ Auto-advancing to step ${nextStepIndex + 1}`);
+            console.log(
+              `🎯 Next step object:`,
+              currentTeachingSteps[nextStepIndex]
+            );
+            setTimeout(() => {
+              console.log(`🚀 Actually starting step ${nextStepIndex + 1} now`);
+              startTeachingStep(
+                currentTeachingSteps[nextStepIndex],
+                nextStepIndex
+              );
+            }, 1500); // 1.5 second pause between steps
+          } else if (nextStepIndex >= currentTeachingSteps.length) {
+            console.log("🎉 All steps completed!");
+            setStatus("Lesson completed! Great job!");
+            setIsTeaching(false);
+            speak("Lesson completed. Great job!", () => {
+              console.log("🏁 Lesson completion message finished");
+            });
+          } else {
+            console.log("⏸️ Auto-play disabled, waiting for manual advance");
+            console.log(
+              `❌ AutoPlay: ${autoPlay}, NextIndex: ${nextStepIndex}, TotalSteps: ${currentTeachingSteps.length}`
+            );
+            setStatus(
+              `Step ${stepIndex + 1} complete. Click Next to continue.`
+            );
+          }
+        },
+        true
+      );
+
+      console.log(`=== STEP ${stepIndex + 1} SETUP COMPLETE ===`);
     },
-    [teachingSteps, speak, autoPlay, stop]
+    [speak, autoPlay, stop] // Remove teachingSteps from dependencies to avoid stale closure
   );
 
   // Legacy startTeachingStep function for backward compatibility
@@ -878,7 +993,7 @@ const Whiteboard = ({
                 >
                   ▶️ Play
                 </button>
-                
+
                 <button
                   onClick={pauseLesson}
                   disabled={!isSpeaking}
@@ -887,7 +1002,7 @@ const Whiteboard = ({
                 >
                   ⏸️ Pause
                 </button>
-                
+
                 <button
                   onClick={previousStep}
                   disabled={currentTeachingStepIndex <= 0 || isSpeaking}
@@ -896,16 +1011,19 @@ const Whiteboard = ({
                 >
                   ⏮️ Prev
                 </button>
-                
+
                 <button
                   onClick={nextStep}
-                  disabled={currentTeachingStepIndex >= teachingSteps.length - 1 || isSpeaking}
+                  disabled={
+                    currentTeachingStepIndex >= teachingSteps.length - 1 ||
+                    isSpeaking
+                  }
                   className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Next step"
                 >
                   ⏭️ Next
                 </button>
-                
+
                 <span className="text-sm text-slate-400">
                   Step {currentTeachingStepIndex + 1} / {teachingSteps.length}
                 </span>
