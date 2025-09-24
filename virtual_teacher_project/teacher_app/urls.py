@@ -24,11 +24,6 @@ urlpatterns = [
     # Chat History endpoints
     path('api/conversations/', views.api_conversations, name='api_conversations'),
     path('api/conversations/<str:conversation_id>/messages/', views.api_conversation_messages, name='api_conversation_messages'),
-    path('api/conversations/<str:conversation_id>/delete/', views.api_delete_conversation, name='api_delete_conversation'),
+    path('api/conversations/<str:conversation_id>/delete/', views.api_delete_conversation, name='api_conversation_delete'),
     path('api/conversations/<str:conversation_id>/rename/', views.api_rename_conversation, name='api_rename_conversation'),
-    
-    # Chat History endpoints
-    path('api/conversations/', views.api_conversations, name='api_conversations'),
-    path('api/conversations/<str:conversation_id>/messages/', views.api_conversation_messages, name='api_conversation_messages'),
-    path('api/conversations/<str:conversation_id>/delete/', views.api_conversation_delete, name='api_conversation_delete'),
 ]

@@ -1,21 +1,19 @@
-# teacher_app/consumers.py
+# teacher_app/consumers.py - FIXED VERSION
 
 import json
 import re
 import logging
 from typing import Optional
 from datetime import datetime
-from bson import ObjectId
+from pymongo import MongoClient
+from bson.objectid import ObjectId
 
 import google.generativeai as genai
 from django.conf import settings
 from channels.generic.websocket import AsyncWebsocketConsumer
-from langchain.prompts import PromptTemplate # Corrected import
+from langchain.prompts import PromptTemplate
 from .mongo_collections import conversations, messages
 from .mongo import create_conversation, create_message
-from .mongo_collections import conversations, messages
-from .mongo import create_conversation, create_message
-from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +28,12 @@ ALLOWED_SHAPES = {"rect", "circle"}
 MAX_PERCENT = 100
 MIN_PERCENT = 0
 
-
 def clamp(value, lo, hi):
     try:
         v = float(value)
     except (ValueError, TypeError):
         return lo
     return max(lo, min(hi, v))
-
 
 def sanitize_command(cmd: dict) -> Optional[dict]:
     """Return sanitized command dict or None if invalid."""
@@ -91,377 +87,249 @@ def sanitize_command(cmd: dict) -> Optional[dict]:
 
     return None
 
-
 def strip_code_fences(text: str) -> str:
-    text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
+    """Remove markdown code fences from text."""
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
     return text.strip()
-
 
 def clean_text_for_speech(text: str) -> str:
     """Clean text to make it more suitable for speech synthesis"""
     if not text:
         return ""
-    
+
     # Remove markdown formatting
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Bold
-    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italic  
+    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italic
     text = re.sub(r'`(.*?)`', r'\1', text)        # Code
-    
+
     # Replace abbreviations with full words
-    text = text.replace('e.g.', 'for example')
-    text = text.replace('i.e.', 'that is')
-    text = text.replace('etc.', 'and so on')
-    text = text.replace('vs.', 'versus')
-    text = text.replace('w/', 'with')
-    text = text.replace('w/o', 'without')
+    replacements = {
+        'e.g.': 'for example',
+        'i.e.': 'that is',
+        'etc.': 'and so on',
+        'vs.': 'versus',
+        'w/': 'with',
+        'w/o': 'without'
+    }
     
+    for abbrev, full in replacements.items():
+        text = text.replace(abbrev, full)
+
     # Add pauses for better speech rhythm
-    text = re.sub(r'\.', '. ', text)
-    text = re.sub(r'\?', '? ', text)
-    text = re.sub(r'!', '! ', text)
-    text = re.sub(r';', '; ', text)
-    text = re.sub(r':', ': ', text)
-    
+    text = re.sub(r'\.(?!\s)', '. ', text)
+    text = re.sub(r'\?(?!\s)', '? ', text)
+    text = re.sub(r'!(?!\s)', '! ', text)
+    text = re.sub(r';(?!\s)', '; ', text)
+    text = re.sub(r':(?!\s)', ': ', text)
+
     # Clean up extra spaces
     text = re.sub(r'\s+', ' ', text)
-    
+
     return text.strip()
 
 
 class TeacherConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        await self.accept()
-        api_key = getattr(settings, "GOOGLE_API_KEY", None)
-        print(f"DEBUG: Google API Key configured: {bool(api_key)}")
-        if api_key:
-            print(f"DEBUG: API Key starts with: {api_key[:10]}...")
-        genai.configure(api_key=api_key)
-        self._buffer = ""
-        self._seen_hashes = set()
-        self.current_conversation_id = None
-        self.is_generating = False  # Prevent duplicate processing
-        self.teaching_steps = []    # Buffer for synchronized lesson
-        await self.send_json({"type": "status", "message": "Connected! Ready for a topic or PDF."})
+        """Initialize WebSocket connection and configure AI service."""
+        try:
+            await self.accept()
+            
+            # Configure Google AI
+            api_key = getattr(settings, "GOOGLE_API_KEY", None)
+            if not api_key:
+                logger.error("Google API key not configured")
+                await self.send_json({"type": "error", "message": "AI service not configured"})
+                return
+                
+            genai.configure(api_key=api_key)
+            
+            # Initialize consumer state
+            self.current_conversation_id = None
+            self.is_generating = False
+            self.teaching_steps = []
+            
+            await self.send_json({"type": "status", "message": "Connected! Ready for a topic or PDF."})
+            logger.info("WebSocket connection established successfully")
+            
+        except Exception as e:
+            logger.error(f"Error in connect: {e}")
+            await self.send_json({"type": "error", "message": "Connection failed"})
 
     async def disconnect(self, close_code):
-        logger.info("WebSocket disconnected: %s", close_code)
+        """Handle WebSocket disconnection."""
+        logger.info(f"WebSocket disconnected with code: {close_code}")
+        # Clean up any ongoing operations
+        self.is_generating = False
 
     async def receive(self, text_data=None, bytes_data=None):
-        print(f"DEBUG: Received WebSocket message: {text_data[:200]}...")
-        
-        # Prevent duplicate processing
-        if hasattr(self, 'is_generating') and self.is_generating:
-            print("DEBUG: Lesson generation already in progress, ignoring duplicate request")
+        """Handle incoming WebSocket messages."""
+        if not text_data:
+            await self.send_json({"type": "error", "message": "No data received"})
             return
-            
+
+        # Prevent duplicate processing
+        if self.is_generating:
+            logger.warning("Lesson generation already in progress, ignoring duplicate request")
+            return
+
         try:
             payload = json.loads(text_data)
+            
+            # Extract and validate required fields
             topic = payload.get("topic", "").strip()
             pdf_text = payload.get("pdf_text", "").strip()
             pdf_filename = payload.get("pdf_filename", "").strip()
-            user_id = payload.get("user_id")  # Should be passed from frontend
-            conversation_id = payload.get("conversation_id")  # For continuing existing conversation
-            
-            print(f"DEBUG: Topic: {topic[:50]}, PDF text length: {len(pdf_text)}")
+            user_id = payload.get("user_id", "anonymous")
+            conversation_id = payload.get("conversation_id")
 
             if not topic and not pdf_text:
                 await self.send_json({"type": "error", "message": "Please provide a topic or a PDF."})
                 return
 
-            # Set generation flag
+            # Set generation flag early to prevent duplicates
             self.is_generating = True
             
-            # Reset for new lesson
-            self._buffer = ""
-            self._seen_hashes = set()
+            # Reset state for new lesson
             self.teaching_steps = []
-            
+
             # Send lesson start message
+            lesson_subject = topic or f"PDF: {pdf_filename}"
             await self.send_json({
-                "type": "lesson_start", 
-                "message": f"Generating lesson content for: {topic or pdf_filename}",
+                "type": "lesson_start",
+                "message": f"Generating lesson content for: {lesson_subject}",
                 "status": "generating"
             })
 
-            # Create or get conversation
-            if conversation_id:
-                try:
-                    # Validate ObjectId format (24-character hex string)
-                    if isinstance(conversation_id, str) and len(conversation_id) == 24:
-                        self.current_conversation_id = ObjectId(conversation_id)
-                        print(f"DEBUG: Using existing conversation: {conversation_id}")
-                    else:
-                        print(f"DEBUG: Invalid conversation ID format '{conversation_id}', creating new conversation")
-                        conversation_id = None
-                except Exception as e:
-                    print(f"DEBUG: Invalid conversation ID '{conversation_id}', creating new conversation: {e}")
-                    conversation_id = None
-                    
-            if not conversation_id:
-                # Create new conversation (only if MongoDB is available)
-                if conversations is not None:
-                    try:
-                        title = topic if topic else f"PDF: {pdf_filename}" if pdf_filename else "New Lesson"
-                        conversation_doc = create_conversation(
-                            user_id=user_id or "anonymous",
-                            title=title,
-                            topic=topic,
-                            pdf_filename=pdf_filename
-                        )
-                        result = await conversations.insert_one(conversation_doc)
-                        self.current_conversation_id = result.inserted_id
-                        
-                        # Send conversation ID back to frontend
-                        await self.send_json({
-                            "type": "conversation_created", 
-                            "conversation_id": str(self.current_conversation_id),
-                            "title": title
-                        })
-                    except Exception as e:
-                        print(f"DEBUG: Error creating conversation: {e}")
-                        self.current_conversation_id = None
-                else:
-                    print("MongoDB not available - skipping conversation creation")
-                    self.current_conversation_id = None
+            # Handle conversation management
+            await self.handle_conversation_setup(conversation_id, user_id, topic, pdf_filename)
 
-            # Save user message (only if MongoDB is available)
-            if messages is not None and self.current_conversation_id:
-                try:
-                    user_content = f"Topic: {topic}" if topic else f"PDF: {pdf_filename}"
-                    user_message = create_message(
-                        conversation_id=self.current_conversation_id,
-                        sender="user",
-                        content=user_content,
-                        message_type="topic_request"
-                    )
-                    await messages.insert_one(user_message)
-                except Exception as e:
-                    print(f"DEBUG: Error saving user message: {e}")
+            # Save user message to database
+            await self.save_user_message(topic, pdf_filename)
 
-            lesson_content = f"Topic: {topic}"
-            if pdf_text:
-                max_pdf_text_length = 15000 
-                lesson_content += f"\n\nUse the following content to create the lesson:\n\n---\n{pdf_text[:max_pdf_text_length]}\n---"
-
-            # Generate lesson content synchronously
+            # Generate complete lesson content
+            lesson_content = self.prepare_lesson_content(topic, pdf_text)
             await self.generate_complete_lesson(lesson_content)
 
-        except json.JSONDecodeError:
-            print("DEBUG: JSON decode error")
-            await self.send_json({"type": "error", "message": "Invalid JSON payload."})
-            self.is_generating = False
-            return
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}")
+            await self.send_json({"type": "error", "message": "Invalid request format"})
         except Exception as e:
-            print(f"DEBUG: Error in receive: {e}")
+            logger.error(f"Error in receive: {e}")
             await self.send_json({"type": "error", "message": f"Error processing request: {str(e)}"})
+        finally:
             self.is_generating = False
 
-    async def process_buffer_for_steps(self):
-        """Process buffer for complete lesson steps and send them to frontend"""
-        start = 0
-        while True:
-            s = self._buffer.find(STEP_START, start)
-            if s == -1:
-                break
-            e = self._buffer.find(STEP_END, s + len(STEP_START))
-            if e == -1:
-                break
-            
-            print(f"DEBUG: Found step block from {s} to {e}")
-            block = self._buffer[s + len(STEP_START): e]
-            
+    async def handle_conversation_setup(self, conversation_id, user_id, topic, pdf_filename):
+        """Handle conversation creation or retrieval."""
+        if conversation_id:
             try:
-                raw = strip_code_fences(block)
-                print(f"DEBUG: Raw block after strip: {raw[:200]}...")
-                step_obj = json.loads(raw)
-                print(f"DEBUG: Parsed step object keys: {list(step_obj.keys())}")
-            except Exception as ex:
-                print(f"DEBUG: JSON parse error: {str(ex)}")
-                preview = (block[:200] + "...") if len(block) > 200 else block
-                await self.send_json({"type": "status", "message": "JSON parse failed. Preview: " + preview})
-                start = e + len(STEP_END)
-                continue
+                if isinstance(conversation_id, str) and len(conversation_id) == 24:
+                    self.current_conversation_id = ObjectId(conversation_id)
+                    logger.info(f"Using existing conversation: {conversation_id}")
+                else:
+                    logger.warning(f"Invalid conversation ID format: {conversation_id}")
+                    conversation_id = None
+            except Exception as e:
+                logger.error(f"Invalid conversation ID: {e}")
+                conversation_id = None
 
-            h = hash(json.dumps(step_obj, sort_keys=True))
-            if h in self._seen_hashes:
-                print(f"DEBUG: Duplicate step detected, skipping")
-                start = e + len(STEP_END)
-                continue
-            self._seen_hashes.add(h)
+        if not conversation_id and conversations is not None:
+            try:
+                title = topic if topic else f"PDF: {pdf_filename}" if pdf_filename else "New Lesson"
+                conversation_doc = create_conversation(
+                    user_id=user_id,
+                    title=title,
+                    topic=topic,
+                    pdf_filename=pdf_filename
+                )
+                result = await conversations.insert_one(conversation_doc)
+                self.current_conversation_id = result.inserted_id
 
-            if isinstance(step_obj, dict) and "notes_and_quiz_ready" in step_obj:
-                print(f"DEBUG: Sending notes and quiz")
-                await self.send_json({"type": "notes_and_quiz_ready", "data": step_obj["notes_and_quiz_ready"]})
+                await self.send_json({
+                    "type": "conversation_created",
+                    "conversation_id": str(self.current_conversation_id),
+                    "title": title
+                })
+                logger.info(f"Created new conversation: {self.current_conversation_id}")
                 
-                # Save notes and quiz to chat history
-                if self.current_conversation_id and messages is not None:
-                    try:
-                        notes_message = create_message(
-                            conversation_id=self.current_conversation_id,
-                            sender="ai",
-                            content="Notes and quiz generated",
-                            message_type="notes_and_quiz",
-                            step_data=step_obj["notes_and_quiz_ready"]
-                        )
-                        await messages.insert_one(notes_message)
-                    except Exception as e:
-                        print(f"DEBUG: Error saving notes message: {e}")
-                        
-            elif isinstance(step_obj, dict):
-                print(f"DEBUG: LEGACY lesson step detected but DISABLED to prevent duplicate content")
-                print(f"DEBUG: Step text: {step_obj.get('text_explanation', '')[:100]}...")
-                # Legacy lesson step sending disabled - using synchronized lesson system instead
-                # await self.send_json({"type": "lesson_step", "data": step_obj})
-                print(f"DEBUG: Legacy lesson step sending SKIPPED")
-                
-                # Save lesson step to chat history
-                if self.current_conversation_id and messages is not None:
-                    try:
-                        step_message = create_message(
-                            conversation_id=self.current_conversation_id,
-                            sender="ai",
-                            content=step_obj.get("text_explanation", ""),
-                            message_type="lesson_step",
-                            step_data=step_obj
-                        )
-                        await messages.insert_one(step_message)
-                    except Exception as e:
-                        print(f"DEBUG: Error saving step message: {e}")
+            except Exception as e:
+                logger.error(f"Error creating conversation: {e}")
+                self.current_conversation_id = None
+
+    async def save_user_message(self, topic, pdf_filename):
+        """Save user message to database."""
+        if messages is None or not self.current_conversation_id:
+            return
+
+        try:
+            user_content = f"Topic: {topic}" if topic else f"PDF: {pdf_filename}"
+            user_message = create_message(
+                conversation_id=self.current_conversation_id,
+                sender="user",
+                content=user_content,
+                message_type="topic_request"
+            )
+            await messages.insert_one(user_message)
+            logger.info("User message saved to database")
             
-            self._buffer = self._buffer[e + len(STEP_END):]
-            start = 0
+        except Exception as e:
+            logger.error(f"Error saving user message: {e}")
+
+    def prepare_lesson_content(self, topic, pdf_text):
+        """Prepare lesson content for AI generation."""
+        lesson_content = f"Topic: {topic}"
+        if pdf_text:
+            max_pdf_length = 15000
+            truncated_text = pdf_text[:max_pdf_length]
+            lesson_content += f"\n\nUse the following content to create the lesson:\n\n---\n{truncated_text}\n---"
+        return lesson_content
 
     async def generate_complete_lesson(self, lesson_content):
-        """Generate complete lesson content and send synchronized steps"""
+        """Generate complete lesson content using AI and send synchronized steps."""
         try:
+            # Create AI prompt
             prompt_template = PromptTemplate(
                 input_variables=["lesson_content", "step_start", "step_end", "lesson_end"],
-                template=(
-                    "You are an engaging AI Virtual Teacher with a whiteboard. Create an interactive visual lesson based on: '{lesson_content}'.\n\n"
-                    "**CRITICAL FORMAT REQUIREMENTS**:\n"
-                    "1. Create exactly 4-6 teaching steps, each with proper JSON format.\n"
-                    "2. Each step MUST be wrapped between {step_start} and {step_end} markers.\n"
-                    "3. Use this EXACT JSON format for each step:\n\n"
-                    "{step_start}\n"
-                    "{{\n"
-                    '  "step": 1,\n'
-                    '  "speech_text": "Welcome to today\'s lesson! We\'re going to explore [specific topic concept]. This is fundamental because [explain importance]. Let me introduce the key concept we\'ll be learning about.",\n'
-                    '  "speech_duration": 10000,\n'
-                    '  "text_explanation": "Detailed explanation of the concept being taught in this step.",\n'
-                    '  "drawing_commands": [\n'
-                    '    {{\n'
-                    '      "time": 1000,\n'
-                    '      "action": "draw_text",\n'
-                    '      "text": "Main Topic Title",\n'
-                    '      "x": 400,\n'
-                    '      "y": 80,\n'
-                    '      "fontSize": 32,\n'
-                    '      "color": "#2563eb",\n'
-                    '      "fontStyle": "bold"\n'
-                    '    }},\n'
-                    '    {{\n'
-                    '      "time": 4000,\n'
-                    '      "action": "draw_rectangle",\n'
-                    '      "x": 200,\n'
-                    '      "y": 150,\n'
-                    '      "width": 400,\n'
-                    '      "height": 100,\n'
-                    '      "color": "#059669",\n'
-                    '      "strokeWidth": 3\n'
-                    '    }}\n'
-                    '  ]\n'
-                    "}}\n"
-                    "{step_end}\n\n"
-                    "**SPEECH GUIDELINES FOR STEP 1**:\n"
-                    "- Start with substantive content, NOT generic greetings\n"
-                    "- First step should introduce the specific topic and its importance\n"
-                    "- Speech should be 8-12 seconds long (speech_duration: 8000-12000)\n" 
-                    "- Explain what the lesson will cover and why it matters\n"
-                    "- Be engaging and educational from the first word\n"
-                    "- NO phrases like 'Hello everyone' or 'Welcome to the lesson'\n\n"
-                    "**SPEECH GUIDELINES FOR ALL STEPS**:\n"
-                    "- Make speech natural and conversational for teaching\n"
-                    "- Each step should build on the previous one\n"
-                    "- Focus on specific concepts, not generic statements\n"
-                    "- Use encouraging educational language\n"
-                    "- Each step should have unique, relevant content\n\n"
-                    "**DRAWING COMMANDS** (Keep it simple and clear):\n"
-                    "- draw_text: {{'action': 'draw_text', 'text': 'Your explanation here', 'fontSize': 18, 'color': '#333'}}\n"
-                    "- draw_rectangle: {{'action': 'draw_rectangle', 'width': 150, 'height': 80, 'color': '#0066cc'}}\n"
-                    "- draw_circle: {{'action': 'draw_circle', 'radius': 40, 'color': '#dc2626'}}\n"
-                    "- draw_arrow: {{'action': 'draw_arrow', 'color': '#059669'}}\n\n"
-                    "**LAYOUT RULES**:\n"
-                    "- Text will be automatically positioned from top to bottom, no overlapping\n"
-                    "- Shapes will be positioned on the right side\n"
-                    "- Use 1-3 drawing commands per step maximum\n"
-                    "- Focus on clear, simple demonstrations\n"
-                    "- Don't specify x,y coordinates - system will auto-position\n"
-                    "**TIMING**: Use 'time' for delays (0 = immediate, 3000 = after 3 seconds)\n\n"
-                    "Create a complete lesson with clear step-by-step teaching, then end with {lesson_end}.\n"
-                )
+                template=self.get_lesson_prompt_template()
             )
 
-            prompt = prompt_template.format(lesson_content=lesson_content, step_start=STEP_START, step_end=STEP_END, lesson_end=LESSON_END)
+            prompt = prompt_template.format(
+                lesson_content=lesson_content, 
+                step_start=STEP_START, 
+                step_end=STEP_END, 
+                lesson_end=LESSON_END
+            )
 
-            await self.send_json({"type": "generation_progress", "status": "Starting AI generation...", "buffer_length": 0})
+            await self.send_json({
+                "type": "generation_progress", 
+                "status": "Starting AI generation...", 
+                "progress": 0
+            })
 
-            print("DEBUG: Starting Google Generative AI model call...")
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            print("DEBUG: Model created, starting stream...")
+            # Generate content using Google AI
+            full_content = await self.generate_ai_content(prompt)
             
-            # Generate complete content first
-            full_content = ""
-            chunk_count = 0
-            
-            try:
-                stream = await model.generate_content_async(prompt, stream=True)
-                print("DEBUG: Stream started, processing chunks...")
-
-                async for chunk in stream:
-                    chunk_count += 1
-                    print(f"DEBUG: Processing chunk {chunk_count}")
-                    text = getattr(chunk, "text", "") or ""
-                    print(f"DEBUG: Chunk text length: {len(text)}")
-                    
-                    if not text:
-                        print("DEBUG: Empty chunk, continuing...")
-                        continue
-                        
-                    full_content += text
-                    print(f"DEBUG: Full content length now: {len(full_content)}")
-
-                    # Send progress updates
-                    if len(full_content) % 200 < 50:  # Update every ~200 characters
-                        await self.send_json({
-                            "type": "generation_progress", 
-                            "buffer_length": len(full_content),
-                            "status": f"Generating... ({len(full_content)} characters)"
-                        })
-                        
-            except Exception as ai_error:
-                print(f"DEBUG: AI generation error: {ai_error}")
-                await self.send_json({"type": "error", "message": f"AI service error: {str(ai_error)}"})
+            if not full_content:
+                await self.send_json({"type": "error", "message": "Failed to generate lesson content"})
                 return
 
-            print(f"DEBUG: Complete content generated, length: {len(full_content)}")
-            
-            # Process all teaching steps at once
+            # Parse teaching steps from generated content
             teaching_steps = await self.parse_all_teaching_steps(full_content)
-            
+
             if teaching_steps:
-                # Send all steps to frontend for synchronized playback
+                # Send synchronized lesson to frontend
                 await self.send_json({
                     "type": "lesson_ready",
                     "total_steps": len(teaching_steps),
                     "teaching_steps": teaching_steps,
                     "message": f"Lesson ready with {len(teaching_steps)} steps"
                 })
-                
-                # Store the lesson in database
+
+                # Store lesson in database
                 await self.store_lesson_steps(teaching_steps)
                 
-                print(f"DEBUG: Lesson sent with {len(teaching_steps)} synchronized steps")
+                logger.info(f"Lesson generated successfully with {len(teaching_steps)} steps")
             else:
                 await self.send_json({
                     "type": "error",
@@ -469,140 +337,256 @@ class TeacherConsumer(AsyncWebsocketConsumer):
                 })
 
         except Exception as e:
-            print(f"DEBUG: Error in lesson generation: {e}")
+            logger.error(f"Error in lesson generation: {e}")
             await self.send_json({"type": "error", "message": f"Error generating lesson: {str(e)}"})
         finally:
-            # Reset generation flag
-            self.is_generating = False
-            # Only send lesson_end if we actually generated content (not for duplicate requests)
-            if hasattr(self, 'teaching_steps') and len(self.teaching_steps) > 0:
-                await self.send_json({"type": "lesson_end", "message": "Lesson generation finished."})
-            else:
-                print("DEBUG: Skipping lesson_end - no content generated (likely duplicate request)")
+            # Send lesson completion signal
+            await self.send_json({"type": "lesson_end", "message": "Lesson generation finished."})
+
+    async def generate_ai_content(self, prompt):
+        """Generate content using Google AI with proper error handling."""
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            full_content = ""
+            chunk_count = 0
+
+            stream = await model.generate_content_async(prompt, stream=True)
+            logger.info("AI content generation started")
+
+            async for chunk in stream:
+                chunk_count += 1
+                text = getattr(chunk, "text", "") or ""
+                
+                if text:
+                    full_content += text
+                    
+                    # Send progress updates periodically
+                    if chunk_count % 5 == 0:
+                        await self.send_json({
+                            "type": "generation_progress",
+                            "status": f"Generating... ({len(full_content)} characters)",
+                            "progress": min(90, chunk_count * 2)  # Cap at 90% during generation
+                        })
+
+            logger.info(f"AI generation completed: {len(full_content)} characters")
+            return full_content
+
+        except Exception as e:
+            logger.error(f"AI generation error: {e}")
+            return None
+
+    def get_lesson_prompt_template(self):
+        """Return the optimized lesson generation prompt template."""
+        return (
+            "You are an engaging AI Virtual Teacher with a whiteboard. Create an interactive visual lesson based on: '{lesson_content}'.\n\n"
+            "**CRITICAL FORMAT REQUIREMENTS**:\n"
+            "1. Create exactly 4-6 teaching steps, each with proper JSON format.\n"
+            "2. Each step MUST be wrapped between {step_start} and {step_end} markers.\n"
+            "3. Use this EXACT JSON format for each step:\n\n"
+            "{step_start}\n"
+            "{{\n"
+            '  "step": 1,\n'
+            '  "speech_text": "Let\'s explore the fundamental concepts of [specific topic]. This is crucial because [explain importance]. We\'ll start by understanding the key principles.",\n'
+            '  "speech_duration": 10000,\n'
+            '  "text_explanation": "Detailed explanation of the concept being taught in this step.",\n'
+            '  "drawing_commands": [\n'
+            '    {{\n'
+            '      "time": 1000,\n'
+            '      "action": "draw_text",\n'
+            '      "text": "Main Topic Title",\n'
+            '      "x": 400,\n'
+            '      "y": 80,\n'
+            '      "fontSize": 28,\n'
+            '      "color": "#2563eb",\n'
+            '      "fontStyle": "bold"\n'
+            '    }}\n'
+            '  ]\n'
+            "}}\n"
+            "{step_end}\n\n"
+            "**CONTENT GUIDELINES**:\n"
+            "- Start immediately with substantive educational content\n"
+            "- NO generic greetings like 'Hello everyone' or 'Welcome to'\n"
+            "- Each step should teach a specific concept or skill\n"
+            "- Build progressively from basic to advanced concepts\n"
+            "- Use clear, engaging educational language\n"
+            "- Include practical examples and applications\n\n"
+            "**DRAWING COMMANDS** (Keep simple and effective):\n"
+            "- draw_text: For titles, key points, and explanations\n"
+            "- draw_rectangle: For highlighting important areas\n"
+            "- draw_circle: For emphasis or grouping concepts\n"
+            "- draw_arrow: For showing relationships or flow\n"
+            "- Use 1-3 commands per step maximum\n"
+            "- Focus on clarity over complexity\n\n"
+            "Create a complete, educational lesson that teaches effectively, then end with {lesson_end}.\n"
+        )
 
     async def parse_all_teaching_steps(self, content):
-        """Parse all teaching steps from complete content"""
+        """Parse all teaching steps from generated content with improved validation."""
         teaching_steps = []
-        
+
         try:
-            # Look for step blocks in the content
-            start = 0
+            start_pos = 0
             while True:
-                s = content.find(STEP_START, start)
-                if s == -1:
+                # Find step boundaries
+                step_start = content.find(STEP_START, start_pos)
+                if step_start == -1:
                     break
-                e = content.find(STEP_END, s + len(STEP_START))
-                if e == -1:
+                    
+                step_end = content.find(STEP_END, step_start + len(STEP_START))
+                if step_end == -1:
                     break
-                
-                print(f"DEBUG: Found step block from {s} to {e}")
-                block = content[s + len(STEP_START): e]
+
+                # Extract and clean step content
+                step_block = content[step_start + len(STEP_START):step_end].strip()
                 
                 try:
-                    # Clean and parse the JSON
-                    clean_block = strip_code_fences(block.strip())
+                    # Parse JSON content
+                    clean_block = strip_code_fences(step_block)
                     step_data = json.loads(clean_block)
-                    
+
                     # Validate required fields
-                    if 'step' in step_data and 'speech_text' in step_data:
-                        step_number = step_data.get('step', len(teaching_steps) + 1)
-                        
-                        # Special validation for first step
-                        if step_number == 1:
-                            print(f"DEBUG: === VALIDATING FIRST STEP ===")
-                            print(f"DEBUG: Original speech_text: '{step_data['speech_text']}'")
-                            
-                            # Check for generic/empty content
-                            speech_text = step_data['speech_text'].strip()
-                            if not speech_text or len(speech_text) < 20:
-                                print(f"ERROR: First step has insufficient speech content: '{speech_text}'")
-                                # Generate fallback content
-                                if 'text_explanation' in step_data:
-                                    step_data['speech_text'] = step_data['text_explanation']
-                                else:
-                                    step_data['speech_text'] = "Today we're exploring an important concept. Let me introduce the key ideas we'll be learning about and why they matter."
-                                print(f"DEBUG: Using fallback speech_text: '{step_data['speech_text']}'")
-                            
-                            # Check for generic greetings
-                            if 'hello everyone' in speech_text.lower() or 'welcome to' in speech_text.lower():
-                                print(f"WARNING: First step contains generic greeting, enhancing content")
-                                # Enhance with actual content
-                                if 'text_explanation' in step_data:
-                                    step_data['speech_text'] = step_data['text_explanation']
-                                
-                            print(f"DEBUG: Final first step speech_text: '{step_data['speech_text']}'")
-                            print(f"DEBUG: ===============================")
-                        
-                        # Ensure we have text_explanation as fallback
-                        if 'text_explanation' not in step_data:
-                            step_data['text_explanation'] = step_data['speech_text']
-                        
-                        # Ensure drawing_commands exists
-                        if 'drawing_commands' not in step_data:
-                            step_data['drawing_commands'] = []
-                        
-                        # Clean speech text for better synthesis
-                        step_data['speech_text'] = clean_text_for_speech(step_data['speech_text'])
-                        
-                        teaching_steps.append(step_data)
-                        print(f"DEBUG: Parsed teaching step {step_number}")
-                        
-                        # Log speech text length for debugging
-                        print(f"DEBUG: Step {step_number} speech length: {len(step_data['speech_text'])} characters")
-                        
-                    else:
-                        print(f"DEBUG: Invalid step format - missing required fields: {list(step_data.keys())}")
-                        
-                except json.JSONDecodeError as json_error:
-                    print(f"DEBUG: JSON parse error for step: {json_error}")
-                    print(f"DEBUG: Block content: {block[:200]}...")
+                    if not self.validate_step_data(step_data):
+                        logger.warning(f"Invalid step data: {list(step_data.keys())}")
+                        start_pos = step_end + len(STEP_END)
+                        continue
+
+                    # Clean and enhance step data
+                    step_data = self.enhance_step_data(step_data, len(teaching_steps) + 1)
+                    teaching_steps.append(step_data)
                     
-                start = e + len(STEP_END)
+                    logger.info(f"Parsed teaching step {step_data.get('step')}")
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON parse error for step: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing step: {e}")
+
+                start_pos = step_end + len(STEP_END)
+
+            # Sort steps by step number and validate sequence
+            teaching_steps.sort(key=lambda x: x.get('step', 0))
+            
+            # Final validation
+            if teaching_steps:
+                self.validate_lesson_quality(teaching_steps)
                 
+            logger.info(f"Successfully parsed {len(teaching_steps)} teaching steps")
+            return teaching_steps
+
         except Exception as e:
-            print(f"DEBUG: Error parsing teaching steps: {e}")
+            logger.error(f"Error parsing teaching steps: {e}")
+            return []
+
+    def validate_step_data(self, step_data):
+        """Validate that step data contains required fields."""
+        required_fields = ['step', 'speech_text']
+        return (isinstance(step_data, dict) and 
+                all(field in step_data for field in required_fields) and
+                step_data.get('speech_text', '').strip())
+
+    def enhance_step_data(self, step_data, step_number):
+        """Enhance step data with defaults and validation."""
+        # Ensure step number
+        step_data['step'] = step_data.get('step', step_number)
         
-        # Sort steps by step number
-        teaching_steps.sort(key=lambda x: x.get('step', 0))
-        print(f"DEBUG: Total teaching steps parsed: {len(teaching_steps)}")
+        # Clean speech text
+        speech_text = step_data.get('speech_text', '').strip()
+        if len(speech_text) < 20:
+            speech_text = step_data.get('text_explanation', speech_text)
         
-        # Final validation of first step
-        if teaching_steps:
-            first_step = teaching_steps[0]
-            print(f"DEBUG: === FIRST STEP FINAL VALIDATION ===")
-            print(f"DEBUG: First step keys: {list(first_step.keys())}")
-            print(f"DEBUG: First step speech_text: '{first_step.get('speech_text', 'MISSING')}'")
-            print(f"DEBUG: First step speech_text length: {len(first_step.get('speech_text', ''))}")
-            print(f"DEBUG: First step drawing_commands: {len(first_step.get('drawing_commands', []))}")
-            print(f"DEBUG: ================================")
+        step_data['speech_text'] = clean_text_for_speech(speech_text)
         
-        return teaching_steps
+        # Ensure text explanation exists
+        if 'text_explanation' not in step_data:
+            step_data['text_explanation'] = step_data['speech_text']
+        
+        # Ensure drawing commands exist
+        if 'drawing_commands' not in step_data:
+            step_data['drawing_commands'] = []
+        
+        # Set reasonable speech duration if missing
+        if 'speech_duration' not in step_data:
+            word_count = len(step_data['speech_text'].split())
+            step_data['speech_duration'] = max(8000, word_count * 400)  # ~150 WPM
+        
+        return step_data
+
+    def validate_lesson_quality(self, teaching_steps):
+        """Perform final quality validation on the complete lesson."""
+        if not teaching_steps:
+            return
+
+        first_step = teaching_steps[0]
+        speech_text = first_step.get('speech_text', '').lower()
+        
+        # Check for generic content
+        generic_phrases = ['hello everyone', 'welcome to', 'good morning', 'today we will']
+        if any(phrase in speech_text for phrase in generic_phrases):
+            logger.warning("First step contains generic greeting content")
+            
+        # Ensure meaningful content length
+        if len(first_step.get('speech_text', '')) < 50:
+            logger.warning("First step has insufficient content")
+
+        logger.info("Lesson quality validation completed")
 
     async def store_lesson_steps(self, teaching_steps):
-        """Store all teaching steps in database"""
+        """Store all teaching steps in database with improved error handling."""
         if not self.current_conversation_id or messages is None:
-            print("DEBUG: Skipping database storage - no conversation ID or MongoDB unavailable")
+            logger.info("Skipping database storage - no conversation ID or MongoDB unavailable")
             return
-            
-        try:
-            for step in teaching_steps:
+        
+        stored_count = 0
+        for step in teaching_steps:
+            try:
+                # Use the existing event loop instead of creating a new one
                 message_doc = {
                     "conversation_id": self.current_conversation_id,
                     "sender": "ai",
-                    "content": step['speech_text'],
+                    "content": step.get('speech_text', ''),
                     "message_type": "teaching_step",
                     "step_data": step,
                     "timestamp": datetime.utcnow()
                 }
                 
-                try:
-                    await messages.insert_one(message_doc)
-                except Exception as e:
-                    print(f"DEBUG: Error storing step {step.get('step')}: {e}")
-                    
+                # Insert directly using await (we're already in async context)
+                result = await messages.insert_one(message_doc)
+                if result.inserted_id:
+                    stored_count += 1
+                    logger.info(f"Successfully stored step {step.get('step', 'unknown')}")
+                
+            except Exception as e:
+                logger.error(f"Error storing step {step.get('step')}: {e}")
+                # Continue with next step instead of failing completely
+                continue
+        
+        logger.info(f"Stored {stored_count}/{len(teaching_steps)} steps in database")
+        return stored_count
+
+
+    async def send_json(self, data):
+        """Send JSON data with error handling."""
+        try:
+            await self.send(text_data=json.dumps(data))
         except Exception as e:
-            print(f"DEBUG: Error storing lesson steps: {e}")
+            logger.error(f"Error sending JSON: {e}")
 
-
-    async def send_json(self, obj):
-        await self.send(text_data=json.dumps(obj))
+    async def create_new_conversation(self):
+        """Create new conversation with proper error handling."""
+        try:
+            if conversations is None:
+                raise Exception("Database not available")
+            
+            conversation_doc = create_conversation("anonymous", "New Lesson")
+            result = await conversations.insert_one(conversation_doc)
+            
+            if result.inserted_id:
+                self.current_conversation_id = result.inserted_id
+                logger.info(f"Created new conversation: {result.inserted_id}")
+                return str(result.inserted_id)
+            else:
+                raise Exception("Failed to create conversation")
+                
+        except Exception as e:
+            logger.error(f"Error creating conversation: {e}")
+            return None
