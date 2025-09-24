@@ -20,13 +20,26 @@ const apiCall = async (endpoint, options = {}) => {
   };
 
   const response = await fetch(url, { ...defaultOptions, ...options });
-  const data = await response.json();
-
+  
   if (!response.ok) {
-    throw new Error(data.error || "An error occurred");
+    const errorText = await response.text();
+    let errorMessage;
+    try {
+      const errorData = JSON.parse(errorText);
+      errorMessage = errorData.error || "An error occurred";
+    } catch {
+      errorMessage = errorText || "An error occurred";
+    }
+    throw new Error(errorMessage);
   }
 
+  const data = await response.json();
   return data;
+};
+
+// Helper function to get conversation ID
+const getConversationId = (item) => {
+  return item._id || item.conversation_id || item.id;
 };
 
 export default function App() {
@@ -37,6 +50,8 @@ export default function App() {
   const [currentSession, setCurrentSession] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState("anonymous");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Load chat history on component mount
   useEffect(() => {
@@ -45,22 +60,71 @@ export default function App() {
 
   const loadChatHistory = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       const response = await apiCall(
         `/api/conversations/?user_id=${currentUserId}`
       );
-      setHistoryItems(response.conversations || []);
+      
+      const conversations = response.conversations || [];
+      
+      // Transform backend conversations to match frontend format
+      const transformedConversations = conversations.map(conv => ({
+        ...conv,
+        id: getConversationId(conv), // Ensure consistent ID access
+        title: conv.title || "Untitled Chat",
+        timestamp: conv.timestamp || formatTimestamp(conv.updated_at || conv.created_at),
+      }));
+      
+      setHistoryItems(transformedConversations);
 
       // If no conversations, create a new one
-      if (!response.conversations || response.conversations.length === 0) {
+      if (transformedConversations.length === 0) {
         handleNewChat();
       } else {
         // Set the most recent conversation as current
-        setCurrentSessionId(response.conversations[0].id);
+        const mostRecent = transformedConversations[0];
+        setCurrentSessionId(getConversationId(mostRecent));
+        if (mostRecent.title && mostRecent.title !== "Untitled Chat") {
+          setCurrentSession(mostRecent.title);
+        }
       }
     } catch (error) {
       console.error("Error loading chat history:", error);
+      setError("Failed to load chat history");
       // Fallback to creating a new chat
       handleNewChat();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTimestamp = (dateString) => {
+    if (!dateString) {
+      return new Date().toLocaleString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    if (messageDate.getTime() === today.getTime()) {
+      return `Today, ${date.toLocaleString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    } else {
+      return date.toLocaleDateString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
   };
 
@@ -69,19 +133,27 @@ export default function App() {
       hour: "2-digit",
       minute: "2-digit",
     });
+    
+    // Create temporary local ID that will be replaced when conversation is created on backend
+    const tempId = `temp_${Date.now()}`;
+    
     const newItem = {
-      id: String(Date.now()),
+      id: tempId,
       title: "Untitled Chat",
       timestamp: `Today, ${timestamp}`,
+      isTemp: true, // Mark as temporary
     };
+    
     setHistoryItems((prev) => [newItem, ...prev]);
-    setCurrentSessionId(newItem.id);
+    setCurrentSessionId(tempId);
     setCurrentSession(null); // Reset to upload screen
   };
 
   const handleHistoryItemClick = (item) => {
-    setCurrentSessionId(item.id);
-    if (item.title !== "Untitled Chat") {
+    const itemId = getConversationId(item);
+    setCurrentSessionId(itemId);
+    
+    if (item.title && item.title !== "Untitled Chat") {
       setCurrentSession(item.title);
     } else {
       setCurrentSession(null);
@@ -92,7 +164,9 @@ export default function App() {
     // Update the current untitled chat with the PDF name
     if (currentSessionId) {
       const updatedHistory = historyItems.map((item) =>
-        item.id === currentSessionId ? { ...item, title: pdfName } : item
+        getConversationId(item) === currentSessionId 
+          ? { ...item, title: pdfName } 
+          : item
       );
       setHistoryItems(updatedHistory);
       setCurrentSession(pdfName);
@@ -102,13 +176,17 @@ export default function App() {
         hour: "2-digit",
         minute: "2-digit",
       });
+      const tempId = `temp_${Date.now()}`;
+      
       const newItem = {
-        id: String(Date.now()),
+        id: tempId,
         title: pdfName,
         timestamp: `Today, ${timestamp}`,
+        isTemp: true,
       };
+      
       setHistoryItems((prev) => [newItem, ...prev]);
-      setCurrentSessionId(newItem.id);
+      setCurrentSessionId(tempId);
       setCurrentSession(pdfName);
     }
   };
@@ -125,40 +203,94 @@ export default function App() {
   };
 
   const handleDeleteConversation = async (conversationId) => {
+    if (!conversationId || conversationId === 'undefined' || conversationId.startsWith('temp_')) {
+      console.error("Invalid or temporary conversation ID for deletion:", conversationId);
+      
+      // If it's a temp conversation, just remove it locally
+      if (conversationId.startsWith('temp_')) {
+        setHistoryItems(prev => prev.filter(item => getConversationId(item) !== conversationId));
+        if (currentSessionId === conversationId) {
+          handleNewChat();
+        }
+      }
+      return;
+    }
+
     try {
+      setLoading(true);
+      
       await apiCall(`/api/conversations/${conversationId}/delete/`, {
         method: "POST",
       });
 
-      // Remove from local state
+      // Remove from local state immediately
       setHistoryItems((prev) =>
-        prev.filter((item) => item.id !== conversationId)
+        prev.filter((item) => getConversationId(item) !== conversationId)
       );
 
       // If the deleted conversation was current, create a new one
       if (currentSessionId === conversationId) {
         handleNewChat();
       }
+
+      console.log("Conversation deleted successfully");
+      
+      // Optional: Refresh from backend after a short delay to ensure consistency
+      setTimeout(() => {
+        loadChatHistory();
+      }, 1000);
+      
     } catch (error) {
       console.error("Error deleting conversation:", error);
+      setError("Failed to delete conversation");
+      
+      // Refresh conversations to ensure UI consistency
+      loadChatHistory();
+      
+      // Show user-friendly error message
+      alert("Failed to delete conversation. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRenameConversation = async (conversationId, newTitle) => {
+    if (!conversationId || !newTitle.trim() || conversationId === 'undefined' || conversationId.startsWith('temp_')) {
+      console.error("Invalid conversation ID or title for rename:", conversationId);
+      
+      // If it's a temp conversation, just update it locally
+      if (conversationId.startsWith('temp_')) {
+        setHistoryItems(prev =>
+          prev.map(item =>
+            getConversationId(item) === conversationId
+              ? { ...item, title: newTitle.trim() }
+              : item
+          )
+        );
+      }
+      return;
+    }
+
     try {
       await apiCall(`/api/conversations/${conversationId}/rename/`, {
         method: "POST",
-        body: JSON.stringify({ title: newTitle }),
+        body: JSON.stringify({ title: newTitle.trim() }),
       });
 
-      // Update local state
+      // Update local state immediately
       setHistoryItems((prev) =>
         prev.map((item) =>
-          item.id === conversationId ? { ...item, title: newTitle } : item
+          getConversationId(item) === conversationId 
+            ? { ...item, title: newTitle.trim() } 
+            : item
         )
       );
+
+      console.log("Conversation renamed successfully");
     } catch (error) {
       console.error("Error renaming conversation:", error);
+      setError("Failed to rename conversation");
+      alert("Failed to rename conversation. Please try again.");
     }
   };
 
@@ -167,17 +299,29 @@ export default function App() {
   };
 
   const handleConversationCreated = (conversationId, title) => {
-    // Update the current session to use the new conversation ID
+    if (!conversationId) return;
+    
+    // Replace the temporary conversation with the real one
     setCurrentSessionId(conversationId);
 
     // Update the history item with the new conversation ID
     setHistoryItems((prev) =>
-      prev.map((item) =>
-        item.id === currentSessionId
-          ? { ...item, id: conversationId, title: title }
-          : item
-      )
+      prev.map((item) => {
+        const itemId = getConversationId(item);
+        return itemId === currentSessionId || item.isTemp
+          ? { 
+              ...item, 
+              id: conversationId,
+              _id: conversationId, // Ensure backend compatibility
+              conversation_id: conversationId,
+              title: title || item.title,
+              isTemp: false // Remove temp flag
+            }
+          : item;
+      })
     );
+
+    console.log("Conversation created with ID:", conversationId);
   };
 
   const toggleSidebar = () => {
@@ -193,6 +337,31 @@ export default function App() {
   return (
     <div className="relative min-h-screen bg-background overflow-hidden">
       <GlowingBackground />
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg">
+          <div className="flex items-center gap-2">
+            <span>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="text-white/80 hover:text-white"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Indicator */}
+      {loading && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Processing...</span>
+          </div>
+        </div>
+      )}
 
       {/* Mobile top bar only */}
       {!isSessionFullscreen && (
