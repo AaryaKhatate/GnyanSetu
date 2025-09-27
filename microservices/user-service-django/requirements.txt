@@ -1,0 +1,16 @@
+# Django User Management Service with DRF
+# Port: 8002
+# Uses Django's built-in User model with DRF for API endpoints
+
+django>=4.2.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.0.0
+djangorestframework-simplejwt>=5.2.0
+python-decouple>=3.8
+psycopg2-binary>=2.9.0
+celery>=5.3.0
+redis>=4.5.0
+django-allauth>=0.54.0
+dj-rest-auth>=4.0.0
+pillow>=10.0.0
+requests>=2.31.0
