@@ -870,10 +870,14 @@ export default function App() {
 
   const handleAuthSuccess = (result) => {
     if (result.user) {
-      // Authentication successful, redirect to React dashboard
+      // Authentication successful, open dashboard in new tab
       console.log("Authentication successful:", result);
-      // Redirect to the React Dashboard app
-      window.location.href = "http://localhost:3001";
+      // Store user data for dashboard
+      localStorage.setItem('gnyansetu_user', JSON.stringify(result.user));
+      // Open dashboard in new tab instead of redirecting
+      window.open("http://localhost:3001", '_blank');
+      // Close modal
+      closeModal();
     }
   };
 
@@ -888,8 +892,8 @@ export default function App() {
   };
 
   const redirectToDashboard = () => {
-    // This will redirect to the React dashboard app
-    window.location.href = "http://localhost:3001";
+    // Open dashboard in new tab instead of redirecting
+    window.open("http://localhost:3001", '_blank');
   };
 
   return (

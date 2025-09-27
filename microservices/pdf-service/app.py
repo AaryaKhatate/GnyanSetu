@@ -114,6 +114,27 @@ ALLOWED_EXTENSIONS = {'pdf'}
 # Create upload directory
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Print startup status summary
+print(f"\n{Fore.CYAN}{'='*80}{Style.RESET_ALL}")
+print(f"{Fore.WHITE}{Back.BLUE} 📄 PDF SERVICE STARTUP STATUS {Style.RESET_ALL}")
+print(f"{Fore.CYAN}{'='*80}{Style.RESET_ALL}")
+
+mongodb_status = "✅ Connected" if pdf_documents else "❌ Disconnected"
+rabbitmq_status = "✅ Connected" if rabbitmq_channel else "⚠️  Disconnected (events disabled)"
+
+print(f"{Fore.GREEN}MongoDB:    {mongodb_status}{Style.RESET_ALL}")
+print(f"{Fore.YELLOW}RabbitMQ:   {rabbitmq_status}{Style.RESET_ALL}")
+print(f"{Fore.CYAN}Upload Dir: ✅ {UPLOAD_FOLDER}{Style.RESET_ALL}")
+print(f"{Fore.CYAN}Max Size:   ✅ {MAX_FILE_SIZE // (1024*1024)}MB{Style.RESET_ALL}")
+print(f"{Fore.CYAN}Extensions: ✅ {', '.join(ALLOWED_EXTENSIONS)}{Style.RESET_ALL}")
+
+if not pdf_documents:
+    print(f"{Fore.RED}⚠️  WARNING: MongoDB unavailable - uploads will fail{Style.RESET_ALL}")
+if not rabbitmq_channel:
+    print(f"{Fore.YELLOW}⚠️  INFO: RabbitMQ unavailable - events disabled (non-critical){Style.RESET_ALL}")
+
+print(f"{Fore.CYAN}{'='*80}{Style.RESET_ALL}\n")
+
 def allowed_file(filename):
     """Check if file has allowed extension."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -131,8 +152,15 @@ def generate_document_id(filename, content):
     return document_id
 
 def publish_event(event_type, data):
-    """Publish event to RabbitMQ."""
-    if rabbitmq_channel:
+    """Publish event to RabbitMQ with retry logic."""
+    if not rabbitmq_channel:
+        logger.warning(f"RabbitMQ not available, skipping event: {event_type}")
+        return
+    
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
         try:
             message = {
                 'event_type': event_type,
@@ -146,9 +174,20 @@ def publish_event(event_type, data):
                 routing_key=f'pdf.{event_type}',
                 body=json.dumps(message)
             )
-            logger.info(f"Published event: {event_type}")
+            logger.info(f"✅ Published event: {event_type}")
+            return  # Success - exit retry loop
+            
         except Exception as e:
-            logger.error(f"Failed to publish event {event_type}: {e}")
+            retry_count += 1
+            if retry_count < max_retries:
+                logger.warning(f"⚠️  Event publish failed (attempt {retry_count}/{max_retries}): {e}")
+                # Wait briefly before retry
+                import time
+                time.sleep(0.5 * retry_count)  # Exponential backoff
+            else:
+                logger.warning(f"⚠️  Event publishing failed after {max_retries} attempts: {e}")
+                logger.info("📄 Core PDF processing continues normally (events are optional)")
+                break
 
 def extract_text_from_pdf(pdf_file):
     """Extract text content from PDF file with OCR fallback for images."""
@@ -415,6 +454,23 @@ def delete_document(document_id):
         logger.error(f"Error deleting document {document_id}: {e}")
         return jsonify({'error': 'Failed to delete document'}), 500
 
+@app.route('/ws/<path:path>')
+def websocket_info(path):
+    """Inform about WebSocket endpoint availability."""
+    return jsonify({
+        'error': 'WebSocket not supported',
+        'message': 'This PDF service provides REST API endpoints only',
+        'requested_path': f'/ws/{path}',
+        'available_endpoints': [
+            'GET /health - Service health check',
+            'POST /api/upload - Upload PDF files',
+            'GET /api/documents - List all documents',
+            'GET /api/documents/<id> - Get specific document',
+            'DELETE /api/documents/<id> - Delete document'
+        ],
+        'suggestion': 'Use HTTP REST endpoints for PDF processing'
+    }), 404
+
 if __name__ == '__main__':
-    logger.info("Starting PDF Service on port 8001")
+    logger.info("🎨 Starting PDF Service with beautiful colored output on port 8001")
     app.run(host='0.0.0.0', port=8001, debug=True)

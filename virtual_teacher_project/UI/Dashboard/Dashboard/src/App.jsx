@@ -53,8 +53,21 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load chat history on component mount
+  // Load user data and chat history on component mount
   useEffect(() => {
+    // Load user data from localStorage
+    const storedUser = localStorage.getItem('gnyansetu_user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        const userId = userData.id || userData._id || userData.email || "anonymous";
+        setCurrentUserId(userId);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        setCurrentUserId("anonymous");
+      }
+    }
+    
     loadChatHistory();
   }, []);
 
