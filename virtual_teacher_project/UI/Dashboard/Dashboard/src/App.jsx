@@ -1,14 +1,12 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { AuthProvider } from "./contexts/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
 import Sidebar from "./components/Sidebar";
 import UploadBox from "./components/UploadBox";
 import ProfileMenu from "./components/ProfileMenu";
 import GlowingBackground from "./components/GlowingBackground";
 import SessionManager from "./components/SessionManager";
 
-// API Configuration
-const API_BASE_URL = "http://localhost:8001";
+// API Configuration - Use API Gateway
+const API_BASE_URL = "http://localhost:8000";
 
 // API Helper function
 const apiCall = async (endpoint, options = {}) => {

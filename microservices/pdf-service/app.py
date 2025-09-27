@@ -283,7 +283,7 @@ def upload_pdf():
         
         # Store in MongoDB
         mongodb_id = None
-        if pdf_documents:
+        if pdf_documents is not None:
             try:
                 result = pdf_documents.insert_one(document_data)
                 mongodb_id = str(result.inserted_id)
@@ -347,7 +347,7 @@ def upload_pdf():
 def get_documents():
     """Get list of uploaded PDF documents."""
     try:
-        if not pdf_documents:
+        if pdf_documents is None:
             return jsonify({'documents': []})
         
         documents = []
@@ -368,7 +368,7 @@ def get_documents():
 def get_document(document_id):
     """Get specific document details including extracted text."""
     try:
-        if not pdf_documents:
+        if pdf_documents is None:
             return jsonify({'error': 'Database not available'}), 500
         
         # Validate ObjectId format

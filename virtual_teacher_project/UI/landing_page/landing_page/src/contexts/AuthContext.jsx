@@ -12,7 +12,7 @@ export const useAuth = () => {
 };
 
 // API Configuration - Use API Gateway
-const API_BASE_URL = "http://localhost:8002";
+const API_BASE_URL = "http://localhost:8000";
 
 // API Helper function
 const apiCall = async (endpoint, options = {}) => {
