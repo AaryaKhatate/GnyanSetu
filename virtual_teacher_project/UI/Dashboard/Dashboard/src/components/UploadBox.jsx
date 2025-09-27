@@ -54,18 +54,23 @@ export default function UploadBox({ onStartSession }) {
   const handleUpload = async () => {
     if (selectedFile) {
       try {
-        console.log("Starting PDF upload...", selectedFile);
+        console.log("🚀 Starting PDF lesson generation...", selectedFile);
 
-        // Upload PDF to Django backend
+        // Generate lesson from PDF using Django Lesson Service  
         const formData = new FormData();
         formData.append("pdf_file", selectedFile);
+        formData.append("user_id", "dashboard_user"); // TODO: Use actual user ID from auth
+        formData.append("lesson_type", "interactive");
 
-        console.log("Sending request to backend...");
-        console.log("URL:", "http://localhost:8001/api/upload");
-        console.log("FormData:", formData);
-        console.log("File:", selectedFile);
+        console.log("📤 Sending to Lesson Service...");
+        console.log("URL:", "http://localhost:8003/api/generate-lesson/");
+        console.log("FormData contents:", {
+          pdf_file: selectedFile.name,
+          user_id: "dashboard_user", 
+          lesson_type: "interactive"
+        });
 
-        const response = await fetch("http://localhost:8001/api/upload", {
+        const response = await fetch("http://localhost:8003/api/generate-lesson/", {
           method: "POST",
           body: formData,
           headers: {
@@ -73,39 +78,39 @@ export default function UploadBox({ onStartSession }) {
           },
         });
 
-        console.log("Response received:", response.status, response.statusText);
-        console.log("Response headers:", response.headers);
+        console.log("📥 Response received:", response.status, response.statusText);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error("Server error:", errorText);
+          console.error("❌ Server error:", errorText);
           throw new Error(
             `HTTP error! status: ${response.status} - ${errorText}`
           );
         }
 
         const result = await response.json();
-        console.log("Upload result:", result);
+        console.log("✅ Lesson generation result:", result);
 
-        if (result.error) {
-          alert(`Error: ${result.error}`);
+        if (!result.success) {
+          alert(`❌ Error: ${result.error}`);
           return;
         }
 
-        console.log("PDF uploaded successfully:", result);
+        console.log("🎓 Lesson generated successfully:", result);
 
-        // Store PDF data for session
-        sessionStorage.setItem("pdfText", result.text);
-        sessionStorage.setItem("pdfFilename", result.filename || selectedFile.name);
-        sessionStorage.setItem("pdfDocumentId", result.document_id);
-        sessionStorage.setItem("pdfWordCount", result.word_count);
-        sessionStorage.setItem("pdfPageCount", result.page_count);
+        // Store lesson data for session
+        sessionStorage.setItem("lessonContent", JSON.stringify(result.lesson));
+        sessionStorage.setItem("lessonId", result.lesson_id);
+        sessionStorage.setItem("pdfId", result.pdf_id);
+        sessionStorage.setItem("pdfFilename", selectedFile.name);
+        sessionStorage.setItem("lessonTitle", result.lesson.title);
+        sessionStorage.setItem("pdfStats", JSON.stringify(result.pdf_stats));
 
-        // Show success message with document details
-        alert(`✅ PDF processed successfully!\n\n📄 File: ${result.filename}\n🆔 Document ID: ${result.document_id}\n📊 ${result.word_count} words, ${result.page_count} pages\n\n🚀 Ready for lesson generation!`);
+        // Show success message with lesson details
+        alert(`🎓 Lesson Generated Successfully!\n\n📄 File: ${selectedFile.name}\n📝 Lesson: ${result.lesson.title}\n📊 ${result.pdf_stats.pages} pages, ${result.pdf_stats.images} images\n📏 ${result.pdf_stats.text_length} characters\n\n🚀 Ready for interactive teaching!`);
 
-        // Start the session flow
-        onStartSession(result.filename || selectedFile.name);
+        // Start the session flow with lesson data
+        onStartSession(selectedFile.name);
       } catch (error) {
         console.error("Error uploading PDF:", error);
         alert(`Failed to upload PDF: ${error.message}`);

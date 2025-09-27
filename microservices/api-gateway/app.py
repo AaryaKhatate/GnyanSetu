@@ -38,8 +38,13 @@ SERVICES = {
         'health': '/health', 
         'routes': ['/api/generate-lesson', '/api/lessons', '/api/users/*/lessons', '/api/users/*/history']
     },
+    'teaching-service': {
+        'url': 'http://localhost:8005',
+        'health': '/health',
+        'routes': ['/api/teaching', '/api/sessions', '/ws/teaching']
+    },
     'quiz-service': {
-        'url': 'http://localhost:8004',
+        'url': 'http://localhost:8006',
         'health': '/health',
         'routes': ['/api/quizzes', '/api/notes']
     },

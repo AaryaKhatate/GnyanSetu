@@ -11,6 +11,13 @@ const SessionManager = ({
   currentUserId,
   currentConversationId,
   onConversationCreated,
+  // Teaching service props
+  startLessonTeaching,
+  stopLessonTeaching,
+  isTeachingActive,
+  teachingWebSocket,
+  currentLessonId,
+  teachingData,
 }) => {
   const [currentStage, setCurrentStage] = useState("whiteboard"); // whiteboard, quiz, notes
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -114,6 +121,13 @@ const SessionManager = ({
             currentUserId={currentUserId}
             currentConversationId={currentConversationId}
             onConversationCreated={onConversationCreated}
+            // Teaching service integration
+            startLessonTeaching={startLessonTeaching}
+            stopLessonTeaching={stopLessonTeaching}
+            isTeachingActive={isTeachingActive}
+            teachingWebSocket={teachingWebSocket}
+            currentLessonId={currentLessonId}
+            teachingData={teachingData}
           />
         );
       case "quiz":

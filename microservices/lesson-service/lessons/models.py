@@ -54,17 +54,17 @@ def get_database_stats():
         }
         
         # Get stats for each collection
-        if pdf_data_collection:
+        if pdf_data_collection is not None:
             pdf_count = pdf_data_collection.count_documents({})
             stats["collections"]["pdf_data"] = pdf_count
             stats["total_documents"] += pdf_count
         
-        if lessons_collection:
+        if lessons_collection is not None:
             lessons_count = lessons_collection.count_documents({})
             stats["collections"]["lessons"] = lessons_count
             stats["total_documents"] += lessons_count
         
-        if user_histories_collection:
+        if user_histories_collection is not None:
             history_count = user_histories_collection.count_documents({})
             stats["collections"]["user_histories"] = history_count
             stats["total_documents"] += history_count
@@ -122,7 +122,7 @@ class PDFDataModel:
             'status': 'processed'
         }
         
-        if pdf_data_collection:
+        if pdf_data_collection is not None:
             result = pdf_data_collection.insert_one(document)
             return str(result.inserted_id)
         return None
@@ -130,14 +130,14 @@ class PDFDataModel:
     @staticmethod
     def get_by_id(pdf_id):
         """Get PDF data by ID"""
-        if pdf_data_collection:
+        if pdf_data_collection is not None:
             return pdf_data_collection.find_one({'_id': ObjectId(pdf_id)})
         return None
     
     @staticmethod
     def get_by_user(user_id):
         """Get all PDF data for a user"""
-        if pdf_data_collection:
+        if pdf_data_collection is not None:
             return list(pdf_data_collection.find({'user_id': user_id}))
         return []
 
@@ -161,7 +161,7 @@ class LessonModel:
             'status': 'generated'
         }
         
-        if lessons_collection:
+        if lessons_collection is not None:
             result = lessons_collection.insert_one(document)
             return str(result.inserted_id)
         return None
@@ -169,7 +169,7 @@ class LessonModel:
     @staticmethod
     def get_by_user(user_id):
         """Get all lessons for a user"""
-        if lessons_collection:
+        if lessons_collection is not None:
             return list(lessons_collection.find({'user_id': user_id}).sort('created_at', -1))
         return []
 
@@ -189,7 +189,7 @@ class UserHistoryModel:
             'timestamp': datetime.utcnow()
         }
         
-        if user_histories_collection:
+        if user_histories_collection is not None:
             result = user_histories_collection.insert_one(document)
             return str(result.inserted_id)
         return None

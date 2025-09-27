@@ -20,21 +20,22 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',  # ASGI server for production-grade Django
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework',
     'corsheaders',
-    'lessons',  # Our lesson app
+    'rest_framework',
+    'lessons',  # Our main lessons app
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -43,6 +44,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'lesson_service.urls'
+
+# ASGI application
+ASGI_APPLICATION = 'lesson_service.asgi.application'
 
 TEMPLATES = [
     {
@@ -123,17 +127,55 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-# CORS Settings
+# Allow specific origins for your GnyanSetu services
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:3001", 
-    "http://localhost:8000",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://127.0.0.1:8000",
+    "http://localhost:3000",  # Landing Page
+    "http://localhost:3001",  # Dashboard  
+    "http://localhost:8000",  # API Gateway
+    "http://localhost:8001",  # PDF Service
+    "http://localhost:8002",  # User Service
+    "http://localhost:8003",  # Lesson Service (self)
+    "http://localhost:8004",  # Teaching Service
+    "http://127.0.0.1:3001",  # Dashboard alternate
+    "http://127.0.0.1:8003",  # Lesson Service alternate
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Allow all methods for CORS - Enhanced for ASGI
+CORS_ALLOW_ALL_ORIGINS = False  # Keep specific origins for security
+CORS_PREFLIGHT_MAX_AGE = 86400  # Cache preflight for 24 hours
+
+# Allow these methods
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Allow these headers in requests
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# CSRF trusted origins for ASGI
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3001",  # Dashboard
+    "http://127.0.0.1:3001",  # Dashboard alternate
+    "http://localhost:8003",  # Self
+    "http://127.0.0.1:8003",  # Self alternate
+]
 
 # AI Configuration - Google Gemini
 AI_SETTINGS = {
@@ -187,3 +229,18 @@ LOGGING = {
         },
     },
 }
+
+# Django Channels Configuration with RabbitMQ
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_rabbitmq.core.RabbitmqChannelLayer",
+        "CONFIG": {
+            "host": config('RABBITMQ_HOST', default='localhost'),
+            "port": config('RABBITMQ_PORT', default=5672, cast=int),
+            "username": config('RABBITMQ_USER', default='guest'),
+            "password": config('RABBITMQ_PASS', default='guest'),
+            "virtual_host": config('RABBITMQ_VHOST', default='/'),
+        },
+    },
+}
+

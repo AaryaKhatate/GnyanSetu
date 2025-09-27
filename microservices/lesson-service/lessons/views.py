@@ -11,7 +11,7 @@ from django.views.decorators.http import require_http_methods
 from django.conf import settings
 
 from .models import PDFDataModel, LessonModel, UserHistoryModel, check_database_connection, get_database_stats
-from .pdf_processor import PDFProcessor
+from .pdf_processor_simple import PDFProcessor
 from .lesson_generator import LessonGenerator
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def process_pdf_and_generate_lesson(request):
         user_id = request.data.get('user_id')
         lesson_type = request.data.get('lesson_type', 'interactive')
         
-        if not user_id:
+        if user_id is None:
             return Response({
                 'error': 'User ID is required',
                 'success': False
@@ -65,7 +65,7 @@ def process_pdf_and_generate_lesson(request):
         
         # Validate PDF
         is_valid, validation_msg = pdf_processor.validate_pdf(pdf_file)
-        if not is_valid:
+        if is_valid is None:
             return Response({
                 'error': f'Invalid PDF: {validation_msg}',
                 'success': False
@@ -73,7 +73,7 @@ def process_pdf_and_generate_lesson(request):
         
         # Process PDF
         pdf_result = pdf_processor.process_pdf(pdf_file, user_id, pdf_file.name)
-        if not pdf_result['success']:
+        if pdf_result['success'] is False:
             return Response({
                 'error': 'Failed to process PDF',
                 'details': pdf_result.get('metadata', {}),
@@ -89,7 +89,7 @@ def process_pdf_and_generate_lesson(request):
             metadata=pdf_result['metadata']
         )
         
-        if not pdf_id:
+        if pdf_id is None:
             return Response({
                 'error': 'Failed to store PDF data',
                 'success': False
@@ -187,7 +187,7 @@ def get_lesson_detail(request, lesson_id):
     try:
         lesson = LessonModel.get_by_id(lesson_id)
         
-        if not lesson:
+        if lesson is None:
             return Response({
                 'error': 'Lesson not found',
                 'success': False
@@ -248,7 +248,7 @@ def regenerate_lesson(request, lesson_id):
     """Regenerate a lesson with different type or parameters"""
     try:
         lesson = LessonModel.get_by_id(lesson_id)
-        if not lesson:
+        if lesson is None:
             return Response({
                 'error': 'Lesson not found',
                 'success': False
@@ -256,7 +256,7 @@ def regenerate_lesson(request, lesson_id):
         
         # Get original PDF data
         pdf_data = PDFDataModel.get_by_id(str(lesson['pdf_id']))
-        if not pdf_data:
+        if pdf_data is None:
             return Response({
                 'error': 'Original PDF data not found',
                 'success': False

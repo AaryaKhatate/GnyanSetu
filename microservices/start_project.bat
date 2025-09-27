@@ -54,6 +54,12 @@ cd /d "%BASE_DIR%\lesson-service"
 start "Lesson Service - AI Lesson Generator" cmd /k "cd /d "e:\Project" && venv\Scripts\activate && cd /d "%BASE_DIR%\lesson-service" && echo LESSON SERVICE - AI LESSON GENERATION && echo Google Gemini AI + Advanced PDF Processing && echo User-specific Lesson History && echo. && python start_lesson_service.py"
 timeout /t 3 /nobreak >nul
 
+REM Start Teaching Service (Port 8004) - Real-Time Interactive Teaching
+echo Starting Teaching Service on port 8004...
+cd /d "%BASE_DIR%\teaching-service"
+start "Teaching Service - Real-Time AI Teacher" cmd /k "cd /d "e:\Project" && venv\Scripts\activate && cd /d "%BASE_DIR%\teaching-service" && echo TEACHING SERVICE - REAL-TIME AI TEACHER && echo Django Channels + WebSockets + Natural Voice && echo Interactive Teaching with Konva.js Integration && echo. && python start_teaching_service.py"
+timeout /t 3 /nobreak >nul
+
 REM Start Landing Page (Port 3000) - OPENS IN BROWSER
 echo Starting Landing Page on port 3000...
 cd /d "%BASE_DIR%\..\virtual_teacher_project\UI\landing_page\landing_page"
@@ -93,6 +99,7 @@ echo Service URLs:
 echo    API Gateway:      http://localhost:8000/health
 echo    User Service:     http://localhost:8002/health
 echo    Lesson Service:   http://localhost:8003/health
+echo    Teaching Service: http://localhost:8004/health
 echo    Landing Page:     http://localhost:3000 (opens in browser)
 echo    Dashboard:        http://localhost:3001 (opens after login)
 echo.
@@ -100,6 +107,7 @@ echo Service Health Checks:
 echo    API Gateway:      http://localhost:8000/health
 echo    User Service:     http://localhost:8002/health
 echo    Lesson Service:   http://localhost:8003/health
+echo    Teaching Service: http://localhost:8004/health
 echo.
 echo Test Services:
 echo    cd microservices\user-service ^&^& python test_service.py

@@ -92,6 +92,13 @@ const Whiteboard = ({
   currentUserId,
   currentConversationId,
   onConversationCreated,
+  // Teaching service props
+  startLessonTeaching,
+  stopLessonTeaching,
+  isTeachingActive,
+  teachingWebSocket,
+  currentLessonId,
+  teachingData,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -1027,6 +1034,100 @@ const Whiteboard = ({
                 <span className="text-sm text-slate-400">
                   Step {currentTeachingStepIndex + 1} / {teachingSteps.length}
                 </span>
+              </div>
+            )}
+
+            {/* Real-Time Teaching Service Controls */}
+            {teachingWebSocket && teachingWebSocket.isConnected && (
+              <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
+                <div
+                  className={`px-2 py-1 rounded-full text-xs ${
+                    teachingWebSocket.isConnected
+                      ? "bg-green-500/20 text-green-400"
+                      : "bg-red-500/20 text-red-400"
+                  }`}
+                >
+                  {teachingWebSocket.isConnected ? "🎓 Teaching Service" : "❌ Disconnected"}
+                </div>
+
+                {!isTeachingActive ? (
+                  <button
+                    onClick={() => {
+                      // Generate lesson first, then start teaching
+                      if (currentLessonId) {
+                        startLessonTeaching(currentLessonId);
+                      } else {
+                        // Use current session or PDF as lesson ID
+                        const lessonId = currentConversationId || pdfName || 'current-lesson';
+                        startLessonTeaching(lessonId);
+                      }
+                    }}
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors"
+                    title="Start Real-Time Teaching"
+                  >
+                    🎯 Start AI Teaching
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (teachingWebSocket.isTeaching) {
+                          teachingWebSocket.pauseTeaching();
+                        } else {
+                          teachingWebSocket.resumeTeaching();
+                        }
+                      }}
+                      className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm transition-colors"
+                      title={teachingWebSocket.isTeaching ? "Pause Teaching" : "Resume Teaching"}
+                    >
+                      {teachingWebSocket.isTeaching ? "⏸️ Pause" : "▶️ Resume"}
+                    </button>
+
+                    <button
+                      onClick={() => teachingWebSocket.nextStep()}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
+                      title="Next Teaching Step"
+                    >
+                      ⏭️
+                    </button>
+
+                    <button
+                      onClick={() => teachingWebSocket.previousStep()}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
+                      title="Previous Teaching Step"
+                    >
+                      ⏮️
+                    </button>
+
+                    <button
+                      onClick={stopLessonTeaching}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                      title="Stop Teaching Session"
+                    >
+                      ⏹️ Stop
+                    </button>
+
+                    {teachingWebSocket.teachingProgress > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-purple-500 transition-all duration-300"
+                            style={{ width: `${teachingWebSocket.teachingProgress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          {Math.round(teachingWebSocket.teachingProgress)}%
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {teachingData && (
+                  <div className="text-xs text-slate-400 max-w-32 truncate">
+                    Step: {teachingData.title || teachingData.step_name || 'Current'}
+                  </div>
+                )}
               </div>
             )}
 

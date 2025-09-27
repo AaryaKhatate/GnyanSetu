@@ -1,0 +1,24 @@
+# Real-Time Teaching Service Requirements
+# Django Channels + WebSockets + Konva.js + Voice Synthesis
+
+channels==4.0.0
+channels-rabbitmq==4.0.0
+daphne==4.0.0
+django==4.2.16
+djangorestframework==3.14.0
+redis==5.0.1
+celery==5.3.4
+pika==1.3.2  # RabbitMQ client
+pymongo==4.6.0
+python-decouple==3.8
+websockets==12.0
+gtts==2.4.0  # Google Text-to-Speech
+pydub==0.25.1  # Audio processing
+speech-recognition==3.10.0  # Speech recognition
+azure-cognitiveservices-speech==1.34.0  # Azure Speech Services (premium voice)
+openai==1.3.7  # For advanced voice synthesis
+pygame==2.5.2  # Audio playback
+numpy==1.24.3
+Pillow==10.1.0
+python-socketio==5.10.0
+eventlet==0.33.3
