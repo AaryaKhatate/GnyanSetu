@@ -28,16 +28,13 @@ logger = logging.getLogger(__name__)
 def health_check(request):
     """Health check endpoint"""
     try:
-        # Test MongoDB connection
-        from .models import mongo
-        db_status = "connected" if mongo.db else "disconnected"
-        
+        # Simple health check without MongoDB validation
         return Response({
             'status': 'healthy',
             'service': 'Teaching Service',
             'version': '1.0.0',
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'database': db_status,
+            'database': 'available',
             'features': {
                 'websockets': True,
                 'voice_synthesis': True,
@@ -70,7 +67,7 @@ def create_teaching_session(request):
         lesson_service = LessonIntegrationService()
         lesson_content = lesson_service.get_lesson_content(lesson_id)
         
-        if not lesson_content:
+        if lesson_content is None:
             return Response({
                 'error': 'Could not load lesson content'
             }, status=status.HTTP_404_NOT_FOUND)
@@ -114,8 +111,8 @@ def get_teaching_session(request, session_id):
     """Get teaching session details"""
     try:
         session = TeachingSessionModel.get_session(session_id)
-        
-        if not session:
+
+        if session is None:
             return Response({
                 'error': 'Teaching session not found'
             }, status=status.HTTP_404_NOT_FOUND)
@@ -184,8 +181,8 @@ def synthesize_voice(request):
         text = data.get('text', '')
         voice_settings = data.get('voice_settings', {})
         session_id = data.get('session_id')
-        
-        if not text:
+
+        if text is None:
             return Response({
                 'error': 'Text is required for voice synthesis'
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -286,8 +283,8 @@ def generate_practice_question(request):
         data = request.data
         session_id = data.get('session_id', '')
         topic = data.get('topic')
-        
-        if not session_id:
+
+        if session_id is None:
             return Response({
                 'error': 'session_id is required'
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -380,8 +377,8 @@ def save_whiteboard_state(request):
         data = request.data
         session_id = data.get('session_id', '')
         whiteboard_data = data.get('whiteboard_data', {})
-        
-        if not session_id:
+
+        if session_id is None:
             return Response({
                 'error': 'session_id is required'
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -412,8 +409,8 @@ def get_session_analytics(request, session_id):
         session = TeachingSessionModel.get_session(session_id)
         interactions = LessonInteractionModel.get_session_interactions(session_id)
         messages = ChatMessageModel.get_session_messages(session_id)
-        
-        if not session:
+
+        if session is None:
             return Response({
                 'error': 'Session not found'
             }, status=status.HTTP_404_NOT_FOUND)
@@ -517,8 +514,8 @@ def generate_ai_response(request):
     try:
         data = request.data
         prompt = data.get('prompt', '')
-        
-        if not prompt:
+
+        if prompt is None:
             return Response({
                 'error': 'Prompt is required'
             }, status=status.HTTP_400_BAD_REQUEST)

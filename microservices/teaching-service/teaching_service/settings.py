@@ -79,15 +79,7 @@ MONGODB_SETTINGS = {
     'DATABASE': config('MONGODB_NAME', default='Gnyansetu_Teaching'),
 }
 
-# Redis Configuration for Channels
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
-        },
-    },
-}
+# Redis Configuration for Channels (configured later in file)
 
 # RabbitMQ Configuration (for future scaling)
 RABBITMQ_SETTINGS = {
@@ -166,17 +158,15 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django Channels Configuration with RabbitMQ
+# Django Channels Configuration - Fixed for development
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels_rabbitmq.core.RabbitmqChannelLayer",
-        "CONFIG": {
-            "host": config('RABBITMQ_HOST', default='localhost'),
-            "port": config('RABBITMQ_PORT', default=5672, cast=int),
-            "username": config('RABBITMQ_USER', default='guest'),
-            "password": config('RABBITMQ_PASS', default='guest'),
-            "virtual_host": config('RABBITMQ_VHOST', default='/'),
-        },
+        "BACKEND": "channels.layers.InMemoryChannelLayer",  # Use in-memory for development
+        # For production with RabbitMQ, use:
+        # "BACKEND": "channels_rabbitmq.core.RabbitmqChannelLayer",
+        # "CONFIG": {
+        #     "host": "amqp://guest:guest@localhost:5672/",
+        # },
     },
 }
 
@@ -208,23 +198,16 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
         },
-        'colored': {
-            '()': 'colorlog.ColoredFormatter',
-            'format': '%(log_color)s%(levelname)s%(reset)s %(asctime)s %(name)s %(message)s',
-            'log_colors': {
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'bold_red',
-            },
+        'simple': {
+            'format': '{levelname} {asctime} {name} {message}',
+            'style': '{',
         },
     },
     'handlers': {
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'colored',
+            'formatter': 'simple',
         },
         'file': {
             'level': 'DEBUG',

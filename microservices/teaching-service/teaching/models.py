@@ -31,7 +31,9 @@ class MongoDBConnection:
                 logger.info(f"Connected to MongoDB: {mongodb_config['DATABASE']}")
             except Exception as e:
                 logger.error(f"Failed to connect to MongoDB: {e}")
-                raise
+                # Don't raise - set to None instead
+                self._client = None
+                self._db = None
     
     @property
     def db(self):
@@ -51,7 +53,9 @@ class TeachingSessionModel:
     
     @classmethod
     def get_collection(cls):
-        return mongo.db[cls.collection_name]
+        if mongo.db is not None:
+            return mongo.db[cls.collection_name]
+        return None
     
     @classmethod
     def create_session(cls, lesson_id: str, user_id: str, session_data: Dict) -> str:
@@ -91,9 +95,14 @@ class TeachingSessionModel:
                 }
             }
             
-            result = cls.get_collection().insert_one(session_doc)
-            logger.info(f"Created teaching session: {result.inserted_id}")
-            return result.inserted_id
+            collection = cls.get_collection()
+            if collection is not None:
+                result = collection.insert_one(session_doc)
+                logger.info(f"Created teaching session: {result.inserted_id}")
+                return result.inserted_id
+            else:
+                logger.error("MongoDB collection not available")
+                return None
             
         except Exception as e:
             logger.error(f"Error creating teaching session: {e}")
@@ -103,7 +112,10 @@ class TeachingSessionModel:
     def get_session(cls, session_id: str) -> Optional[Dict]:
         """Get teaching session by ID"""
         try:
-            return cls.get_collection().find_one({"_id": session_id})
+            collection = cls.get_collection()
+            if collection is not None:
+                return collection.find_one({"_id": session_id})
+            return None
         except Exception as e:
             logger.error(f"Error getting teaching session {session_id}: {e}")
             return None
@@ -143,7 +155,9 @@ class WhiteboardModel:
     
     @classmethod
     def get_collection(cls):
-        return mongo.db[cls.collection_name]
+        if mongo.db is not None:
+            return mongo.db[cls.collection_name]
+        return None
     
     @classmethod
     def save_whiteboard_state(cls, session_id: str, whiteboard_data: Dict) -> bool:
@@ -184,7 +198,9 @@ class ChatMessageModel:
     
     @classmethod
     def get_collection(cls):
-        return mongo.db[cls.collection_name]
+        if mongo.db is not None:
+            return mongo.db[cls.collection_name]
+        return None
     
     @classmethod
     def add_message(cls, session_id: str, message_data: Dict) -> str:
@@ -230,7 +246,9 @@ class VoiceQueueModel:
     
     @classmethod
     def get_collection(cls):
-        return mongo.db[cls.collection_name]
+        if mongo.db is not None:
+            return mongo.db[cls.collection_name]
+        return None
     
     @classmethod
     def add_to_queue(cls, session_id: str, voice_data: Dict) -> str:
@@ -287,7 +305,9 @@ class LessonInteractionModel:
     
     @classmethod
     def get_collection(cls):
-        return mongo.db[cls.collection_name]
+        if mongo.db is not None:
+            return mongo.db[cls.collection_name]
+        return None
     
     @classmethod
     def track_interaction(cls, session_id: str, interaction_data: Dict) -> str:

@@ -1,16 +1,28 @@
-# Django User Management Service with DRF
+# Django User Authentication Service
 # Port: 8002
-# Uses Django's built-in User model with DRF for API endpoints
+# Purpose: User management, authentication, session handling with MongoDB
 
-django>=4.2.0
-djangorestframework>=3.14.0
-django-cors-headers>=4.0.0
-djangorestframework-simplejwt>=5.2.0
-python-decouple>=3.8
-psycopg2-binary>=2.9.0
-celery>=5.3.0
-redis>=4.5.0
-django-allauth>=0.54.0
-dj-rest-auth>=4.0.0
-pillow>=10.0.0
-requests>=2.31.0
+Django==4.2.16
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+daphne==4.0.0
+python-decouple==3.8
+
+# Authentication & Security
+djangorestframework-simplejwt==5.3.0
+django-allauth==0.57.0
+argon2-cffi==21.3.0
+
+# Database - MongoDB
+pymongo==4.6.0
+
+# API Documentation
+drf-spectacular==0.26.5
+
+# Development
+django-extensions==3.2.3
+django-debug-toolbar==4.2.0
+
+# Additional utilities
+requests==2.31.0
+pillow==10.1.0
