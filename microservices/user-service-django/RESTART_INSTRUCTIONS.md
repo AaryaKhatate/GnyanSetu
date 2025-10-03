@@ -7,18 +7,21 @@ The password validators have been updated but Django needs to be restarted to lo
 ## 📋 What Changed
 
 1. **Updated serializer** to pass user context to validators
-2. **Cleared Python cache** (__pycache__ and .pyc files)
+2. **Cleared Python cache** (**pycache** and .pyc files)
 3. **Validators are ready** to enforce all password rules
 
 ## 🔄 How to Restart
 
 ### Step 1: Stop the Current Server
+
 In the terminal running Django, press:
+
 ```
 Ctrl + C  (or Ctrl + Break)
 ```
 
 ### Step 2: Restart the Server
+
 ```powershell
 cd d:\GnyanSetu\microservices\user-service-django
 python manage.py runserver 0.0.0.0:8002
@@ -29,13 +32,15 @@ python manage.py runserver 0.0.0.0:8002
 Try these passwords to verify the validators are working:
 
 ### ❌ Should FAIL:
+
 - `naradmuni` → Missing: uppercase, number, special char
-- `virat180` → Missing: uppercase, special char  
+- `virat180` → Missing: uppercase, special char
 - `password123` → Missing: uppercase, special char
 - `Password123` → Missing: special char
 - `12345678` → Missing: letters, special char
 
 ### ✅ Should PASS:
+
 - `TestUser123!`
 - `MyPass2024@`
 - `Secure99#`
@@ -46,15 +51,17 @@ Try these passwords to verify the validators are working:
 After restart, you should see helpful messages like:
 
 **Password: `virat180`**
+
 ```
-Error: "Password must include at least one uppercase letter. 
+Error: "Password must include at least one uppercase letter.
 Password must include a special character (!@#$%^&* etc)."
 ```
 
 **Password: `naradmuni`**
+
 ```
-Error: "Password must include at least one number. 
-Password must include at least one uppercase letter. 
+Error: "Password must include at least one number.
+Password must include at least one uppercase letter.
 Password must include a special character (!@#$%^&* etc)."
 ```
 
