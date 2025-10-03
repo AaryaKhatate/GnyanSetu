@@ -45,19 +45,20 @@ timeout /t 3 /nobreak >nul
 
 REM Start Django User Authentication Service (Port 8002)
 echo Starting Django User Authentication Service on port 8002...
-start "Django User Service" cmd /k "cd /d "%BASE_DIR%\user-service-django" && start_django_service.bat"
+if not exist "%BASE_DIR%\user-service-django\logs" mkdir "%BASE_DIR%\user-service-django\logs"
+start "Django User Service" cmd /k "cd /d "%BASE_DIR%\user-service-django" && echo ============================================ && echo  DJANGO USER AUTHENTICATION SERVICE && echo  JWT Tokens + User Management + Email Verification && echo  Django REST Framework + MongoDB Integration && echo ============================================ && python manage.py runserver 0.0.0.0:8002"
 timeout /t 3 /nobreak >nul
 
 REM Start Lesson Service (Port 8003) - AI Lesson Generation with Django
 echo Starting Lesson Service on port 8003...
 cd /d "%BASE_DIR%\lesson-service"
-start "Lesson Service - AI Lesson Generator" cmd /k "cd /d "e:\Project" && venv\Scripts\activate && cd /d "%BASE_DIR%\lesson-service" && echo LESSON SERVICE - AI LESSON GENERATION && echo Google Gemini AI + Advanced PDF Processing && echo User-specific Lesson History && echo. && python start_lesson_service.py"
+start "Lesson Service - AI Lesson Generator" cmd /k "cd /d "%BASE_DIR%\lesson-service" && echo LESSON SERVICE - AI LESSON GENERATION && echo Google Gemini AI + Advanced PDF Processing && echo User-specific Lesson History && echo. && python start_lesson_service.py"
 timeout /t 3 /nobreak >nul
 
 REM Start Teaching Service (Port 8004) - Real-Time Interactive Teaching
 echo Starting Teaching Service on port 8004...
 cd /d "%BASE_DIR%\teaching-service"
-start "Teaching Service - Real-Time AI Teacher" cmd /k "cd /d "e:\Project" && venv\Scripts\activate && cd /d "%BASE_DIR%\teaching-service" && echo TEACHING SERVICE - REAL-TIME AI TEACHER && echo Django Channels + WebSockets + Natural Voice && echo Interactive Teaching with Konva.js Integration && echo. && python start_teaching_service.py"
+start "Teaching Service - Real-Time AI Teacher" cmd /k "cd /d "%BASE_DIR%\teaching-service" && echo TEACHING SERVICE - REAL-TIME AI TEACHER && echo Django Channels + WebSockets + Natural Voice && echo Interactive Teaching with Konva.js Integration && echo. && python start_teaching_service.py"
 timeout /t 3 /nobreak >nul
 
 REM Start Landing Page (Port 3000) - OPENS IN BROWSER
