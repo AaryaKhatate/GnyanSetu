@@ -25,7 +25,22 @@ const apiCall = async (endpoint, options = {}) => {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || "An error occurred");
+    // Handle various error response formats from Django/DRF
+    let errorMessage = "An error occurred";
+
+    if (data.error) {
+      errorMessage = data.error;
+    } else if (data.detail) {
+      errorMessage = data.detail;
+    } else if (data.non_field_errors) {
+      errorMessage = Array.isArray(data.non_field_errors)
+        ? data.non_field_errors[0]
+        : data.non_field_errors;
+    } else if (typeof data === "string") {
+      errorMessage = data;
+    }
+
+    throw new Error(errorMessage);
   }
 
   return data;
@@ -873,9 +888,9 @@ export default function App() {
       // Authentication successful, open dashboard in new tab
       console.log("Authentication successful:", result);
       // Store user data for dashboard
-      localStorage.setItem('gnyansetu_user', JSON.stringify(result.user));
+      localStorage.setItem("gnyansetu_user", JSON.stringify(result.user));
       // Open dashboard in new tab instead of redirecting
-      window.open("http://localhost:3001", '_blank');
+      window.open("http://localhost:3001", "_blank");
       // Close modal
       closeModal();
     }
@@ -893,7 +908,7 @@ export default function App() {
 
   const redirectToDashboard = () => {
     // Open dashboard in new tab instead of redirecting
-    window.open("http://localhost:3001", '_blank');
+    window.open("http://localhost:3001", "_blank");
   };
 
   return (
