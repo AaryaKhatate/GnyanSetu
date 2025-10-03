@@ -98,16 +98,15 @@ MONGODB_SETTINGS = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        # Minimum 8 characters
+        'NAME': 'authentication.validators.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        # Must have: 1 digit, 1 uppercase letter, 1 special character
+        'NAME': 'authentication.validators.PasswordComplexityValidator',
     },
 ]
 
@@ -214,22 +213,9 @@ ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
 
-# Password strength
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {'min_length': 8}
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
+# Password strength - Using custom validators defined at the top of this file
+# AUTH_PASSWORD_VALIDATORS is defined above (line 99-111)
+# Do not redefine here to avoid conflicts
 
 # Use Argon2 for password hashing (more secure)
 PASSWORD_HASHERS = [

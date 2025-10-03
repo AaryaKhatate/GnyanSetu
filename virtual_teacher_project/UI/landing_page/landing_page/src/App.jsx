@@ -32,10 +32,34 @@ const apiCall = async (endpoint, options = {}) => {
       errorMessage = data.error;
     } else if (data.detail) {
       errorMessage = data.detail;
+    } else if (data.password) {
+      // Handle password validation errors specifically
+      errorMessage = Array.isArray(data.password)
+        ? data.password.join(" ")
+        : data.password;
+    } else if (data.email) {
+      // Handle email validation errors
+      errorMessage = Array.isArray(data.email)
+        ? data.email.join(" ")
+        : data.email;
+    } else if (data.username) {
+      // Handle username validation errors
+      errorMessage = Array.isArray(data.username)
+        ? data.username.join(" ")
+        : data.username;
     } else if (data.non_field_errors) {
       errorMessage = Array.isArray(data.non_field_errors)
         ? data.non_field_errors[0]
         : data.non_field_errors;
+    } else if (typeof data === "object" && Object.keys(data).length > 0) {
+      // Extract all field errors and combine them
+      const errors = Object.entries(data)
+        .map(([field, msgs]) => {
+          const messages = Array.isArray(msgs) ? msgs.join(" ") : msgs;
+          return `${field}: ${messages}`;
+        })
+        .join("; ");
+      errorMessage = errors || "Validation error occurred";
     } else if (typeof data === "string") {
       errorMessage = data;
     }
@@ -53,10 +77,17 @@ const authAPI = {
       body: JSON.stringify({ email, password }),
     }),
 
-  signup: (name, email, password, confirm_password) =>
+  signup: (full_name, email, password, password_confirm, username) =>
     apiCall("/api/auth/signup/", {
       method: "POST",
-      body: JSON.stringify({ name, email, password, confirm_password }),
+      body: JSON.stringify({
+        full_name,
+        email,
+        password,
+        password_confirm,
+        username: username || email.split("@")[0], // Generate username from email if not provided
+        terms_accepted: true, // Auto-accept for now, can add checkbox later
+      }),
     }),
 
   forgotPassword: (email) =>
@@ -720,6 +751,8 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
       );
       onSuccess(result);
     } catch (error) {
+      console.error("Signup error:", error);
+      console.error("Error message:", error.message);
       onError(error.message);
     } finally {
       setLoading(false);
@@ -760,6 +793,10 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
           onChange={handleChange}
           required
         />
+        <p className="mt-1 text-xs text-slate-400">
+          Must be 8+ characters with uppercase, number, and special character
+          (!@#$%^&* etc.)
+        </p>
       </div>
       <div>
         <label className="mb-1 block text-sm text-slate-300">

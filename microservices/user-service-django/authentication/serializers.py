@@ -6,6 +6,9 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import User, UserProfile, UserSession
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -102,13 +105,24 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         password = attrs.get('password')
         password_confirm = attrs.pop('password_confirm', None)
         
+        logger.info(f"Validating password for user: {attrs.get('email')}")
+        
         if password != password_confirm:
             raise serializers.ValidationError("Passwords do not match.")
         
-        # Validate password strength
+        # Validate password strength with user context
         try:
-            validate_password(password)
+            # Create a temporary user object for validation
+            user = User(
+                email=attrs.get('email'),
+                username=attrs.get('username'),
+                full_name=attrs.get('full_name', '')
+            )
+            logger.info(f"Calling validate_password for: {password}")
+            validate_password(password, user=user)
+            logger.info("Password validation passed!")
         except ValidationError as e:
+            logger.error(f"Password validation failed: {e.messages}")
             raise serializers.ValidationError({"password": e.messages})
         
         attrs.pop('terms_accepted')  # Remove from attrs as it's not a model field
