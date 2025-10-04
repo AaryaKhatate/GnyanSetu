@@ -403,7 +403,113 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = 'id'
 
 
-# OAuth Placeholder Views
+# OAuth Views
+from allauth.socialaccount.models import SocialAccount
+from rest_framework.decorators import api_view, permission_classes
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def google_oauth_callback(request):
+    """
+    Handle Google OAuth callback and return JWT tokens
+    This endpoint is called after successful Google authentication
+    """
+    try:
+        # Get the access token from the request
+        access_token = request.data.get('access_token')
+        
+        if not access_token:
+            return Response({
+                'error': 'No access token provided',
+                'detail': 'Google access token is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Import Google OAuth library
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+        
+        # Verify the token with Google
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                access_token, 
+                google_requests.Request(), 
+                settings.GOOGLE_CLIENT_ID
+            )
+            
+            # Get user info from Google
+            email = idinfo.get('email')
+            name = idinfo.get('name', '')
+            google_id = idinfo.get('sub')
+            picture = idinfo.get('picture', '')
+            
+            if not email:
+                return Response({
+                    'error': 'No email in Google account',
+                    'detail': 'Your Google account must have an email address'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except ValueError as e:
+            return Response({
+                'error': 'Invalid token',
+                'detail': str(e)
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user exists
+        try:
+            user = User.objects.get(email=email)
+            created = False
+        except User.DoesNotExist:
+            # Create new user
+            user = User.objects.create(
+                email=email,
+                username=email.split('@')[0] + str(uuid.uuid4())[:8],  # Generate unique username
+                full_name=name,
+                is_active=True,
+                is_verified=True,  # Google accounts are pre-verified
+                profile_picture=picture
+            )
+            created = True
+            
+            # Create user profile with default values
+            UserProfile.objects.create(
+                user=user
+            )
+            
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        # Create session
+        UserSession.objects.create(
+            user=user,
+            session_token=str(refresh.access_token),
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        return Response({
+            'message': 'Authentication successful',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'full_name': user.full_name,
+                'username': user.username
+            },
+            'tokens': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            },
+            'created': created
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Google OAuth error: {str(e)}")
+        return Response({
+            'error': 'Authentication failed',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([permissions.AllowAny])
 def google_oauth_placeholder(request):
@@ -434,3 +540,4 @@ def debug_login_data(request):
         'method': request.method,
         'headers': dict(request.headers),
     })
+

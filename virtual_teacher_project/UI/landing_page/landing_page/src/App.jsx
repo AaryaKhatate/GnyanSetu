@@ -6,6 +6,7 @@ import {
   SparklesIcon,
 } from "@heroicons/react/24/solid";
 import classNames from "classnames";
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
 // API Configuration - Use API Gateway instead of direct service calls
 const API_BASE_URL = "http://localhost:8002";
@@ -103,9 +104,41 @@ const authAPI = {
 };
 
 // Google OAuth handler
-const handleGoogleSignup = () => {
-  // Redirect to Google OAuth endpoint
-  window.location.href = `${API_BASE_URL}/accounts/google/login/?next=/dashboard/`;
+const handleGoogleSuccess = async (credentialResponse) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/google/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        access_token: credentialResponse.credential
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      // Save tokens
+      localStorage.setItem('access_token', data.tokens.access);
+      localStorage.setItem('refresh_token', data.tokens.refresh);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Redirect to dashboard
+      window.location.href = 'http://localhost:3001/dashboard';
+    } else {
+      console.error('Google login failed:', data);
+      alert(data.error || 'Google login failed. Please try again.');
+    }
+  } catch (error) {
+    console.error('Error during Google login:', error);
+    alert('An error occurred during Google login. Please try again.');
+  }
+};
+
+const handleGoogleError = () => {
+  console.log('Google Login Failed');
+  alert('Google login was cancelled or failed. Please try again.');
 };
 
 function useLockBodyScroll(locked) {
@@ -615,36 +648,19 @@ const Checkbox = ({ label, ...props }) => (
   </label>
 );
 
-const GoogleButton = ({ text, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-2 text-slate-200 hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 533.5 544.3"
-      className="h-5 w-5"
-    >
-      <path
-        fill="#4285F4"
-        d="M533.5 278.4c0-18.6-1.7-37-5.2-54.8H272.1v103.9h147.2c-6.2 33.6-25 62-53.5 81v67.2h86.6c50.8-46.8 81.1-115.7 81.1-197.3z"
-      />
-      <path
-        fill="#34A853"
-        d="M272.1 544.3c72.7 0 133.8-24.1 178.4-65.7l-86.6-67.2c-24.1 16.2-55 25.6-91.8 25.6-70.7 0-130.6-47.7-152-111.8H30.1v70.1c44.2 87.7 134.9 149 242 149z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M120.1 325.2c-10.4-30.9-10.4-64.2 0-95.1V160H30.1c-43.3 86.6-43.3 189.8 0 276.5l90-70.9z"
-      />
-      <path
-        fill="#EA4335"
-        d="M272.1 106.6c39.5-.6 77.6 14.5 106.4 42.2l79.1-79.1C409.4 25.1 343 0 272.1 0 165 0 74.2 61.3 30.1 149.9l90 70.1c21.3-64 81.2-111.8 152-111.8z"
-      />
-    </svg>
-    <span>{text}</span>
-  </button>
+const GoogleButton = ({ text }) => (
+  <div className="mt-3 w-full">
+    <GoogleLogin
+      onSuccess={handleGoogleSuccess}
+      onError={handleGoogleError}
+      text="continue_with"
+      shape="rectangular"
+      theme="filled_blue"
+      size="large"
+      width="100%"
+      logo_alignment="left"
+    />
+  </div>
 );
 
 const LoginForm = ({ onForgot, onSignup, onSuccess, onError }) => {
@@ -710,7 +726,7 @@ const LoginForm = ({ onForgot, onSignup, onSuccess, onError }) => {
       >
         {loading ? "Logging in..." : "Login"}
       </button>
-      <GoogleButton text="Login using Google" onClick={handleGoogleSignup} />
+      <GoogleButton text="Login using Google" />
       <div className="text-center text-sm text-slate-400">
         New to GyanSetu?{" "}
         <button
@@ -818,7 +834,7 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
       >
         {loading ? "Creating account..." : "Create account"}
       </button>
-      <GoogleButton text="Continue with Google" onClick={handleGoogleSignup} />
+      <GoogleButton text="Continue with Google" />
       <div className="text-center text-sm text-slate-400">
         Already a user?{" "}
         <button
@@ -949,16 +965,17 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen">
-      <BackgroundBlobs />
-      <NavBar onLogin={openLogin} onSignup={openSignup} />
-      <main>
-        <Hero onPrimary={openSignup} />
-        <About />
-        <Features />
-        <CTA onClick={openSignup} />
-      </main>
-      <Footer />
+    <GoogleOAuthProvider clientId="334410826401-5dc8sdfntd1unbfnjamd6k4dvd7c3g1r.apps.googleusercontent.com">
+      <div className="relative min-h-screen">
+        <BackgroundBlobs />
+        <NavBar onLogin={openLogin} onSignup={openSignup} />
+        <main>
+          <Hero onPrimary={openSignup} />
+          <About />
+          <Features />
+          <CTA onClick={openSignup} />
+        </main>
+        <Footer />
 
       {/* Error/Success Messages */}
       {error && (
@@ -1025,6 +1042,7 @@ export default function App() {
           onError={handleAuthError}
         />
       </Modal>
-    </div>
+      </div>
+    </GoogleOAuthProvider>
   );
 }

@@ -42,6 +42,9 @@ urlpatterns = [
     
     # Debug endpoint
     path('debug/login/', views.debug_login_data, name='debug_login'),
+    
+    # Google OAuth
+    path('auth/google/', views.google_oauth_callback, name='google_oauth_callback'),
 ]
 
 # Additional compatibility URLs for frontend
