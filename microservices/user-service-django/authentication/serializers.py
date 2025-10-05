@@ -287,10 +287,8 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     """
     email = serializers.EmailField(required=True)
     
-    def validate_email(self, value):
-        if not User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("No user found with this email address.")
-        return value
+    # Removed validate_email to prevent revealing if email exists
+    # Security best practice: Always return generic message
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):

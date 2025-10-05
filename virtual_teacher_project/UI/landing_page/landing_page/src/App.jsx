@@ -6,7 +6,7 @@ import {
   SparklesIcon,
 } from "@heroicons/react/24/solid";
 import classNames from "classnames";
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 // API Configuration - Use API Gateway instead of direct service calls
 const API_BASE_URL = "http://localhost:8002";
@@ -107,38 +107,38 @@ const authAPI = {
 const handleGoogleSuccess = async (credentialResponse) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/auth/google/`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        access_token: credentialResponse.credential
-      })
+        access_token: credentialResponse.credential,
+      }),
     });
-    
+
     const data = await response.json();
-    
+
     if (response.ok) {
       // Save tokens
-      localStorage.setItem('access_token', data.tokens.access);
-      localStorage.setItem('refresh_token', data.tokens.refresh);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
+      localStorage.setItem("access_token", data.tokens.access);
+      localStorage.setItem("refresh_token", data.tokens.refresh);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
       // Redirect to dashboard
-      window.location.href = 'http://localhost:3001/dashboard';
+      window.location.href = "http://localhost:3001/dashboard";
     } else {
-      console.error('Google login failed:', data);
-      alert(data.error || 'Google login failed. Please try again.');
+      console.error("Google login failed:", data);
+      alert(data.error || "Google login failed. Please try again.");
     }
   } catch (error) {
-    console.error('Error during Google login:', error);
-    alert('An error occurred during Google login. Please try again.');
+    console.error("Error during Google login:", error);
+    alert("An error occurred during Google login. Please try again.");
   }
 };
 
 const handleGoogleError = () => {
-  console.log('Google Login Failed');
-  alert('Google login was cancelled or failed. Please try again.');
+  console.log("Google Login Failed");
+  alert("Google login was cancelled or failed. Please try again.");
 };
 
 function useLockBodyScroll(locked) {
@@ -849,17 +849,59 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
   );
 };
 
-const ForgotPasswordForm = ({ onLogin, onSuccess, onError }) => {
+const ForgotPasswordForm = ({ onLogin, onSuccess, onError, onStepChange }) => {
+  const [step, setStep] = useState(1); // 1: email, 2: OTP, 3: new password
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
+  const [canResend, setCanResend] = useState(false);
 
-  const handleSubmit = async (e) => {
+  // Notify parent component of step changes
+  React.useEffect(() => {
+    if (onStepChange) {
+      onStepChange(step);
+    }
+  }, [step, onStepChange]);
+
+  // Countdown timer effect
+  React.useEffect(() => {
+    if (step === 2 && countdown > 0) {
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [step, countdown]);
+
+  // Format countdown as MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const result = await authAPI.forgotPassword(email);
-      onSuccess(result.message);
+      setStep(2);
+      setCountdown(600);
+      setCanResend(false);
+      onSuccess(
+        result.message ||
+          "If an account exists with this email, an OTP has been sent."
+      );
     } catch (error) {
       onError(error.message);
     } finally {
@@ -867,47 +909,263 @@ const ForgotPasswordForm = ({ onLogin, onSuccess, onError }) => {
     }
   };
 
-  return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <div>
-        <label className="mb-1 block text-sm text-slate-300">Email</label>
-        <Input
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
-      <p className="text-sm text-slate-400 text-center">
-        Enter your email address and we'll send you a link to reset your
-        password.
-      </p>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading ? "Sending..." : "Send Reset Link"}
-      </button>
-      <div className="text-center text-sm text-slate-400">
-        Remember your password?{" "}
+  const handleResendOTP = async () => {
+    setLoading(true);
+    try {
+      const result = await authAPI.forgotPassword(email);
+      setCountdown(600);
+      setCanResend(false);
+      onSuccess(
+        result.message ||
+          "If an account exists with this email, an OTP has been sent."
+      );
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setStep(3);
+        onSuccess("OTP verified! Enter your new password.");
+      } else {
+        onError(data.error || "Invalid OTP");
+      }
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmPassword) {
+      onError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/auth/password-reset-confirm/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            otp,
+            new_password: newPassword,
+            confirm_password: confirmPassword,
+          }),
+        }
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        onSuccess("Password reset successful! You can now log in.");
+        setTimeout(() => onLogin(), 2000);
+      } else {
+        onError(data.error || "Failed to reset password");
+      }
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 1: Enter Email
+  if (step === 1) {
+    return (
+      <form className="space-y-4" onSubmit={handleSendOTP}>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">Email</label>
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <p className="text-sm text-slate-400 text-center">
+          Enter your email address and we'll send you an OTP to reset your
+          password.
+        </p>
         <button
-          type="button"
-          onClick={onLogin}
-          className="text-accentBlue hover:underline font-medium"
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Back to Login
+          {loading ? "Sending OTP..." : "Send OTP"}
         </button>
-      </div>
-    </form>
-  );
+        <div className="text-center text-sm text-slate-400">
+          Remember your password?{" "}
+          <button
+            type="button"
+            onClick={onLogin}
+            className="text-accentBlue hover:underline font-medium"
+          >
+            Back to Login
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  // Step 2: Enter OTP
+  if (step === 2) {
+    return (
+      <form className="space-y-4" onSubmit={handleVerifyOTP}>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">Enter OTP</label>
+          <Input
+            type="text"
+            placeholder="123456"
+            value={otp}
+            onChange={(e) =>
+              setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+            maxLength="6"
+            required
+            className="text-center text-2xl tracking-widest"
+          />
+          <p className="mt-2 text-xs text-slate-400 text-center">
+            We sent a 6-digit code to{" "}
+            <span className="text-accentBlue font-medium">{email}</span>
+          </p>
+        </div>
+
+        {/* Countdown Timer */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-lg">
+            <svg
+              className="w-4 h-4 text-accentBlue"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+            </svg>
+            <span
+              className={`text-sm font-mono ${
+                countdown < 60 ? "text-red-400" : "text-slate-300"
+              }`}
+            >
+              {formatTime(countdown)}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Verifying..." : "Verify OTP"}
+        </button>
+
+        {/* Resend OTP Button */}
+        <div className="text-center text-sm">
+          {canResend || countdown === 0 ? (
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={loading}
+              className="text-accentBlue hover:underline font-medium disabled:opacity-50"
+            >
+              Resend OTP
+            </button>
+          ) : (
+            <span className="text-slate-500">
+              Didn't receive? Resend in {formatTime(countdown)}
+            </span>
+          )}
+        </div>
+
+        <div className="text-center text-sm text-slate-400">
+          <button
+            type="button"
+            onClick={() => setStep(1)}
+            className="text-accentBlue hover:underline font-medium"
+          >
+            ← Change Email
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  // Step 3: Reset Password
+  if (step === 3) {
+    return (
+      <form className="space-y-4" onSubmit={handleResetPassword}>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">
+            New Password
+          </label>
+          <Input
+            type="password"
+            placeholder="Enter new password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Must be 8+ characters with uppercase, number, and special character
+            (!@#$%^&* etc.)
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">
+            Confirm Password
+          </label>
+          <Input
+            type="password"
+            placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Resetting..." : "Reset Password"}
+        </button>
+      </form>
+    );
+  }
 };
 
 export default function App() {
   const [modal, setModal] = useState(null); // 'login' | 'signup' | 'forgot' | null
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [forgotPasswordStep, setForgotPasswordStep] = useState(1);
 
   // Apply scroll lock when any modal is open
   useLockBodyScroll(modal !== null);
@@ -928,12 +1186,14 @@ export default function App() {
     setModal("forgot");
     setError("");
     setSuccess("");
+    setForgotPasswordStep(1); // Reset to step 1
   };
 
   const closeModal = () => {
     setModal(null);
     setError("");
     setSuccess("");
+    setForgotPasswordStep(1); // Reset step when closing
   };
 
   const handleAuthSuccess = (result) => {
@@ -977,71 +1237,78 @@ export default function App() {
         </main>
         <Footer />
 
-      {/* Error/Success Messages */}
-      {error && (
-        <div className="fixed top-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-lg shadow-lg max-w-md">
-          <div className="flex items-start justify-between">
-            <span className="text-sm">{error}</span>
-            <button
-              onClick={() => setError("")}
-              className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
-            >
-              ✕
-            </button>
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="fixed top-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-lg shadow-lg max-w-md">
+            <div className="flex items-start justify-between">
+              <span className="text-sm">{error}</span>
+              <button
+                onClick={() => setError("")}
+                className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {success && (
-        <div className="fixed top-4 right-4 z-[200] bg-green-500 text-white p-4 rounded-lg shadow-lg max-w-md">
-          <div className="flex items-start justify-between">
-            <span className="text-sm">{success}</span>
-            <button
-              onClick={() => setSuccess("")}
-              className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
-            >
-              ✕
-            </button>
+        {success && (
+          <div className="fixed top-4 right-4 z-[200] bg-green-500 text-white p-4 rounded-lg shadow-lg max-w-md">
+            <div className="flex items-start justify-between">
+              <span className="text-sm">{success}</span>
+              <button
+                onClick={() => setSuccess("")}
+                className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <Modal
-        isOpen={modal === "login"}
-        title="Login to GyanSetu"
-        onClose={closeModal}
-      >
-        <LoginForm
-          onForgot={() => setModal("forgot")}
-          onSignup={() => setModal("signup")}
-          onSuccess={handleAuthSuccess}
-          onError={handleAuthError}
-        />
-      </Modal>
+        <Modal
+          isOpen={modal === "login"}
+          title="Login to GyanSetu"
+          onClose={closeModal}
+        >
+          <LoginForm
+            onForgot={() => setModal("forgot")}
+            onSignup={() => setModal("signup")}
+            onSuccess={handleAuthSuccess}
+            onError={handleAuthError}
+          />
+        </Modal>
 
-      <Modal
-        isOpen={modal === "signup"}
-        title="Create your account"
-        onClose={closeModal}
-      >
-        <SignupForm
-          onLogin={() => setModal("login")}
-          onSuccess={handleAuthSuccess}
-          onError={handleAuthError}
-        />
-      </Modal>
+        <Modal
+          isOpen={modal === "signup"}
+          title="Create your account"
+          onClose={closeModal}
+        >
+          <SignupForm
+            onLogin={() => setModal("login")}
+            onSuccess={handleAuthSuccess}
+            onError={handleAuthError}
+          />
+        </Modal>
 
-      <Modal
-        isOpen={modal === "forgot"}
-        title="Reset Password"
-        onClose={closeModal}
-      >
-        <ForgotPasswordForm
-          onLogin={() => setModal("login")}
-          onSuccess={handleForgotPasswordSuccess}
-          onError={handleAuthError}
-        />
-      </Modal>
+        <Modal
+          isOpen={modal === "forgot"}
+          title={
+            forgotPasswordStep === 1
+              ? "Reset Password"
+              : forgotPasswordStep === 2
+              ? "Verify OTP"
+              : "Create New Password"
+          }
+          onClose={closeModal}
+        >
+          <ForgotPasswordForm
+            onLogin={() => setModal("login")}
+            onSuccess={handleForgotPasswordSuccess}
+            onError={handleAuthError}
+            onStepChange={setForgotPasswordStep}
+          />
+        </Modal>
       </div>
     </GoogleOAuthProvider>
   );

@@ -329,7 +329,7 @@ class ResendVerificationEmailView(APIView):
 # Password Reset
 class PasswordResetRequestView(APIView):
     """
-    Password reset request endpoint
+    Password reset request endpoint - Sends OTP to email
     """
     permission_classes = [permissions.AllowAny]
     
@@ -338,43 +338,181 @@ class PasswordResetRequestView(APIView):
         
         if serializer.is_valid():
             email = serializer.validated_data['email']
-            user = User.objects.get(email=email)
             
-            # Generate reset token
-            reset_token = str(uuid.uuid4())
-            user.verification_token = reset_token
-            user.save()
-            
-            # Send reset email (placeholder)
-            logger.info(f"Password reset requested for {email}")
-            
-            return Response({
-                'message': 'Password reset email sent'
-            }, status=status.HTTP_200_OK)
+            # Check if user exists (but don't reveal this to the client)
+            try:
+                user = User.objects.get(email=email)
+                
+                # Generate 6-digit OTP
+                import random
+                otp = str(random.randint(100000, 999999))
+                
+                # Store OTP in verification_token field with timestamp
+                from django.utils import timezone
+                user.verification_token = otp
+                user.last_activity = timezone.now()  # Store OTP creation time
+                user.save()
+                
+                # Send OTP email
+                try:
+                    send_mail(
+                        subject='Your GnyanSetu Password Reset OTP',
+                        message=f"""
+Hello {user.full_name},
+
+You requested to reset your password for your GnyanSetu account.
+
+Your One-Time Password (OTP) is:
+
+    {otp}
+
+This OTP will expire in 10 minutes.
+
+If you didn't request this, please ignore this email and your password will remain unchanged.
+
+Best regards,
+GnyanSetu Team
+                        """,
+                        from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@gnyansetu.com',
+                        recipient_list=[email],
+                        fail_silently=False,
+                    )
+                    logger.info(f"Password reset OTP sent to {email}")
+                except Exception as e:
+                    logger.error(f"Failed to send password reset OTP to {email}: {str(e)}")
+                    # Still return success for security (don't reveal if email exists)
+                
+                # For development/testing: include OTP in response
+                # TODO: Remove 'otp' field in production
+                return Response({
+                    'message': 'If an account exists with this email, an OTP has been sent.',
+                    'email': email,  # Return email for next step
+                    'otp': otp  # Include OTP in response for testing (remove in production)
+                }, status=status.HTTP_200_OK)
+                
+            except User.DoesNotExist:
+                # Email not found - return same generic message for security
+                logger.info(f"Password reset requested for non-existent email: {email}")
+                return Response({
+                    'message': 'If an account exists with this email, an OTP has been sent.',
+                    'email': email
+                }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordResetConfirmView(APIView):
+class VerifyOTPView(APIView):
     """
-    Password reset confirmation endpoint
+    Verify OTP for password reset
     """
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        serializer = PasswordResetConfirmSerializer(data=request.data)
+        email = request.data.get('email')
+        otp = request.data.get('otp')
         
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            new_password = serializer.validated_data['new_password']
-            
-            user.set_password(new_password)
-            user.verification_token = None
-            user.save()
-            
-            logger.info(f"Password reset completed for {user.email}")
-            
+        if not email or not otp:
             return Response({
+                'error': 'Email and OTP are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Invalid email or OTP'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if OTP matches
+        if user.verification_token != otp:
+            return Response({
+                'error': 'Invalid OTP. Please try again.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if OTP is expired (10 minutes)
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        if user.last_activity:
+            otp_age = timezone.now() - user.last_activity
+            if otp_age > timedelta(minutes=10):
+                return Response({
+                    'error': 'OTP has expired. Please request a new one.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"OTP verified successfully for {email}")
+        
+        return Response({
+            'message': 'OTP verified successfully',
+            'email': email
+        }, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    Password reset confirmation endpoint - Reset password with OTP
+    """
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+        
+        if not all([email, otp, new_password, confirm_password]):
+            return Response({
+                'error': 'All fields are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if new_password != confirm_password:
+            return Response({
+                'error': 'Passwords do not match'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Invalid email or OTP'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify OTP again
+        if user.verification_token != otp:
+            return Response({
+                'error': 'Invalid OTP'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check OTP expiry
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        if user.last_activity:
+            otp_age = timezone.now() - user.last_activity
+            if otp_age > timedelta(minutes=10):
+                return Response({
+                    'error': 'OTP has expired. Please request a new one.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate password strength
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            return Response({
+                'error': list(e.messages)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Set new password
+        user.set_password(new_password)
+        user.verification_token = None  # Clear OTP
+        user.save()
+        
+        logger.info(f"Password reset completed for {user.email}")
+        
+        return Response({
                 'message': 'Password reset successfully'
             }, status=status.HTTP_200_OK)
         
