@@ -4,9 +4,8 @@ import UploadBox from "./components/UploadBox";
 import ProfileMenu from "./components/ProfileMenu";
 import GlowingBackground from "./components/GlowingBackground";
 import SessionManager from "./components/SessionManager";
-import useTeachingWebSocket from "./hooks/useTeachingWebSocket";
 
-// API Configuration - Use API Gateway
+// API Configuration
 const API_BASE_URL = "http://localhost:8000";
 
 // API Helper function
@@ -54,78 +53,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Teaching Service Integration
-  const [currentLessonId, setCurrentLessonId] = useState(null);
-  const [isTeachingActive, setIsTeachingActive] = useState(false);
-  const [teachingData, setTeachingData] = useState(null);
-
-  // Initialize Teaching WebSocket
-  const teachingWS = useTeachingWebSocket(currentSessionId, currentUserId);
-
-  // Teaching Event Handlers
+  // Load chat history on component mount
   useEffect(() => {
-    if (teachingWS.isConnected) {
-      // Set up teaching event callbacks
-      teachingWS.setOnTeachingStep((step) => {
-        console.log('🎓 Teaching step received:', step);
-        setTeachingData(step);
-      });
-
-      teachingWS.setOnVoiceMessage((message, audioUrl) => {
-        console.log('🔊 Voice message received:', message);
-        // Handle voice message - could trigger TTS in Whiteboard
-      });
-
-      teachingWS.setOnCanvasUpdate((canvasData) => {
-        console.log('🎨 Canvas update received:', canvasData);
-        // Handle canvas updates for Konva.js integration
-      });
-
-      teachingWS.setOnQuizQuestion((question) => {
-        console.log('❓ Quiz question received:', question);
-        // Handle quiz questions
-      });
-    }
-  }, [teachingWS.isConnected]);
-
-  // Teaching Control Functions
-  const startLessonTeaching = async (lessonId) => {
-    try {
-      console.log('🎯 Starting teaching for lesson:', lessonId);
-      setCurrentLessonId(lessonId);
-      setIsTeachingActive(true);
-      
-      // Start teaching via WebSocket
-      teachingWS.startTeaching(lessonId, 'interactive');
-    } catch (error) {
-      console.error('Error starting lesson teaching:', error);
-      setError('Failed to start teaching session');
-    }
-  };
-
-  const stopLessonTeaching = () => {
-    console.log('⏹️ Stopping teaching session');
-    teachingWS.stopTeaching();
-    setIsTeachingActive(false);
-    setCurrentLessonId(null);
-    setTeachingData(null);
-  };
-
-  // Load user data and chat history on component mount
-  useEffect(() => {
-    // Load user data from localStorage
-    const storedUser = localStorage.getItem('gnyansetu_user');
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        const userId = userData.id || userData._id || userData.email || "anonymous";
-        setCurrentUserId(userId);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        setCurrentUserId("anonymous");
-      }
-    }
-    
     loadChatHistory();
   }, []);
 
@@ -501,13 +430,6 @@ export default function App() {
             currentUserId={currentUserId}
             currentConversationId={currentSessionId}
             onConversationCreated={handleConversationCreated}
-            // Teaching service integration
-            startLessonTeaching={startLessonTeaching}
-            stopLessonTeaching={stopLessonTeaching}
-            isTeachingActive={isTeachingActive}
-            teachingWebSocket={teachingWS}
-            currentLessonId={currentLessonId}
-            teachingData={teachingData}
           />
         ) : (
           <div className="mx-auto max-w-5xl px-4 lg:px-8">

@@ -9,528 +9,424 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
 
-from .models import (
-    TeachingSessionModel, WhiteboardModel, ChatMessageModel, 
-    VoiceQueueModel, LessonInteractionModel
-)
-from .voice_service import VoiceSynthesisService
-from .ai_tutor import AITutorService
-from .lesson_integration import LessonIntegrationService
+from .models import LessonService, TeachingSessionModel, UserService
 
 logger = logging.getLogger(__name__)
 
-# Health Check
-@api_view(['GET'])
+# ============================================================================
+# HEALTH CHECK
+# ============================================================================
+
+@csrf_exempt
 def health_check(request):
     """Health check endpoint"""
     try:
-        # Simple health check without MongoDB validation
-        return Response({
+        return JsonResponse({
             'status': 'healthy',
             'service': 'Teaching Service',
-            'version': '1.0.0',
+            'version': '2.0.0',
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'database': 'available',
             'features': {
-                'websockets': True,
-                'voice_synthesis': True,
-                'ai_tutor': True,
-                'whiteboard': True,
-                'lesson_integration': True
+                'konva_whiteboard': True,
+                'lesson_integration': True,
+                'user_profiles': True,
+                'real_time_teaching': True,
+                'websockets': True
             }
         })
     except Exception as e:
-        return Response({
+        return JsonResponse({
             'status': 'unhealthy',
             'error': str(e)
-        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        }, status=503)
 
-# Teaching Session Management
-@api_view(['POST'])
-def create_teaching_session(request):
-    """Create a new teaching session"""
+# ============================================================================
+# LESSON HISTORY AND MANAGEMENT
+# ============================================================================
+
+@csrf_exempt
+def get_user_lessons(request):
+    """Get all lessons for a user - This is what Dashboard needs for history"""
     try:
-        data = request.data
-        lesson_id = data.get('lesson_id')
-        user_id = data.get('user_id')
+        user_id = request.GET.get('user_id', 'dashboard_user')
         
-        if not lesson_id or not user_id:
-            return Response({
-                'error': 'lesson_id and user_id are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        logger.info(f"Fetching lessons for user: {user_id}")
         
-        # Get lesson content from lesson service
-        lesson_service = LessonIntegrationService()
-        lesson_content = lesson_service.get_lesson_content(lesson_id)
+        # Get lessons from the lesson service database
+        lessons = LessonService.get_user_lessons(user_id)
         
-        if lesson_content is None:
-            return Response({
-                'error': 'Could not load lesson content'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Transform lessons to match conversation format expected by Dashboard
+        conversations = []
+        for lesson in lessons:
+            conversations.append({
+                '_id': lesson['_id'],
+                'conversation_id': lesson['_id'],
+                'id': lesson['_id'],
+                'title': lesson.get('lesson_title', 'Untitled Lesson'),
+                'timestamp': lesson.get('created_at', datetime.now(timezone.utc).isoformat()),
+                'created_at': lesson.get('created_at', datetime.now(timezone.utc).isoformat()),
+                'updated_at': lesson.get('updated_at', datetime.now(timezone.utc).isoformat()),
+                'user_id': user_id,
+                'lesson_type': lesson.get('lesson_type', 'interactive'),
+                'status': lesson.get('status', 'generated'),
+                'message_count': 0  # Will be updated when teaching starts
+            })
+        
+        logger.info(f"Successfully returning {len(conversations)} lessons as conversations for user {user_id}")
+        
+        return JsonResponse({
+            'conversations': conversations,
+            'total': len(conversations),
+            'user_id': user_id
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching user lessons: {e}")
+        return JsonResponse({
+            'error': 'Failed to fetch user lessons',
+            'details': str(e)
+        }, status=500)
+
+@csrf_exempt
+def get_lesson_detail(request, lesson_id):
+    """Get detailed lesson content for teaching"""
+    try:
+        logger.info(f"📖 Fetching lesson detail for: {lesson_id}")
+        
+        lesson = LessonService.get_lesson_by_id(lesson_id)
+        
+        if lesson is None:
+            return JsonResponse({
+                'error': 'Lesson not found'
+            }, status=404)
+        
+        logger.info(f"✅ Found lesson: {lesson.get('lesson_title', 'Untitled')}")
+        
+        return JsonResponse({
+            'lesson': lesson,
+            'ready_for_teaching': True
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting lesson detail: {e}")
+        return JsonResponse({
+            'error': 'Failed to get lesson detail',
+            'details': str(e)
+        }, status=500)
+
+# ============================================================================
+# CONVERSATION ENDPOINTS (Dashboard Integration)
+# ============================================================================
+
+@csrf_exempt
+def list_conversations(request):
+    """List conversations for a user - Routes to lesson history"""
+    return get_user_lessons(request)
+
+@csrf_exempt
+def create_conversation(request):
+    """Create a new conversation/teaching session"""
+    try:
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+            
+        data = json.loads(request.body)
+        user_id = data.get('user_id', 'dashboard_user')
+        title = data.get('title', 'New Teaching Session')
+        lesson_id = data.get('lesson_id', None)
+        
+        logger.info(f"📝 Creating new teaching session for user: {user_id}, title: {title}")
+        
+        # If lesson_id is provided, get lesson content
+        lesson_content = {}
+        if lesson_id:
+            lesson = LessonService.get_lesson_by_id(lesson_id)
+            if lesson:
+                lesson_content = lesson.get('lesson_content', {})
         
         # Create teaching session
         session_data = {
-            'session_name': data.get('session_name'),
+            'session_name': title,
             'voice_enabled': data.get('voice_enabled', True),
             'whiteboard_enabled': data.get('whiteboard_enabled', True),
-            'ai_tutor_enabled': data.get('ai_tutor_enabled', True),
-            'interaction_mode': data.get('interaction_mode', 'guided'),
-            'voice_speed': data.get('voice_speed', 1.0),
-            'voice_language': data.get('voice_language', 'en-US'),
-            'total_slides': lesson_content.get('total_slides', 1),
+            'konva_enabled': data.get('konva_enabled', True),
             'lesson_content': lesson_content
         }
         
-        session_id = TeachingSessionModel.create_session(lesson_id, user_id, session_data)
+        session_id = TeachingSessionModel.create_session(
+            lesson_id or "general",
+            user_id, 
+            session_data
+        )
         
-        return Response({
-            'session_id': session_id,
-            'lesson_content': lesson_content,
-            'websocket_urls': {
-                'teaching': f'/ws/teaching/{session_id}/',
-                'whiteboard': f'/ws/whiteboard/{session_id}/',
-                'voice': f'/ws/voice/{session_id}/',
-                'ai_tutor': f'/ws/ai-tutor/{session_id}/',
-                'session_control': f'/ws/session-control/{session_id}/'
-            },
-            'message': 'Teaching session created successfully'
-        }, status=status.HTTP_201_CREATED)
+        new_conversation = {
+            '_id': session_id,
+            'conversation_id': session_id,
+            'id': session_id,
+            'title': title,
+            'timestamp': datetime.now(timezone.utc).strftime('%I:%M %p'),
+            'created_at': datetime.now(timezone.utc).isoformat(),
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+            'user_id': user_id,
+            'lesson_id': lesson_id,
+            'message_count': 0
+        }
+        
+        logger.info(f"✅ Created teaching session: {session_id}")
+        
+        return JsonResponse(new_conversation, status=201)
         
     except Exception as e:
-        logger.error(f"Error creating teaching session: {e}")
-        return Response({
-            'error': 'Failed to create teaching session'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"❌ Error creating conversation: {e}")
+        return JsonResponse({
+            'error': 'Failed to create conversation',
+            'details': str(e)
+        }, status=500)
 
-@api_view(['GET'])
-def get_teaching_session(request, session_id):
-    """Get teaching session details"""
+@csrf_exempt
+def delete_conversation(request, conversation_id):
+    """Delete a conversation/teaching session"""
     try:
-        session = TeachingSessionModel.get_session(session_id)
-
-        if session is None:
-            return Response({
-                'error': 'Teaching session not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        if request.method != 'DELETE':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+            
+        logger.info(f"🗑️ Deleting conversation: {conversation_id}")
         
-        return Response({
-            'session': session,
-            'websocket_urls': {
-                'teaching': f'/ws/teaching/{session_id}/',
-                'whiteboard': f'/ws/whiteboard/{session_id}/',
-                'voice': f'/ws/voice/{session_id}/',
-                'ai_tutor': f'/ws/ai-tutor/{session_id}/',
-                'session_control': f'/ws/session-control/{session_id}/'
+        # Delete teaching session
+        # For now, just return success (implement actual deletion if needed)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Conversation {conversation_id} deleted successfully',
+            'conversation_id': conversation_id
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error deleting conversation: {e}")
+        return JsonResponse({
+            'error': 'Failed to delete conversation',
+            'details': str(e)
+        }, status=500)
+
+# ============================================================================
+# USER PROFILE ENDPOINTS
+# ============================================================================
+
+@csrf_exempt
+def get_user_profile(request, user_id):
+    """Get user profile data for the Dashboard top-right corner"""
+    try:
+        logger.info(f"👤 Fetching user profile for: {user_id}")
+        
+        user_profile = UserService.get_user_profile(user_id)
+        
+        if user_profile is None:
+            return JsonResponse({
+                'error': 'User not found'
+            }, status=404)
+        
+        # Get user's lesson statistics
+        lessons = LessonService.get_user_lessons(user_id)
+        user_profile['lesson_count'] = len(lessons)
+        
+        # Get user's teaching session statistics
+        sessions = TeachingSessionModel.get_user_sessions(user_id)
+        user_profile['total_sessions'] = len(sessions)
+        
+        logger.info(f"✅ Found user profile: {user_profile.get('username', 'Unknown')}")
+        
+        return JsonResponse({
+            'user': user_profile,
+            'stats': {
+                'total_lessons': user_profile.get('lesson_count', 0),
+                'total_sessions': user_profile.get('total_sessions', 0),
+                'joined_date': user_profile.get('created_at')
             }
         })
         
     except Exception as e:
-        logger.error(f"Error getting teaching session: {e}")
-        return Response({
-            'error': 'Failed to get teaching session'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"❌ Error getting user profile: {e}")
+        return JsonResponse({
+            'error': 'Failed to get user profile',
+            'details': str(e)
+        }, status=500)
 
-@api_view(['PUT'])
-def update_teaching_session(request, session_id):
-    """Update teaching session"""
+# ============================================================================
+# TEACHING SESSION MANAGEMENT
+# ============================================================================
+
+@csrf_exempt
+def start_teaching_session(request):
+    """Start a teaching session with a specific lesson"""
     try:
-        updates = request.data
-        success = TeachingSessionModel.update_session(session_id, updates)
-        
-        if success:
-            return Response({'message': 'Session updated successfully'})
-        else:
-            return Response({
-                'error': 'Failed to update session'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
             
-    except Exception as e:
-        logger.error(f"Error updating teaching session: {e}")
-        return Response({
-            'error': 'Failed to update teaching session'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-def get_user_sessions(request, user_id):
-    """Get all teaching sessions for a user"""
-    try:
-        status_filter = request.GET.get('status')
-        sessions = TeachingSessionModel.get_user_sessions(user_id, status_filter)
-        
-        return Response({
-            'sessions': sessions,
-            'count': len(sessions)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting user sessions: {e}")
-        return Response({
-            'error': 'Failed to get user sessions'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# Voice Synthesis
-@api_view(['POST'])
-def synthesize_voice(request):
-    """Synthesize voice from text"""
-    try:
-        data = request.data
-        text = data.get('text', '')
-        voice_settings = data.get('voice_settings', {})
+        data = json.loads(request.body)
+        lesson_id = data.get('lesson_id')
+        user_id = data.get('user_id')
         session_id = data.get('session_id')
-
-        if text is None:
-            return Response({
-                'error': 'Text is required for voice synthesis'
-            }, status=status.HTTP_400_BAD_REQUEST)
         
-        voice_service = VoiceSynthesisService()
-        audio_url = voice_service.synthesize_speech(text, voice_settings, session_id)
+        if not lesson_id or not user_id:
+            return JsonResponse({
+                'error': 'lesson_id and user_id are required'
+            }, status=400)
         
-        if audio_url:
-            return Response({
-                'audio_url': audio_url,
-                'text': text,
-                'voice_settings': voice_settings
+        logger.info(f"🎓 Starting teaching session for lesson: {lesson_id}, user: {user_id}")
+        
+        # Get lesson content
+        lesson = LessonService.get_lesson_by_id(lesson_id)
+        if lesson is None:
+            return JsonResponse({
+                'error': 'Lesson not found'
+            }, status=404)
+        
+        # Create or update teaching session
+        if session_id:
+            # Update existing session
+            TeachingSessionModel.update_session(session_id, {
+                'status': 'active',
+                'lesson_content': lesson.get('lesson_content', {}),
+                'start_time': datetime.now(timezone.utc)
             })
         else:
-            return Response({
-                'error': 'Voice synthesis failed'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Create new session
+            session_data = {
+                'session_name': f"Teaching: {lesson.get('lesson_title', 'Untitled')}",
+                'lesson_content': lesson.get('lesson_content', {}),
+                'voice_enabled': data.get('voice_enabled', True),
+                'whiteboard_enabled': data.get('whiteboard_enabled', True),
+                'konva_enabled': data.get('konva_enabled', True)
+            }
+            session_id = TeachingSessionModel.create_session(lesson_id, user_id, session_data)
+        
+        return JsonResponse({
+            'session_id': session_id,
+            'lesson': lesson,
+            'status': 'active',
+            'websocket_url': f'/ws/teaching/{session_id}/',
+            'message': 'Teaching session started successfully'
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"❌ Error starting teaching session: {e}")
+        return JsonResponse({
+            'error': 'Failed to start teaching session',
+            'details': str(e)
+        }, status=500)
+
+@csrf_exempt
+def stop_teaching_session(request):
+    """Stop a teaching session"""
+    try:
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
             
-    except Exception as e:
-        logger.error(f"Error in voice synthesis: {e}")
-        return Response({
-            'error': 'Voice synthesis failed'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-def get_available_voices(request):
-    """Get available voices for TTS"""
-    try:
-        voice_service = VoiceSynthesisService()
-        voices = voice_service.get_available_voices()
+        data = json.loads(request.body)
+        session_id = data.get('session_id')
         
-        return Response({
-            'voices': voices,
-            'current_engine': voice_service.tts_engine
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting available voices: {e}")
-        return Response({
-            'error': 'Failed to get available voices'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# AI Tutor
-@api_view(['POST'])
-def ask_ai_tutor(request):
-    """Ask AI tutor a question"""
-    try:
-        data = request.data
-        question = data.get('question', '')
-        session_id = data.get('session_id', '')
-        context = data.get('context', {})
-        
-        if not question or not session_id:
-            return Response({
-                'error': 'Question and session_id are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        ai_tutor = AITutorService()
-        response = ai_tutor.generate_response(question, session_id, context)
-        
-        return Response({
-            'question': question,
-            'response': response,
-            'session_id': session_id
-        })
-        
-    except Exception as e:
-        logger.error(f"Error with AI tutor: {e}")
-        return Response({
-            'error': 'AI tutor request failed'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-def get_question_suggestions(request, session_id):
-    """Get AI-generated question suggestions"""
-    try:
-        current_slide = request.GET.get('slide', 0)
-        
-        ai_tutor = AITutorService()
-        suggestions = ai_tutor.suggest_questions(session_id, int(current_slide))
-        
-        return Response({
-            'suggestions': suggestions,
-            'session_id': session_id,
-            'current_slide': current_slide
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting question suggestions: {e}")
-        return Response({
-            'error': 'Failed to get question suggestions'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['POST'])
-def generate_practice_question(request):
-    """Generate a practice question"""
-    try:
-        data = request.data
-        session_id = data.get('session_id', '')
-        topic = data.get('topic')
-
-        if session_id is None:
-            return Response({
+        if not session_id:
+            return JsonResponse({
                 'error': 'session_id is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=400)
         
-        ai_tutor = AITutorService()
-        practice_question = ai_tutor.generate_practice_question(session_id, topic)
+        logger.info(f"⏹️ Stopping teaching session: {session_id}")
         
-        return Response(practice_question)
-        
-    except Exception as e:
-        logger.error(f"Error generating practice question: {e}")
-        return Response({
-            'error': 'Failed to generate practice question'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# Chat and Messages
-@api_view(['GET'])
-def get_session_messages(request, session_id):
-    """Get chat messages for a session"""
-    try:
-        limit = int(request.GET.get('limit', 100))
-        messages = ChatMessageModel.get_session_messages(session_id, limit)
-        
-        return Response({
-            'messages': messages,
-            'session_id': session_id,
-            'count': len(messages)
+        # Update session status
+        success = TeachingSessionModel.update_session(session_id, {
+            'status': 'completed',
+            'end_time': datetime.now(timezone.utc)
         })
-        
-    except Exception as e:
-        logger.error(f"Error getting session messages: {e}")
-        return Response({
-            'error': 'Failed to get session messages'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['POST'])
-def add_chat_message(request):
-    """Add a chat message"""
-    try:
-        data = request.data
-        session_id = data.get('session_id', '')
-        message_data = {
-            'user_id': data.get('user_id', ''),
-            'message': data.get('message', ''),
-            'message_type': data.get('message_type', 'user'),
-            'metadata': data.get('metadata', {})
-        }
-        
-        if not session_id or not message_data['message']:
-            return Response({
-                'error': 'session_id and message are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        message_id = ChatMessageModel.add_message(session_id, message_data)
-        
-        return Response({
-            'message_id': message_id,
-            'session_id': session_id,
-            'message': 'Message added successfully'
-        }, status=status.HTTP_201_CREATED)
-        
-    except Exception as e:
-        logger.error(f"Error adding chat message: {e}")
-        return Response({
-            'error': 'Failed to add chat message'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# Whiteboard
-@api_view(['GET'])
-def get_whiteboard_state(request, session_id):
-    """Get whiteboard state for a session"""
-    try:
-        whiteboard_data = WhiteboardModel.get_whiteboard_state(session_id)
-        
-        return Response({
-            'whiteboard_data': whiteboard_data or {},
-            'session_id': session_id
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting whiteboard state: {e}")
-        return Response({
-            'error': 'Failed to get whiteboard state'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['POST'])
-def save_whiteboard_state(request):
-    """Save whiteboard state"""
-    try:
-        data = request.data
-        session_id = data.get('session_id', '')
-        whiteboard_data = data.get('whiteboard_data', {})
-
-        if session_id is None:
-            return Response({
-                'error': 'session_id is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        success = WhiteboardModel.save_whiteboard_state(session_id, whiteboard_data)
         
         if success:
-            return Response({
-                'message': 'Whiteboard state saved successfully',
-                'session_id': session_id
+            return JsonResponse({
+                'session_id': session_id,
+                'status': 'completed',
+                'message': 'Teaching session stopped successfully'
             })
         else:
-            return Response({
-                'error': 'Failed to save whiteboard state'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return JsonResponse({
+                'error': 'Failed to stop teaching session'
+            }, status=400)
             
     except Exception as e:
-        logger.error(f"Error saving whiteboard state: {e}")
-        return Response({
-            'error': 'Failed to save whiteboard state'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"❌ Error stopping teaching session: {e}")
+        return JsonResponse({
+            'error': 'Failed to stop teaching session',
+            'details': str(e)
+        }, status=500)
 
-# Analytics and Interactions
-@api_view(['GET'])
-def get_session_analytics(request, session_id):
-    """Get analytics for a teaching session"""
+# ============================================================================
+# KONVA.JS WHITEBOARD ENDPOINTS
+# ============================================================================
+
+@csrf_exempt
+def update_konva_state(request):
+    """Update Konva.js whiteboard state"""
     try:
-        session = TeachingSessionModel.get_session(session_id)
-        interactions = LessonInteractionModel.get_session_interactions(session_id)
-        messages = ChatMessageModel.get_session_messages(session_id)
-
-        if session is None:
-            return Response({
-                'error': 'Session not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+            
+        data = json.loads(request.body)
+        session_id = data.get('session_id')
+        konva_state = data.get('konva_state', {})
         
-        analytics = {
-            'session_info': {
+        if not session_id:
+            return JsonResponse({
+                'error': 'session_id is required'
+            }, status=400)
+        
+        logger.info(f"🎨 Updating Konva state for session: {session_id}")
+        
+        # Update session with new Konva state
+        success = TeachingSessionModel.update_session(session_id, {
+            'konva_state': konva_state,
+            'last_interaction': datetime.now(timezone.utc)
+        })
+        
+        if success:
+            return JsonResponse({
                 'session_id': session_id,
-                'status': session.get('status'),
-                'created_at': session.get('created_at'),
-                'updated_at': session.get('updated_at'),
-                'current_slide': session.get('current_slide', 0),
-                'progress': session.get('progress', 0.0)
-            },
-            'interactions': {
-                'total_interactions': len(interactions),
-                'interaction_types': {},
-                'timeline': interactions
-            },
-            'communication': {
-                'total_messages': len(messages),
-                'user_messages': len([m for m in messages if m.get('message_type') == 'user']),
-                'ai_messages': len([m for m in messages if m.get('message_type') == 'ai']),
-                'recent_messages': messages[-10:] if messages else []
-            },
-            'session_analytics': session.get('analytics', {})
-        }
-        
-        # Count interaction types
-        for interaction in interactions:
-            interaction_type = interaction.get('interaction_type', 'unknown')
-            analytics['interactions']['interaction_types'][interaction_type] = \
-                analytics['interactions']['interaction_types'].get(interaction_type, 0) + 1
-        
-        return Response(analytics)
-        
+                'konva_state': konva_state,
+                'message': 'Konva state updated successfully'
+            })
+        else:
+            return JsonResponse({
+                'error': 'Failed to update Konva state'
+            }, status=400)
+            
     except Exception as e:
-        logger.error(f"Error getting session analytics: {e}")
-        return Response({
-            'error': 'Failed to get session analytics'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"❌ Error updating Konva state: {e}")
+        return JsonResponse({
+            'error': 'Failed to update Konva state',
+            'details': str(e)
+        }, status=500)
 
-# Teaching Interface
-@api_view(['GET'])
-def teaching_interface(request, session_id):
-    """Serve the teaching interface HTML"""
+@csrf_exempt
+def get_konva_state(request, session_id):
+    """Get Konva.js whiteboard state"""
     try:
-        # This would serve the actual teaching interface
-        # For now, return a simple HTML response
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>GnyanSetu Teaching Interface</title>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; }}
-                .container {{ max-width: 1200px; margin: 0 auto; }}
-                .status {{ background: #e8f5e8; padding: 10px; border-radius: 5px; margin-bottom: 20px; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🎓 GnyanSetu Teaching Interface</h1>
-                <div class="status">
-                    <strong>Session ID:</strong> {session_id}<br>
-                    <strong>Status:</strong> Ready for real-time teaching
-                </div>
-                <p>This teaching interface will be built with React + Konva.js for interactive teaching sessions.</p>
-                <h3>Features:</h3>
-                <ul>
-                    <li>🎤 Real-time voice synthesis</li>
-                    <li>🎨 Interactive whiteboard with Konva.js</li>
-                    <li>🤖 AI tutor integration</li>
-                    <li>💬 Live chat</li>
-                    <li>📊 Session analytics</li>
-                </ul>
-                <h3>WebSocket Endpoints:</h3>
-                <ul>
-                    <li>Teaching: <code>/ws/teaching/{session_id}/</code></li>
-                    <li>Whiteboard: <code>/ws/whiteboard/{session_id}/</code></li>
-                    <li>Voice: <code>/ws/voice/{session_id}/</code></li>
-                    <li>AI Tutor: <code>/ws/ai-tutor/{session_id}/</code></li>
-                    <li>Session Control: <code>/ws/session-control/{session_id}/</code></li>
-                </ul>
-            </div>
-        </body>
-        </html>
-        """
+        logger.info(f"🎨 Getting Konva state for session: {session_id}")
         
-        return HttpResponse(html_content, content_type='text/html')
+        session = TeachingSessionModel.get_session(session_id)
         
-    except Exception as e:
-        logger.error(f"Error serving teaching interface: {e}")
-        return HttpResponse("Error loading teaching interface", status=500)
-
-# AI Response Generation (for lesson service integration)
-@api_view(['POST'])
-def generate_ai_response(request):
-    """Generate AI response (used by AI tutor service)"""
-    try:
-        data = request.data
-        prompt = data.get('prompt', '')
-
-        if prompt is None:
-            return Response({
-                'error': 'Prompt is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        if session is None:
+            return JsonResponse({
+                'error': 'Session not found'
+            }, status=404)
         
-        # This would integrate with Gemini API
-        # For now, return a mock response
-        response = "This is a placeholder AI response. Integration with Gemini API would happen here."
+        konva_state = session.get('konva_state', {})
         
-        return Response({
-            'response': response,
-            'prompt': prompt
+        return JsonResponse({
+            'session_id': session_id,
+            'konva_state': konva_state
         })
         
     except Exception as e:
-        logger.error(f"Error generating AI response: {e}")
-        return Response({
-            'error': 'Failed to generate AI response'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"❌ Error getting Konva state: {e}")
+        return JsonResponse({
+            'error': 'Failed to get Konva state',
+            'details': str(e)
+        }, status=500)

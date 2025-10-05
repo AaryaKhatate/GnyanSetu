@@ -12,8 +12,12 @@ import {
   VolumeX,
   Square,
   Layers,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import TeachingCanvas from "./TeachingCanvas";
+import TeachingCanvasFixed from "./TeachingCanvasFixed";
+import { useTeachingWebSocket } from "./useTeachingWebSocket";
 
 // Text-to-Speech Hook
 const useTTS = () => {
@@ -92,355 +96,523 @@ const Whiteboard = ({
   currentUserId,
   currentConversationId,
   onConversationCreated,
-  // Teaching service props
-  startLessonTeaching,
-  stopLessonTeaching,
-  isTeachingActive,
-  teachingWebSocket,
-  currentLessonId,
-  teachingData,
+  pdfData, // Add PDF data prop for WebSocket
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState([]);
   const [lessonSteps, setLessonSteps] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [status, setStatus] = useState("Connecting...");
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [quizData, setQuizData] = useState(null);
-  const [notesData, setNotesData] = useState(null);
-  const [whiteboardCommands, setWhiteboardCommands] = useState([]);
-
-  // TTS state
-  const { speak, pauseResume, stop, isSpeaking, isPaused } = useTTS();
-  const [autoPlay, setAutoPlay] = useState(true);
-  const [currentSpeakingStep, setCurrentSpeakingStep] = useState(null);
-
-  // Teaching mode state
-  const [teachingMode, setTeachingMode] = useState(true); // Start with new teaching mode
+  const [chatMessage, setChatMessage] = useState("");
+  
+  // Teaching state variables
   const [teachingSteps, setTeachingSteps] = useState([]);
   const [currentTeachingStep, setCurrentTeachingStep] = useState(null);
   const [currentTeachingStepIndex, setCurrentTeachingStepIndex] = useState(0);
   const [isTeaching, setIsTeaching] = useState(false);
-  const [isGeneratingLesson, setIsGeneratingLesson] = useState(false); // Track lesson generation
+  const [teachingMode, setTeachingMode] = useState(true);
+  const [currentSpeakingStep, setCurrentSpeakingStep] = useState(null);
+  const [isGeneratingLesson, setIsGeneratingLesson] = useState(false);
+  const [status, setStatus] = useState("Connecting...");
+  const [quizData, setQuizData] = useState(null);
+  const [notesData, setNotesData] = useState(null);
+  const [autoPlay, setAutoPlay] = useState(true);
+  
+  // Refs for managing state in callbacks
+  const teachingStepsRef = useRef([]);
+  const pdfSentRef = useRef(false); // Track if PDF has been sent
+  
+  // WebSocket integration - MUST be called before any useEffect that uses 'connected'
+  const {
+    connected,
+    sessionId,
+    messages,
+    lessonCommands,
+    currentStep,
+    isPlaying: wsIsPlaying,
+    sendPDFDocument,
+    sendMessage,
+    startLesson,
+    stopLesson,
+    sendTestPDF
+  } = useTeachingWebSocket();
 
-  const wsRef = useRef(null);
-  const canvasRef = useRef(null);
-  const timerRef = useRef(null);
-  const teachingCanvasRef = useRef(null);
-  const teachingStepsRef = useRef([]); // Add ref to track latest teaching steps
-
-  // Update ref whenever teachingSteps changes
+  // Expose test function globally for debugging
   useEffect(() => {
-    teachingStepsRef.current = teachingSteps;
-  }, [teachingSteps]);
+    window.sendTestPDF = sendTestPDF;
+    window.testTeaching = () => {
+      console.log('🧪 Testing teaching functionality...');
+      if (connected) {
+        sendTestPDF();
+      } else {
+        console.error('❌ WebSocket not connected');
+      }
+    };
+    
+    return () => {
+      delete window.sendTestPDF;
+      delete window.testTeaching;
+    };
+  }, [sendTestPDF, connected]);
 
-  // Helper function to safely send WebSocket messages
-  const sendWebSocketMessage = (message) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log("Sending WebSocket message:", message);
-      wsRef.current.send(JSON.stringify(message));
-      return true;
-    } else {
-      console.error(
-        "WebSocket not ready. Current state:",
-        wsRef.current?.readyState
-      );
-      setStatus("Connection error - please try again");
-      return false;
+  // REMOVED - Consolidated into single loader below
+
+  // Handle lesson command execution on canvas
+  const handleCommandExecuted = useCallback((command, stepIndex) => {
+    console.log('Command executed on canvas:', command, 'Step:', stepIndex);
+    
+    // Execute command on canvas
+    if (canvasRef.current && canvasRef.current.executeCommand) {
+      canvasRef.current.executeCommand(command, stepIndex);
     }
-  };
+  }, []);
 
-  // WebSocket connection
-  useEffect(() => {
-    // Prevent multiple connections - check all possible states
-    if (
-      wsRef.current &&
-      (wsRef.current.readyState === WebSocket.OPEN ||
-        wsRef.current.readyState === WebSocket.CONNECTING)
-    ) {
-      console.log(
-        "WebSocket already connected or connecting, skipping reconnection. State:",
-        wsRef.current.readyState
-      );
+  // Start lesson playback
+  const handlePlayLesson = useCallback(() => {
+    if (lessonCommands.length === 0) {
+      console.warn('No lesson commands available');
       return;
     }
-
-    const connectWebSocket = () => {
-      // Close any existing connection first
-      if (wsRef.current) {
-        console.log("Closing existing WebSocket before creating new one");
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-
-      const wsUrl = `ws://localhost:8001/ws/teacher/`;
-      console.log("Creating new WebSocket connection to:", wsUrl);
-      wsRef.current = new WebSocket(wsUrl);
-
-      wsRef.current.onopen = () => {
-        console.log("WebSocket connected successfully");
-        setIsConnected(true);
-        setStatus("Connected! Starting lesson generation...");
-
-        // Add a small delay to ensure WebSocket is fully ready
-        setTimeout(() => {
-          // Only send lesson generation request if we don't already have synchronized steps and not already generating
-          if (teachingSteps.length === 0 && !isGeneratingLesson) {
-            console.log("Starting lesson generation...");
-            setIsGeneratingLesson(true);
-
-            // Send PDF data to start lesson generation
-            const pdfText = sessionStorage.getItem("pdfText");
-            const pdfFilename =
-              sessionStorage.getItem("pdfFilename") || pdfName;
-            const message = {
-              topic: pdfName,
-              pdf_text: pdfText || "",
-              pdf_filename: pdfFilename,
-              user_id: currentUserId || "anonymous",
-              conversation_id: currentConversationId || null,
-            };
-
-            console.log("Sending lesson generation request via WebSocket");
-            sendWebSocketMessage(message);
-          } else if (isGeneratingLesson) {
-            console.log(
-              "Lesson generation already in progress, skipping duplicate request"
-            );
-            setStatus("Lesson generation in progress...");
-          } else if (teachingSteps.length > 0) {
-            console.log(
-              "Synchronized lesson already loaded, skipping automatic lesson generation"
-            );
-            console.log("Current teaching steps:", teachingSteps.length);
-            setStatus("Ready - Synchronized lesson loaded");
-
-            // If lesson is already loaded but not started, start it
-            if (!isTeaching && autoPlay) {
-              console.log("🚀 Auto-starting existing lesson");
-              setTimeout(() => {
-                startTeachingStep(teachingSteps[0], 0);
-              }, 1000);
-            }
-          }
-        }, 100); // 100ms delay
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleWebSocketMessage(data);
-        } catch (error) {
-          console.error("Error parsing WebSocket message:", error);
-        }
-      };
-
-      wsRef.current.onclose = (event) => {
-        console.log("WebSocket disconnected:", event.code, event.reason);
-        setIsConnected(false);
-        setStatus("Disconnected");
-
-        // Only attempt to reconnect if the closure wasn't intentional
-        if (event.code !== 1000) {
-          // 1000 = normal closure
-          console.log("Attempting to reconnect in 3 seconds...");
-          setTimeout(connectWebSocket, 3000);
-        } else {
-          console.log("WebSocket closed normally, not reconnecting");
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        setStatus("Connection error");
-      };
-    };
-
-    connectWebSocket();
-
-    // Cleanup on unmount
-    return () => {
-      if (wsRef.current) {
-        console.log("Closing WebSocket connection on cleanup with normal code");
-        wsRef.current.close(1000, "Component unmounting"); // 1000 = normal closure
-        wsRef.current = null;
-      }
-    };
-  }, []); // Remove pdfName dependency to prevent reconnections
-
-  const handleWebSocketMessage = (data) => {
-    console.log("📥 WebSocket message received:", data.type);
-
-    switch (data.type) {
-      case "status":
-        setStatus(data.message);
-        console.log("Status updated:", data.message);
-        break;
-
-      case "lesson_start":
-        // Reset everything for new lesson
-        setSlides([]);
-        setCurrentSlide(0);
-        setCurrentSpeakingStep(null);
-        setTeachingSteps([]);
-        setCurrentTeachingStep(null);
-        setIsTeaching(false);
-        clearQueue();
-        setStatus(data.message || "Generating lesson content...");
-        console.log("New lesson generation started");
-        break;
-
-      case "generation_progress":
-        // Show generation progress
-        setStatus(
-          data.status || `Generating... (${data.buffer_length} characters)`
-        );
-        break;
-
-      case "lesson_ready":
-        // All teaching steps received - now we can start synchronized lesson
-        console.log("🎓 === LESSON READY DEBUG ===");
-        console.log("Total steps received:", data.total_steps);
-        console.log(
-          "Teaching steps array length:",
-          data.teaching_steps?.length
-        );
-        console.log("Current teaching steps length:", teachingSteps.length);
-        console.log("Currently teaching:", isTeaching);
-        console.log("Current speaking step:", currentSpeakingStep);
-
-        // Prevent overwriting lesson if one is already in progress
-        if (
-          teachingSteps.length > 0 &&
-          (isTeaching || currentSpeakingStep !== null)
-        ) {
-          console.log(
-            "🚫 Lesson already in progress, ignoring duplicate lesson_ready"
-          );
-          return;
-        }
-
-        if (data.teaching_steps && data.teaching_steps.length > 0) {
-          // Debug first step specifically
-          const firstStep = data.teaching_steps[0];
-          console.log("🔍 === FIRST STEP ANALYSIS ===");
-          console.log("Step 1 object:", firstStep);
-          console.log("Step 1 keys:", Object.keys(firstStep));
-          console.log("Step 1 speech_text:", firstStep.speech_text);
-          console.log(
-            "Step 1 speech_text length:",
-            firstStep.speech_text?.length
-          );
-          console.log("Step 1 speech_text type:", typeof firstStep.speech_text);
-          console.log("Step 1 drawing_commands:", firstStep.drawing_commands);
-          console.log(
-            "Step 1 drawing_commands count:",
-            firstStep.drawing_commands?.length
-          );
-          console.log("================================");
-        }
-
-        // Log each step content in detail for debugging
-        if (data.teaching_steps) {
-          data.teaching_steps.forEach((step, index) => {
-            console.log(`=== STEP ${index + 1} CONTENT ===`);
-            console.log(`Step number: ${step.step}`);
-            console.log(`Speech text: "${step.speech_text}"`);
-            console.log(`Speech text length: ${step.speech_text?.length}`);
-            console.log(
-              `Drawing commands: ${step.drawing_commands?.length || 0}`
-            );
-            if (step.drawing_commands?.length > 0) {
-              step.drawing_commands.forEach((cmd, cmdIndex) => {
-                console.log(
-                  `  Command ${cmdIndex + 1}: ${cmd.action} - ${
-                    cmd.text || "no text"
-                  }`
-                );
-              });
-            }
-            console.log("========================");
-          });
-        }
-
-        setTeachingSteps(data.teaching_steps || []);
-        setStatus(`Lesson ready! ${data.total_steps} steps prepared.`);
-        setIsGeneratingLesson(false); // Reset generation flag
-
-        // Auto-switch to teaching mode
-        setTeachingMode(true);
-
-        // Auto-start the lesson after a brief delay (if autoPlay is enabled)
-        if (autoPlay && data.teaching_steps && data.teaching_steps.length > 0) {
-          console.log("🚀 Auto-starting synchronized lesson in 2 seconds...");
-          setTimeout(() => {
-            console.log("🎬 Starting lesson with first step");
-            startTeachingStep(data.teaching_steps[0], 0);
-          }, 2000); // 2 second delay to let user see the "lesson ready" message
-        } else {
-          console.log("⏸️ Auto-play disabled or no steps available");
-        }
-        break;
-
-      case "conversation_created":
-        console.log("Conversation created:", data.conversation_id, data.title);
-        // Notify parent component about new conversation
-        if (onConversationCreated) {
-          onConversationCreated(data.conversation_id, data.title);
-        }
-        break;
-
-      case "teaching_step":
-        // COMPLETELY DISABLED - Legacy system that causes duplicate content
-        console.log(
-          "LEGACY teaching_step message IGNORED - using synchronized lesson system"
-        );
-        console.log("Received data:", data.data);
-        break;
-
-      case "lesson_step":
-        // COMPLETELY DISABLED - Legacy system that causes duplicate content
-        console.log(
-          "LEGACY lesson_step message IGNORED - using synchronized lesson system"
-        );
-        console.log("Received data:", data.data);
-        break;
-
-      case "notes_and_quiz_ready":
-        setQuizData(data.data.quiz);
-        setNotesData(data.data.notes_content);
-        console.log("Quiz and notes data received, storing for later use");
-        // Don't call onQuizDataReceived here - wait for lesson to complete
-        break;
-
-      case "lesson_end":
-        setIsGeneratingLesson(false); // Reset generation flag
-        // Only process lesson_end for legacy lessons, ignore for synchronized lessons
-        if (teachingSteps.length === 0) {
-          setStatus("Lesson generation completed!");
-          if (autoPlay) {
-            speak("Lesson completed. Great job!", () => {});
-          }
-          // Lesson will auto-advance through slides, user can manually start quiz when ready
-        } else {
-          console.log(
-            "Ignoring legacy lesson_end - synchronized lesson already loaded"
-          );
-        }
-        break;
-
-      case "error":
-        setStatus(`Error: ${data.message}`);
-        setIsGeneratingLesson(false); // Reset generation flag on error
-        console.error("WebSocket error:", data);
-        break;
-
-      default:
-        console.log("Unknown message type:", data.type);
+    
+    console.log('Starting lesson with', lessonCommands.length, 'commands');
+    
+    // Clear canvas before starting
+    if (canvasRef.current && canvasRef.current.clearCanvas) {
+      canvasRef.current.clearCanvas();
     }
-  };
+    
+    // Start lesson execution
+    startLesson(handleCommandExecuted);
+  }, [lessonCommands, startLesson, handleCommandExecuted]);
 
+  // Stop lesson playback
+  const handleStopLesson = useCallback(() => {
+    stopLesson();
+  }, [stopLesson]);
+
+  const canvasRef = useRef(null);
+  const { speak, pauseResume, stop, isSpeaking, isPaused } = useTTS();
+
+  // ============================================================
+  // IMMEDIATE CHECK ON MOUNT - Force check sessionStorage
+  // ============================================================
+  useEffect(() => {
+    console.log('🔥 === IMMEDIATE MOUNT CHECK ===');
+    console.log('🔥 Component just mounted, checking sessionStorage immediately...');
+    
+    const loadLessonFromStorage = () => {
+      try {
+        const lessonDataStr = sessionStorage.getItem('lessonData');
+        console.log('🔥 sessionStorage lessonData exists:', !!lessonDataStr);
+        
+        if (lessonDataStr) {
+          const lessonData = JSON.parse(lessonDataStr);
+          console.log('🔥 Parsed lesson data:', lessonData);
+          console.log('🔥 Has teaching_steps:', !!lessonData.teaching_steps);
+          console.log('🔥 Teaching steps count:', lessonData.teaching_steps?.length);
+          
+          // ✅ NEW: If teaching_steps doesn't exist, create them from lesson_content
+          if (!lessonData.teaching_steps && (lessonData.lesson_content || lessonData.content)) {
+            console.log('🔥 ⚠️ No teaching_steps found, generating from lesson_content...');
+            
+            // Use lesson_content or content field
+            const content = lessonData.lesson_content || lessonData.content;
+            console.log('🔥 Content to parse:', content?.substring(0, 200));
+            
+            // Try splitting by level-3 headers (###) first for subsections
+            let sections = content.split(/\n### /).filter(s => s.trim());
+            
+            // If no subsections found, try level-2 headers (##)
+            if (sections.length <= 1) {
+              sections = content.split(/\n## /).filter(s => s.trim());
+            }
+            
+            console.log('🔥 Found', sections.length, 'sections');
+            
+            const steps = sections
+              .filter(section => section.trim().length > 0)
+              .map((section, index) => {
+                const lines = section.split('\n');
+                const title = lines[0].replace(/^#+ /, '').trim();
+                const contentText = lines.slice(1).join('\n').trim();
+                
+                // Clean up the content for speech
+                const speechText = contentText
+                  .replace(/[#*_`]/g, '') // Remove markdown symbols
+                  .replace(/\n+/g, ' ')   // Replace newlines with spaces
+                  .substring(0, 500);     // Limit to 500 chars
+                
+                return {
+                  step: index + 1,
+                  title: title,
+                  speech_text: `${title}. ${speechText}`,
+                  text_explanation: contentText,
+                  drawing_commands: [
+                    {
+                      type: "text",
+                      action: "write_text",
+                      text: title,
+                      x_percent: 10,
+                      y_percent: 10,
+                      font_size: 32,
+                      color: "#1e40af",
+                      time: 0
+                    },
+                    {
+                      type: "text",
+                      action: "write_text",
+                      text: contentText.substring(0, 200) + "...",
+                      x_percent: 10,
+                      y_percent: 25,
+                      font_size: 18,
+                      color: "#1f2937",
+                      time: 500
+                    }
+                  ]
+                };
+              });
+            
+            lessonData.teaching_steps = steps;
+            console.log('🔥 ✅ Generated', steps.length, 'teaching steps from content');
+            console.log('🔥 First step:', steps[0]);
+            console.log('🔥 First step title:', steps[0]?.title);
+            console.log('🔥 First step speech:', steps[0]?.speech_text?.substring(0, 100));
+          }
+          
+          if (lessonData.teaching_steps && lessonData.teaching_steps.length > 0) {
+            console.log('🔥 ✅ FOUND LESSON DATA ON MOUNT!');
+            console.log('🔥 Loading', lessonData.teaching_steps.length, 'steps immediately');
+            
+            setTeachingSteps(lessonData.teaching_steps);
+            setTeachingMode(true);
+            setStatus(`Lesson loaded! ${lessonData.teaching_steps.length} steps ready.`);
+            
+            console.log('🔥 State updated immediately on mount');
+            return true;
+          }
+        } else {
+          console.log('🔥 No lesson data in sessionStorage on mount');
+        }
+      } catch (error) {
+        console.error('🔥 Error in immediate mount check:', error);
+      }
+      return false;
+    };
+    
+    // Try immediately
+    const found = loadLessonFromStorage();
+    
+    // If not found, set up polling to check for data arrival
+    if (!found) {
+      console.log('🔥 Setting up polling for lesson data...');
+      let pollCount = 0;
+      const maxPolls = 20; // Poll for 10 seconds max
+      
+      const pollInterval = setInterval(() => {
+        pollCount++;
+        console.log(`🔥 Poll ${pollCount}/${maxPolls}: Checking for lesson data...`);
+        
+        const foundNow = loadLessonFromStorage();
+        if (foundNow || pollCount >= maxPolls) {
+          console.log(`🔥 Stopping poll: ${foundNow ? 'Data found!' : 'Max polls reached'}`);
+          clearInterval(pollInterval);
+        }
+      }, 500); // Check every 500ms
+      
+      // Cleanup
+      return () => {
+        clearInterval(pollInterval);
+      };
+    }
+    
+    console.log('🔥 === END IMMEDIATE MOUNT CHECK ===');
+  }, []); // Empty dependency array - run once on mount
+
+  // Debug: Monitor canvas ref
+  useEffect(() => {
+    console.log('🔍 === CANVAS REF DEBUG ===');
+    console.log('🔍 canvasRef.current:', canvasRef.current);
+    console.log('🔍 canvasRef.current exists:', !!canvasRef.current);
+    if (canvasRef.current) {
+      console.log('🔍 canvasRef methods:', Object.keys(canvasRef.current));
+      console.log('🔍 clearCanvas method:', typeof canvasRef.current.clearCanvas);
+      console.log('🔍 addDrawingCommand method:', typeof canvasRef.current.addDrawingCommand);
+    }
+    console.log('🔍 === END CANVAS REF DEBUG ===');
+  }, [canvasRef.current]);
+
+  // Define startTeachingStep function before its usage
+  const startTeachingStep = useCallback(
+    (step, stepIndex) => {
+      if (!step) {
+        console.error("❌ No step provided to startTeachingStep");
+        return;
+      }
+
+      console.log(`🎯 === STARTING STEP ${stepIndex + 1} ===`);
+      console.log("Step object:", step);
+      console.log("Speech text:", step.speech_text);
+      console.log("Speech text type:", typeof step.speech_text);
+      console.log(
+        "Speech text empty?",
+        !step.speech_text || step.speech_text.trim() === ""
+      );
+      console.log("Drawing commands:", step.drawing_commands);
+      console.log("Drawing commands count:", step.drawing_commands?.length);
+
+      console.log(`⚙️ Setting current teaching step to:`, step);
+      setCurrentSpeakingStep(step.step);
+      setCurrentTeachingStepIndex(stepIndex !== undefined ? stepIndex : 0);
+      setCurrentTeachingStep(step);
+      console.log(`⚙️ Current teaching step state updated`);
+      setIsTeaching(true); // Ensure we're in teaching mode
+      console.log(`⚙️ isTeaching set to true`);
+
+      // Clear canvas for new step
+      if (canvasRef.current) {
+        canvasRef.current.clearCanvas();
+        console.log("🎨 Canvas cleared for step", stepIndex + 1);
+      }
+
+      // Validate and prepare speech text
+      let speechText = step.speech_text;
+      if (!speechText || speechText.trim() === "") {
+        console.warn("⚠️ Empty speech text for step", stepIndex + 1);
+        console.log("Raw speech_text value:", JSON.stringify(step.speech_text));
+
+        // Try to find alternative text
+        if (step.text_explanation) {
+          console.log(
+            "📝 Using text_explanation as fallback:",
+            step.text_explanation
+          );
+          speechText = step.text_explanation;
+        } else {
+          console.error(
+            "❌ No valid speech content found for step",
+            stepIndex + 1
+          );
+          speechText = `This is step ${
+            stepIndex + 1
+          } of the lesson. Let's continue with the next concept.`;
+        }
+      }
+
+      // Execute drawing commands first
+      if (step.drawing_commands && step.drawing_commands.length > 0) {
+        console.log(
+          `🎨 Executing ${step.drawing_commands.length} drawing commands`
+        );
+        console.log(`🎨 ===== DRAWING COMMANDS DEBUG =====`);
+        console.log(`🎨 canvasRef.current EXISTS:`, !!canvasRef.current);
+        console.log(`🎨 Full drawing commands array:`, JSON.stringify(step.drawing_commands, null, 2));
+        
+        step.drawing_commands.forEach((command, index) => {
+          console.log(`🎨 Drawing command ${index + 1}:`, command);
+          console.log(`🎨   Command type:`, command.type);
+          console.log(`🎨   Command action:`, command.action);
+          console.log(`🎨   Command structure:`, Object.keys(command));
+          
+          // NOTE: TeachingCanvas handles drawing animation internally via useEffect
+          // No need to manually call addDrawingCommand here - it causes duplicates!
+          // The canvas will automatically render drawing_commands when isPlaying=true
+        });
+        console.log(`🎨 ===== END DRAWING COMMANDS DEBUG =====`);
+      } else {
+        console.warn("⚠️ No drawing commands for step", stepIndex + 1);
+        console.log("⚠️ Step object structure:", Object.keys(step));
+        console.log("⚠️ step.drawing_commands value:", step.drawing_commands);
+      }
+
+      // Start speech with proper completion callback
+      console.log(
+        `🗣️ Starting speech for step ${stepIndex + 1}:`,
+        speechText.substring(0, 100) + "..."
+      );
+      console.log(`🎮 AutoPlay enabled:`, autoPlay);
+      console.log(`📊 Teaching steps length:`, teachingSteps.length);
+      setStatus(`Teaching step ${stepIndex + 1} of ${teachingSteps.length}`);
+
+      speak(
+        speechText,
+        () => {
+          console.log(`✅ Step ${stepIndex + 1} speech completed`);
+          console.log(
+            `🔍 Completion callback triggered for step ${stepIndex + 1}`
+          );
+          setCurrentSpeakingStep(null);
+
+          // Auto-advance to next step
+          const nextStepIndex = stepIndex + 1;
+          const currentTeachingSteps = teachingStepsRef.current; // Use ref to get latest state
+          console.log(`📈 Next step index would be: ${nextStepIndex}`);
+          console.log(
+            `📏 Total steps available: ${currentTeachingSteps.length}`
+          );
+          console.log(`🎮 AutoPlay status: ${autoPlay}`);
+
+          if (nextStepIndex < currentTeachingSteps.length && autoPlay) {
+            console.log(`⏭️ Auto-advancing to step ${nextStepIndex + 1}`);
+            console.log(
+              `🎯 Next step object:`,
+              currentTeachingSteps[nextStepIndex]
+            );
+            setTimeout(() => {
+              console.log(`🚀 Actually starting step ${nextStepIndex + 1} now`);
+              startTeachingStep(
+                currentTeachingSteps[nextStepIndex],
+                nextStepIndex
+              );
+            }, 1500); // 1.5 second pause between steps
+          } else if (nextStepIndex >= currentTeachingSteps.length) {
+            console.log("🎉 All steps completed!");
+            setStatus("Lesson completed! Great job!");
+            setIsTeaching(false);
+            speak("Lesson completed. Great job!", () => {
+              console.log("🏁 Lesson completion message finished");
+            });
+          } else {
+            console.log("⏸️ Auto-play disabled, waiting for manual advance");
+            console.log(
+              `❌ AutoPlay: ${autoPlay}, NextIndex: ${nextStepIndex}, TotalSteps: ${currentTeachingSteps.length}`
+            );
+            setStatus(
+              `Step ${stepIndex + 1} complete. Click Next to continue.`
+            );
+          }
+        },
+        true
+      );
+
+      console.log(`=== STEP ${stepIndex + 1} SETUP COMPLETE ===`);
+    },
+    [speak, autoPlay, stop] // Remove teachingSteps from dependencies to avoid stale closure
+  );
+
+  // Update ref whenever teachingSteps changes & Auto-start trigger
+  useEffect(() => {
+    teachingStepsRef.current = teachingSteps;
+    console.log('📊 teachingSteps updated:', teachingSteps.length, 'steps');
+    
+    // Auto-start if we just got steps and haven't started yet
+    if (teachingSteps.length > 0 && !isTeaching && !pdfSentRef.current && connected) {
+      console.log('🚀 AUTO-START TRIGGER: Steps loaded, starting lesson...');
+      pdfSentRef.current = true; // Mark as processed
+      
+      setTimeout(() => {
+        console.log('🎬 AUTO-START: Starting first step');
+        startTeachingStep(teachingSteps[0], 0);
+      }, 2000);
+    }
+  }, [teachingSteps, isTeaching, connected, startTeachingStep]);
+
+  // ============================================================
+  // SINGLE, CLEAN LESSON DATA LOADER
+  // This is the ONLY place where we load teaching steps
+  // ============================================================
+  useEffect(() => {
+    console.log('🎯 === SINGLE LESSON LOADER ===');
+    console.log('🎯 Connected:', connected);
+    console.log('🎯 Already processed:', pdfSentRef.current);
+    console.log('🎯 Current teachingSteps:', teachingSteps.length);
+    console.log('🎯 pdfData:', pdfData);
+    console.log('🎯 pdfData exists:', !!pdfData);
+    console.log('🎯 pdfData.lessonData:', pdfData?.lessonData);
+    console.log('🎯 pdfData.lessonData exists:', !!pdfData?.lessonData);
+    console.log('🎯 teaching_steps:', pdfData?.lessonData?.teaching_steps);
+    console.log('🎯 teaching_steps count:', pdfData?.lessonData?.teaching_steps?.length || 0);
+    
+    // Only run when connected
+    if (!connected) {
+      console.log('⏭️ Skipping: Not connected');
+      return;
+    }
+    
+    // Skip if already processed AND we already have steps
+    if (pdfSentRef.current && teachingSteps.length > 0) {
+      console.log('⏭️ Skipping: Already processed and have teaching steps');
+      return;
+    }
+    
+    // Try to load lesson data from multiple sources
+    let lessonSteps = null;
+    let dataSource = 'none';
+    
+    // Source 1: pdfData prop (preferred)
+    if (pdfData?.lessonData?.teaching_steps?.length > 0) {
+      console.log('✅ Found lesson in pdfData prop:', pdfData.lessonData.teaching_steps.length, 'steps');
+      lessonSteps = pdfData.lessonData.teaching_steps;
+      dataSource = 'pdfData';
+    }
+    // Source 2: sessionStorage (backup)
+    else {
+      console.log('🔍 Checking sessionStorage for lesson data...');
+      try {
+        const lessonDataStr = sessionStorage.getItem('lessonData');
+        console.log('🔍 sessionStorage lessonData string:', lessonDataStr?.substring(0, 200));
+        if (lessonDataStr) {
+          const lessonData = JSON.parse(lessonDataStr);
+          console.log('🔍 Parsed lessonData:', lessonData);
+          if (lessonData?.teaching_steps?.length > 0) {
+            console.log('✅ Found lesson in sessionStorage:', lessonData.teaching_steps.length, 'steps');
+            lessonSteps = lessonData.teaching_steps;
+            dataSource = 'sessionStorage';
+          } else {
+            console.log('❌ sessionStorage lessonData has no teaching_steps');
+          }
+        } else {
+          console.log('❌ No lessonData in sessionStorage');
+        }
+      } catch (error) {
+        console.error('❌ Error loading from sessionStorage:', error);
+      }
+    }
+    
+    // If we found lesson steps, use them
+    if (lessonSteps && lessonSteps.length > 0) {
+      console.log('✅ ✨ LOADING', lessonSteps.length, 'TEACHING STEPS FROM', dataSource.toUpperCase(), '!');
+      console.log('📚 First step:', lessonSteps[0]);
+      console.log('📚 First step keys:', Object.keys(lessonSteps[0]));
+      console.log('📚 First step speech_text:', lessonSteps[0].speech_text?.substring(0, 100));
+      
+      setTeachingSteps(lessonSteps);
+      setStatus(`Lesson ready! ${lessonSteps.length} steps prepared.`);
+      setTeachingMode(true);
+      pdfSentRef.current = true;
+      
+      console.log('✅ State updated: teachingSteps set, teachingMode=true, pdfSentRef=true');
+      
+      // Auto-start the lesson
+      console.log('🚀 Auto-starting lesson in 2 seconds...');
+      setTimeout(() => {
+        console.log('🎬 STARTING FIRST STEP NOW!');
+        console.log('🎬 Step to start:', lessonSteps[0]);
+        startTeachingStep(lessonSteps[0], 0);
+      }, 2000);
+    }
+    // Otherwise, send PDF to teaching service for generation
+    else if (pdfData && !pdfSentRef.current) {
+      console.log('❌ No pre-generated lesson, sending PDF to Teaching Service...');
+      console.log('📤 PDF data to send:', {
+        topic: pdfData.topic,
+        pdf_filename: pdfData.pdf_filename,
+        pdf_text_length: pdfData.pdf_text?.length,
+        has_lessonData: !!pdfData.lessonData
+      });
+      setTimeout(() => {
+        sendPDFDocument(pdfData);
+        pdfSentRef.current = true;
+        console.log('✅ PDF sent to Teaching Service, pdfSentRef=true');
+      }, 500);
+    } else {
+      console.log('❌ No pdfData available or already sent');
+      console.log('   - pdfData:', !!pdfData);
+      console.log('   - pdfSentRef.current:', pdfSentRef.current);
+    }
+    
+    console.log('🎯 === END SINGLE LESSON LOADER ===');
+  }, [connected, pdfData, teachingSteps.length, sendPDFDocument, startTeachingStep]); // Watch for pdfData changes
+
+  // Execute whiteboard commands for canvas drawing
   const executeWhiteboardCommands = (commands) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -676,141 +848,6 @@ const Whiteboard = ({
     }
   }, [currentTeachingStepIndex, teachingSteps, stop]);
 
-  const startTeachingStep = useCallback(
-    (step, stepIndex) => {
-      if (!step) {
-        console.error("❌ No step provided to startTeachingStep");
-        return;
-      }
-
-      console.log(`🎯 === STARTING STEP ${stepIndex + 1} ===`);
-      console.log("Step object:", step);
-      console.log("Speech text:", step.speech_text);
-      console.log("Speech text type:", typeof step.speech_text);
-      console.log(
-        "Speech text empty?",
-        !step.speech_text || step.speech_text.trim() === ""
-      );
-      console.log("Drawing commands:", step.drawing_commands);
-      console.log("Drawing commands count:", step.drawing_commands?.length);
-
-      setCurrentSpeakingStep(step.step);
-      setCurrentTeachingStepIndex(stepIndex !== undefined ? stepIndex : 0);
-      setCurrentTeachingStep(step);
-      setIsTeaching(true); // Ensure we're in teaching mode
-
-      // Clear canvas for new step
-      if (teachingCanvasRef.current) {
-        teachingCanvasRef.current.clearCanvas();
-        console.log("🎨 Canvas cleared for step", stepIndex + 1);
-      }
-
-      // Validate and prepare speech text
-      let speechText = step.speech_text;
-      if (!speechText || speechText.trim() === "") {
-        console.warn("⚠️ Empty speech text for step", stepIndex + 1);
-        console.log("Raw speech_text value:", JSON.stringify(step.speech_text));
-
-        // Try to find alternative text
-        if (step.text_explanation) {
-          console.log(
-            "📝 Using text_explanation as fallback:",
-            step.text_explanation
-          );
-          speechText = step.text_explanation;
-        } else {
-          console.error(
-            "❌ No valid speech content found for step",
-            stepIndex + 1
-          );
-          speechText = `This is step ${
-            stepIndex + 1
-          } of the lesson. Let's continue with the next concept.`;
-        }
-      }
-
-      // Execute drawing commands first
-      if (step.drawing_commands && step.drawing_commands.length > 0) {
-        console.log(
-          `🎨 Executing ${step.drawing_commands.length} drawing commands`
-        );
-        step.drawing_commands.forEach((command, index) => {
-          console.log(`Drawing command ${index + 1}:`, command);
-          if (teachingCanvasRef.current) {
-            setTimeout(() => {
-              teachingCanvasRef.current.addDrawingCommand(command);
-            }, command.time || index * 500); // Stagger commands by 500ms
-          }
-        });
-      } else {
-        console.warn("⚠️ No drawing commands for step", stepIndex + 1);
-      }
-
-      // Start speech with proper completion callback
-      console.log(
-        `🗣️ Starting speech for step ${stepIndex + 1}:`,
-        speechText.substring(0, 100) + "..."
-      );
-      console.log(`🎮 AutoPlay enabled:`, autoPlay);
-      console.log(`📊 Teaching steps length:`, teachingSteps.length);
-      setStatus(`Teaching step ${stepIndex + 1} of ${teachingSteps.length}`);
-
-      speak(
-        speechText,
-        () => {
-          console.log(`✅ Step ${stepIndex + 1} speech completed`);
-          console.log(
-            `🔍 Completion callback triggered for step ${stepIndex + 1}`
-          );
-          setCurrentSpeakingStep(null);
-
-          // Auto-advance to next step
-          const nextStepIndex = stepIndex + 1;
-          const currentTeachingSteps = teachingStepsRef.current; // Use ref to get latest state
-          console.log(`📈 Next step index would be: ${nextStepIndex}`);
-          console.log(
-            `📏 Total steps available: ${currentTeachingSteps.length}`
-          );
-          console.log(`🎮 AutoPlay status: ${autoPlay}`);
-
-          if (nextStepIndex < currentTeachingSteps.length && autoPlay) {
-            console.log(`⏭️ Auto-advancing to step ${nextStepIndex + 1}`);
-            console.log(
-              `🎯 Next step object:`,
-              currentTeachingSteps[nextStepIndex]
-            );
-            setTimeout(() => {
-              console.log(`🚀 Actually starting step ${nextStepIndex + 1} now`);
-              startTeachingStep(
-                currentTeachingSteps[nextStepIndex],
-                nextStepIndex
-              );
-            }, 1500); // 1.5 second pause between steps
-          } else if (nextStepIndex >= currentTeachingSteps.length) {
-            console.log("🎉 All steps completed!");
-            setStatus("Lesson completed! Great job!");
-            setIsTeaching(false);
-            speak("Lesson completed. Great job!", () => {
-              console.log("🏁 Lesson completion message finished");
-            });
-          } else {
-            console.log("⏸️ Auto-play disabled, waiting for manual advance");
-            console.log(
-              `❌ AutoPlay: ${autoPlay}, NextIndex: ${nextStepIndex}, TotalSteps: ${currentTeachingSteps.length}`
-            );
-            setStatus(
-              `Step ${stepIndex + 1} complete. Click Next to continue.`
-            );
-          }
-        },
-        true
-      );
-
-      console.log(`=== STEP ${stepIndex + 1} SETUP COMPLETE ===`);
-    },
-    [speak, autoPlay, stop] // Remove teachingSteps from dependencies to avoid stale closure
-  );
-
   // Legacy startTeachingStep function for backward compatibility
   const startTeachingStepLegacy = useCallback(
     (step) => {
@@ -885,6 +922,15 @@ const Whiteboard = ({
     setCurrentTeachingStep(null);
   }, [stop]);
 
+  // Handle sending chat messages to teaching service
+  const handleSendMessage = useCallback(() => {
+    if (!chatMessage.trim() || !connected) return;
+    
+    console.log('📤 Sending message to teaching service:', chatMessage);
+    sendMessage(chatMessage);
+    setChatMessage(''); // Clear input
+  }, [chatMessage, connected, sendMessage]);
+
   return (
     <div
       className={`relative h-screen overflow-hidden ${
@@ -902,18 +948,52 @@ const Whiteboard = ({
             <h1 className="text-xl font-semibold text-white">
               Lesson: {pdfName}
             </h1>
+            {/* WebSocket Connection Status */}
             <div
-              className={`px-3 py-1 rounded-full text-sm ${
-                isConnected
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+                connected
                   ? "bg-green-500/20 text-green-400"
                   : "bg-red-500/20 text-red-400"
               }`}
             >
-              {isConnected ? "● Connected" : "● Disconnected"}
+              {connected ? <Wifi size={16} /> : <WifiOff size={16} />}
+              {connected ? "● Teaching Service Connected" : "● Teaching Service Disconnected"}
             </div>
+            {sessionId && (
+              <div className="text-xs text-slate-400">
+                Session: {sessionId}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-300 text-sm">{status}</span>
+
+            {/* WebSocket Lesson Controls */}
+            {connected && lessonCommands.length > 0 && (
+              <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
+                <button
+                  onClick={handlePlayLesson}
+                  disabled={isPlaying || wsIsPlaying}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Start AI lesson"
+                >
+                  ▶️ Play AI Lesson
+                </button>
+
+                <button
+                  onClick={handleStopLesson}
+                  disabled={!isPlaying && !wsIsPlaying}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Stop lesson"
+                >
+                  ⏹️ Stop
+                </button>
+                
+                <span className="text-xs text-slate-400">
+                  {currentStep}/{lessonCommands.length} steps
+                </span>
+              </div>
+            )}
 
             {/* Audio Controls */}
             <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
@@ -1037,100 +1117,6 @@ const Whiteboard = ({
               </div>
             )}
 
-            {/* Real-Time Teaching Service Controls */}
-            {teachingWebSocket && teachingWebSocket.isConnected && (
-              <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
-                <div
-                  className={`px-2 py-1 rounded-full text-xs ${
-                    teachingWebSocket.isConnected
-                      ? "bg-green-500/20 text-green-400"
-                      : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {teachingWebSocket.isConnected ? "🎓 Teaching Service" : "❌ Disconnected"}
-                </div>
-
-                {!isTeachingActive ? (
-                  <button
-                    onClick={() => {
-                      // Generate lesson first, then start teaching
-                      if (currentLessonId) {
-                        startLessonTeaching(currentLessonId);
-                      } else {
-                        // Use current session or PDF as lesson ID
-                        const lessonId = currentConversationId || pdfName || 'current-lesson';
-                        startLessonTeaching(lessonId);
-                      }
-                    }}
-                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors"
-                    title="Start Real-Time Teaching"
-                  >
-                    🎯 Start AI Teaching
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (teachingWebSocket.isTeaching) {
-                          teachingWebSocket.pauseTeaching();
-                        } else {
-                          teachingWebSocket.resumeTeaching();
-                        }
-                      }}
-                      className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm transition-colors"
-                      title={teachingWebSocket.isTeaching ? "Pause Teaching" : "Resume Teaching"}
-                    >
-                      {teachingWebSocket.isTeaching ? "⏸️ Pause" : "▶️ Resume"}
-                    </button>
-
-                    <button
-                      onClick={() => teachingWebSocket.nextStep()}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
-                      title="Next Teaching Step"
-                    >
-                      ⏭️
-                    </button>
-
-                    <button
-                      onClick={() => teachingWebSocket.previousStep()}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
-                      title="Previous Teaching Step"
-                    >
-                      ⏮️
-                    </button>
-
-                    <button
-                      onClick={stopLessonTeaching}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
-                      title="Stop Teaching Session"
-                    >
-                      ⏹️ Stop
-                    </button>
-
-                    {teachingWebSocket.teachingProgress > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-purple-500 transition-all duration-300"
-                            style={{ width: `${teachingWebSocket.teachingProgress}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-slate-400">
-                          {Math.round(teachingWebSocket.teachingProgress)}%
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {teachingData && (
-                  <div className="text-xs text-slate-400 max-w-32 truncate">
-                    Step: {teachingData.title || teachingData.step_name || 'Current'}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Quiz button - show when lesson is completed and quiz data is available */}
             {!isPlaying && quizData && (
               <button
@@ -1185,14 +1171,70 @@ const Whiteboard = ({
         >
           {teachingMode ? (
             /* Interactive Teaching Canvas */
-            <TeachingCanvas
-              ref={teachingCanvasRef}
-              teachingStep={currentTeachingStep}
-              isPlaying={isTeaching}
-              onStepComplete={handleTeachingStepComplete}
-              canvasWidth={isFullscreen ? window.innerWidth * 0.9 : 800}
-              canvasHeight={isFullscreen ? window.innerHeight * 0.7 : 600}
-            />
+            <>
+              {console.log('🎨 === RENDERING TEACHING CANVAS ===')}
+              {console.log('🎨 teachingMode:', teachingMode)}
+              {console.log('🎨 currentTeachingStep:', currentTeachingStep)}
+              {console.log('🎨 isTeaching:', isTeaching)}
+              {console.log('🎨 isPlaying:', isPlaying)}
+              {console.log('🎨 isTeaching || isPlaying:', isTeaching || isPlaying)}
+              {console.log('🎨 === END RENDERING DEBUG ===')}
+              <TeachingCanvasFixed
+                ref={canvasRef}
+                teachingStep={currentTeachingStep}
+                isPlaying={isTeaching || isPlaying}
+                onStepComplete={handleTeachingStepComplete}
+                canvasWidth={isFullscreen ? window.innerWidth * 0.9 : 800}
+                canvasHeight={isFullscreen ? window.innerHeight * 0.7 : 600}
+                lessonCommands={lessonCommands}
+                onCommandExecuted={handleCommandExecuted}
+              />
+            </>
+          ) : connected && lessonCommands.length > 0 ? (
+            /* WebSocket AI Teaching Mode */
+            <div className="w-full h-full relative">
+              <TeachingCanvasFixed
+                ref={canvasRef}
+                teachingStep={null}
+                isPlaying={isPlaying || wsIsPlaying}
+                onStepComplete={() => console.log('AI lesson step complete')}
+                canvasWidth={isFullscreen ? window.innerWidth * 0.9 : 800}
+                canvasHeight={isFullscreen ? window.innerHeight * 0.7 : 600}
+                lessonCommands={lessonCommands}
+                onCommandExecuted={handleCommandExecuted}
+              />
+              
+              {/* Chat overlay for AI interaction */}
+              <div className="absolute bottom-4 right-4 w-80 bg-white/90 backdrop-blur rounded-lg p-4 shadow-lg">
+                <div className="h-40 overflow-y-auto mb-3 text-sm">
+                  {messages.slice(-5).map((msg, index) => (
+                    <div key={index} className={`mb-2 ${
+                      msg.type === 'user' ? 'text-blue-600' : 
+                      msg.type === 'teacher' ? 'text-green-600' : 'text-gray-500'
+                    }`}>
+                      <strong>{msg.type === 'user' ? 'You' : msg.type === 'teacher' ? 'AI Teacher' : 'System'}:</strong> {msg.message}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Ask the AI teacher..."
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!chatMessage.trim()}
+                    className="px-3 py-1 bg-blue-500 text-white rounded text-sm disabled:opacity-50"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             /* Traditional Slide Mode */
             <>

@@ -1,6 +1,6 @@
 """
 ASGI config for teaching_service project.
-Handles both HTTP and WebSocket connections
+Handles both HTTP and WebSocket connections for real-time teaching
 """
 import os
 from django.core.asgi import get_asgi_application
@@ -17,9 +17,7 @@ from teaching.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(
-            URLRouter(websocket_urlpatterns)
-        )
+    "websocket": AuthMiddlewareStack(
+        URLRouter(websocket_urlpatterns)
     ),
 })

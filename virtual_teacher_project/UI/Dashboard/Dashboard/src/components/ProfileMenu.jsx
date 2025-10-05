@@ -4,27 +4,11 @@ export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   
-  // Get real user data from localStorage (set during login)
-  const [user, setUser] = useState({
-    email: 'user@example.com',
-    name: 'User'
-  });
-
-  useEffect(() => {
-    // Load user data from localStorage
-    const storedUser = localStorage.getItem('gnyansetu_user');
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        setUser({
-          email: userData.email || 'user@example.com',
-          name: userData.name || userData.username || 'User'
-        });
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
-    }
-  }, []);
+  // Mock user data - replace with actual user data from your auth system
+  const user = {
+    email: 'john.doe@example.com',
+    name: 'John Doe'
+  };
 
   const getUserInitials = (name) => {
     return name
@@ -66,17 +50,7 @@ export default function ProfileMenu() {
         <div className="px-3 py-2 text-sm text-slate-300">Signed in as <span className="text-white">{user.email}</span></div>
         <hr className="border-slate-700/60 my-1" />
         <button className="w-full text-left rounded-lg px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/70" role="menuitem">Settings</button>
-        <button 
-          onClick={() => {
-            // Clear user data and redirect to landing page
-            localStorage.removeItem('gnyansetu_user');
-            window.location.href = 'http://localhost:3000';
-          }}
-          className="w-full text-left rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-900/40" 
-          role="menuitem"
-        >
-          Sign out
-        </button>
+        <button className="w-full text-left rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-900/40" role="menuitem">Sign out</button>
       </div>
     </div>
   );

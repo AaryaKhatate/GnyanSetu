@@ -1,5 +1,6 @@
 """
 Teaching Service URL Configuration
+Real-Time Interactive Teaching with Konva.js Whiteboard
 """
 from django.contrib import admin
 from django.urls import path, include
