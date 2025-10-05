@@ -102,6 +102,10 @@ except Exception as e:
     pdf_data_collection = None
     lessons_collection = None
     user_histories_collection = None
+    db = None
+    pdf_data_collection = None
+    lessons_collection = None
+    user_histories_collection = None
 
 
 class PDFDataModel:
@@ -122,24 +126,42 @@ class PDFDataModel:
             'status': 'processed'
         }
         
-        if pdf_data_collection is not None:
-            result = pdf_data_collection.insert_one(document)
-            return str(result.inserted_id)
-        return None
+        try:
+            if pdf_data_collection is not None:
+                result = pdf_data_collection.insert_one(document)
+                return str(result.inserted_id)
+            else:
+                logger.warning("MongoDB unavailable, returning mock PDF ID")
+                return str(document['_id'])
+        except Exception as e:
+            logger.error(f"Error creating PDF data: {e}")
+            return str(document['_id'])  # Return mock ID as fallback
     
     @staticmethod
     def get_by_id(pdf_id):
         """Get PDF data by ID"""
-        if pdf_data_collection is not None:
-            return pdf_data_collection.find_one({'_id': ObjectId(pdf_id)})
-        return None
+        try:
+            if pdf_data_collection is not None:
+                return pdf_data_collection.find_one({'_id': ObjectId(pdf_id)})
+            else:
+                logger.warning("MongoDB unavailable, returning None")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting PDF data: {e}")
+            return None
     
     @staticmethod
     def get_by_user(user_id):
         """Get all PDF data for a user"""
-        if pdf_data_collection is not None:
-            return list(pdf_data_collection.find({'user_id': user_id}))
-        return []
+        try:
+            if pdf_data_collection is not None:
+                return list(pdf_data_collection.find({'user_id': user_id}))
+            else:
+                logger.warning("MongoDB unavailable, returning empty list")
+                return []
+        except Exception as e:
+            logger.error(f"Error getting user PDF data: {e}")
+            return []
 
 
 class LessonModel:
@@ -151,7 +173,7 @@ class LessonModel:
         document = {
             '_id': ObjectId(),
             'user_id': user_id,
-            'pdf_id': ObjectId(pdf_id),
+            'pdf_id': ObjectId(pdf_id) if pdf_id else ObjectId(),
             'lesson_title': lesson_title,
             'lesson_content': lesson_content,
             'lesson_type': lesson_type,  # interactive, quiz, summary, detailed
@@ -161,14 +183,42 @@ class LessonModel:
             'status': 'generated'
         }
         
-        if lessons_collection is not None:
-            result = lessons_collection.insert_one(document)
-            return str(result.inserted_id)
-        return None
+        try:
+            if lessons_collection is not None:
+                result = lessons_collection.insert_one(document)
+                return str(result.inserted_id)
+            else:
+                logger.warning("MongoDB unavailable, returning mock lesson ID")
+                return str(document['_id'])
+        except Exception as e:
+            logger.error(f"Error creating lesson: {e}")
+            return str(document['_id'])  # Return mock ID as fallback
+    
+    @staticmethod
+    def get_by_id(lesson_id):
+        """Get lesson by ID"""
+        try:
+            if lessons_collection is not None:
+                return lessons_collection.find_one({'_id': ObjectId(lesson_id)})
+            else:
+                logger.warning("MongoDB unavailable, returning None")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting lesson: {e}")
+            return None
     
     @staticmethod
     def get_by_user(user_id):
         """Get all lessons for a user"""
+        try:
+            if lessons_collection is not None:
+                return list(lessons_collection.find({'user_id': user_id}).sort('created_at', -1))
+            else:
+                logger.warning("MongoDB unavailable, returning empty list")
+                return []
+        except Exception as e:
+            logger.error(f"Error getting user lessons: {e}")
+            return []
         if lessons_collection is not None:
             return list(lessons_collection.find({'user_id': user_id}).sort('created_at', -1))
         return []

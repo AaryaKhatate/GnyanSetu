@@ -1,19 +1,19 @@
 """
 Django settings for teaching_service project.
-Real-Time Interactive Teaching with WebSockets
+Real-Time Interactive Teaching with Konva.js Whiteboard
 """
+
 import os
 from pathlib import Path
-from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='teaching-service-secret-key-change-in-production')
+SECRET_KEY = 'teaching-service-secret-key-change-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
@@ -26,14 +26,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',  # CORS headers support 
+    'corsheaders',
     'rest_framework',
     'channels',
     'teaching',  # Our main teaching app
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Fixed CORS middleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -64,7 +64,7 @@ TEMPLATES = [
 # ASGI application for WebSockets
 ASGI_APPLICATION = 'teaching_service.asgi.application'
 
-# Database (using MongoDB via pymongo)
+# Database (using SQLite for Django models, MongoDB for teaching data)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -72,71 +72,91 @@ DATABASES = {
     }
 }
 
-# MongoDB Configuration
+# MongoDB Configuration (for lesson data and teaching sessions)
 MONGODB_SETTINGS = {
-    'HOST': config('MONGODB_HOST', default='localhost'),
-    'PORT': config('MONGODB_PORT', default=27017, cast=int),
-    'DATABASE': config('MONGODB_NAME', default='Gnyansetu_Teaching'),
+    'HOST': 'localhost',
+    'PORT': 27017,
+    'LESSON_DB': 'Gnyansetu_Lessons',  # Same as lesson service
+    'TEACHING_DB': 'Gnyansetu_Teaching',  # Teaching sessions
+    'USER_DB': 'Gnyansetu_Users',  # User data
 }
 
-# Redis Configuration for Channels (configured later in file)
-
-# RabbitMQ Configuration (for future scaling)
-RABBITMQ_SETTINGS = {
-    'HOST': config('RABBITMQ_HOST', default='localhost'),
-    'PORT': config('RABBITMQ_PORT', default=5672, cast=int),
-    'USER': config('RABBITMQ_USER', default='guest'),
-    'PASSWORD': config('RABBITMQ_PASSWORD', default='guest'),
-    'VHOST': config('RABBITMQ_VHOST', default='/'),
+# Django Channels Configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",  # Simple for development
+    },
 }
 
-# Celery Configuration (for background tasks)
-CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/1')
-CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
+# CORS settings for frontend integration
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Landing Page
+    "http://localhost:3001",  # Dashboard
+    "http://localhost:8000",  # API Gateway
+    "http://localhost:8080",  # Test server
+]
 
-# Voice & Speech Configuration
-VOICE_SETTINGS = {
-    'TTS_ENGINE': config('TTS_ENGINE', default='azure'),  # azure, openai, gtts
-    'AZURE_SPEECH_KEY': config('AZURE_SPEECH_KEY', default=''),
-    'AZURE_SPEECH_REGION': config('AZURE_SPEECH_REGION', default='eastus'),
-    'OPENAI_API_KEY': config('OPENAI_API_KEY', default=''),
-    'DEFAULT_VOICE': config('DEFAULT_VOICE', default='neural'),
-    'SPEECH_SPEED': config('SPEECH_SPEED', default=1.0, cast=float),
-    'VOICE_LANGUAGE': config('VOICE_LANGUAGE', default='en-US'),
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False
+
+# WebSocket CORS settings
+WEBSOCKET_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "http://localhost:8000",
+    "http://localhost:8080",
+    "ws://localhost:8004",
+]
+
+# Allow these methods
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Allow these headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# REST Framework settings
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ],
 }
 
-# Teaching Configuration
+# Teaching Service Configuration
 TEACHING_SETTINGS = {
-    'MAX_CONCURRENT_SESSIONS': config('MAX_CONCURRENT_SESSIONS', default=100, cast=int),
-    'SESSION_TIMEOUT': config('SESSION_TIMEOUT', default=3600, cast=int),  # 1 hour
-    'WHITEBOARD_MAX_SIZE': config('WHITEBOARD_MAX_SIZE', default=10, cast=int),  # MB
-    'LESSON_SERVICE_URL': config('LESSON_SERVICE_URL', default='http://localhost:8003'),
-    'ENABLE_VOICE_SYNTHESIS': config('ENABLE_VOICE_SYNTHESIS', default=True, cast=bool),
-    'ENABLE_REAL_TIME_AI': config('ENABLE_REAL_TIME_AI', default=True, cast=bool),
+    'LESSON_SERVICE_URL': 'http://localhost:8003',
+    'USER_SERVICE_URL': 'http://localhost:8002',
+    'MAX_CONCURRENT_SESSIONS': 100,
+    'SESSION_TIMEOUT': 3600,  # 1 hour
+    'ENABLE_VOICE_SYNTHESIS': True,
+    'ENABLE_REAL_TIME_AI': True,
 }
 
 # WebSocket Configuration
 WEBSOCKET_SETTINGS = {
-    'MAX_CONNECTIONS_PER_USER': config('MAX_CONNECTIONS_PER_USER', default=5, cast=int),
-    'HEARTBEAT_INTERVAL': config('HEARTBEAT_INTERVAL', default=30, cast=int),
-    'MESSAGE_RATE_LIMIT': config('MESSAGE_RATE_LIMIT', default=100, cast=int),  # per minute
+    'MAX_CONNECTIONS_PER_USER': 5,
+    'HEARTBEAT_INTERVAL': 30,
+    'MESSAGE_RATE_LIMIT': 100,  # per minute
 }
-
-# Password validation
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
@@ -151,43 +171,12 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-# Media files (for audio/video content)
+# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Django Channels Configuration - Fixed for development
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",  # Use in-memory for development
-        # For production with RabbitMQ, use:
-        # "BACKEND": "channels_rabbitmq.core.RabbitmqChannelLayer",
-        # "CONFIG": {
-        #     "host": "amqp://guest:guest@localhost:5672/",
-        # },
-    },
-}
-
-# CORS settings for frontend integration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Landing Page
-    "http://localhost:3001",  # Dashboard
-    "http://localhost:8000",  # API Gateway
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
-# REST Framework settings
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-    ],
-}
 
 # Logging configuration
 LOGGING = {
@@ -199,7 +188,7 @@ LOGGING = {
             'style': '{',
         },
         'simple': {
-            'format': '{levelname} {asctime} {name} {message}',
+            'format': '{levelname} {message}',
             'style': '{',
         },
     },
@@ -212,7 +201,7 @@ LOGGING = {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'teaching_service.log',
+            'filename': BASE_DIR / 'teaching_service.log',
             'formatter': 'verbose',
         },
     },
@@ -225,9 +214,23 @@ LOGGING = {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
         },
-        'websockets': {
+        'channels': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
         },
+    },
+}
+
+# ============================================================================
+# ASGI & CHANNELS CONFIGURATION
+# ============================================================================
+
+# ASGI application
+ASGI_APPLICATION = 'teaching_service.asgi.application'
+
+# Channel layers configuration for WebSocket support
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }

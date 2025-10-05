@@ -9,21 +9,33 @@ import classNames from "classnames";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 // API Configuration - Use API Gateway instead of direct service calls
-const API_BASE_URL = "http://localhost:8002";
+const API_BASE_URL = "http://localhost:8000";
 
 // API functions
 const apiCall = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const defaultOptions = {
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    credentials: "include", // Include cookies for session management
-  };
+  try {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const defaultOptions = {
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      credentials: "include", // Include cookies for session management
+    };
 
-  const response = await fetch(url, { ...defaultOptions, ...options });
-  const data = await response.json();
+    const response = await fetch(url, { ...defaultOptions, ...options });
+    
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      data = { message: await response.text() };
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || "An error occurred");
+    }
 
   if (!response.ok) {
     // Handle various error response formats from Django/DRF
@@ -67,8 +79,6 @@ const apiCall = async (endpoint, options = {}) => {
 
     throw new Error(errorMessage);
   }
-
-  return data;
 };
 
 const authAPI = {

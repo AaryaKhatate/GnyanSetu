@@ -54,23 +54,23 @@ export default function UploadBox({ onStartSession }) {
   const handleUpload = async () => {
     if (selectedFile) {
       try {
-        console.log("🚀 Starting PDF lesson generation...", selectedFile);
+        console.log("Starting PDF upload...", selectedFile);
 
-        // Generate lesson from PDF using Django Lesson Service  
+        // Upload PDF to Django backend
         const formData = new FormData();
         formData.append("pdf_file", selectedFile);
-        formData.append("user_id", "dashboard_user"); // TODO: Use actual user ID from auth
+        
+        // Add user ID - for now use a default value since authentication might not be fully implemented
+        // TODO: Get actual user ID from authentication context
+        formData.append("user_id", "anonymous_user");
         formData.append("lesson_type", "interactive");
 
-        console.log("📤 Sending to Lesson Service...");
-        console.log("URL:", "http://localhost:8003/api/generate-lesson/");
-        console.log("FormData contents:", {
-          pdf_file: selectedFile.name,
-          user_id: "dashboard_user", 
-          lesson_type: "interactive"
-        });
+        console.log("Sending request to backend...");
+        console.log("URL:", "http://localhost:8000/api/generate-lesson/");
+        console.log("FormData:", formData);
+        console.log("File:", selectedFile);
 
-        const response = await fetch("http://localhost:8003/api/generate-lesson/", {
+        const response = await fetch("http://localhost:8000/api/generate-lesson/", {
           method: "POST",
           body: formData,
           headers: {
@@ -78,39 +78,52 @@ export default function UploadBox({ onStartSession }) {
           },
         });
 
-        console.log("📥 Response received:", response.status, response.statusText);
+        console.log("Response received:", response.status, response.statusText);
+        console.log("Response headers:", response.headers);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error("❌ Server error:", errorText);
+          console.error("Server error:", errorText);
           throw new Error(
             `HTTP error! status: ${response.status} - ${errorText}`
           );
         }
 
         const result = await response.json();
-        console.log("✅ Lesson generation result:", result);
+        console.log("Upload result:", result);
 
-        if (!result.success) {
-          alert(`❌ Error: ${result.error}`);
+        if (result.error) {
+          alert(`Error: ${result.error}`);
           return;
         }
 
-        console.log("🎓 Lesson generated successfully:", result);
+        console.log("PDF uploaded successfully:", result);
+        console.log("PDF text length:", result.text?.length);
+        console.log("PDF text preview:", result.text?.substring(0, 200) + "...");
+        console.log("Lesson data:", result.lesson);
 
-        // Store lesson data for session
-        sessionStorage.setItem("lessonContent", JSON.stringify(result.lesson));
-        sessionStorage.setItem("lessonId", result.lesson_id);
-        sessionStorage.setItem("pdfId", result.pdf_id);
-        sessionStorage.setItem("pdfFilename", selectedFile.name);
-        sessionStorage.setItem("lessonTitle", result.lesson.title);
-        sessionStorage.setItem("pdfStats", JSON.stringify(result.pdf_stats));
+        // Store PDF text, filename AND lesson data for WebSocket communication
+        sessionStorage.setItem("pdfText", result.text || "");
+        sessionStorage.setItem(
+          "pdfFilename",
+          result.filename || selectedFile.name
+        );
+        
+        // ✅ CRITICAL: Store the complete lesson data from Lesson Service
+        if (result.lesson) {
+          sessionStorage.setItem("lessonData", JSON.stringify(result.lesson));
+          console.log("✅ Lesson data stored:", result.lesson.teaching_steps?.length, "steps");
+        } else {
+          console.warn("⚠️ No lesson data in response!");
+        }
+        
+        // Verify storage
+        console.log("Stored in sessionStorage - pdfText length:", sessionStorage.getItem("pdfText")?.length);
+        console.log("Stored in sessionStorage - pdfFilename:", sessionStorage.getItem("pdfFilename"));
+        console.log("Stored in sessionStorage - lessonData:", !!sessionStorage.getItem("lessonData"));
 
-        // Show success message with lesson details
-        alert(`🎓 Lesson Generated Successfully!\n\n📄 File: ${selectedFile.name}\n📝 Lesson: ${result.lesson.title}\n📊 ${result.pdf_stats.pages} pages, ${result.pdf_stats.images} images\n📏 ${result.pdf_stats.text_length} characters\n\n🚀 Ready for interactive teaching!`);
-
-        // Start the session flow with lesson data
-        onStartSession(selectedFile.name);
+        // Start the session flow
+        onStartSession(result.filename || selectedFile.name);
       } catch (error) {
         console.error("Error uploading PDF:", error);
         alert(`Failed to upload PDF: ${error.message}`);

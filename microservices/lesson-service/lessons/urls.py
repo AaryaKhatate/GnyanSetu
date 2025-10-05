@@ -6,6 +6,9 @@ urlpatterns = [
     # Health check
     path('health/', views.health_check, name='health_check'),
     
+    # PDF Upload endpoint (for Dashboard compatibility)
+    path('upload_pdf/', views.process_pdf_and_generate_lesson, name='upload_pdf'),
+    
     # Main lesson generation endpoint
     path('api/generate-lesson/', views.process_pdf_and_generate_lesson, name='generate_lesson'),
     

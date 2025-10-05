@@ -4,8 +4,6 @@
 
 import os
 import logging
-import asyncio
-import aiohttp
 import json
 from datetime import datetime
 from flask import Flask, request, jsonify, Response
@@ -15,7 +13,12 @@ from functools import wraps
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3001", "http://localhost:8000", "http://localhost:3000"])
+CORS(app, 
+     origins=["http://localhost:3001", "http://localhost:3000", "http://localhost:8000"],
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     supports_credentials=True
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,42 +26,57 @@ logger = logging.getLogger(__name__)
 
 # Service Registry - Define all microservices
 SERVICES = {
-    'pdf-service': {
-        'url': 'http://localhost:8001',
-        'health': '/health',
-        'routes': ['/api/upload', '/api/documents']
-    },
     'user-service': {
-        'url': 'http://localhost:8002', 
-        'health': '/health',
+        'url': 'http://localhost:8002',
+        'health': '/api/v1/health',
         'routes': ['/api/auth', '/api/users']
     },
     'lesson-service': {
         'url': 'http://localhost:8003',
-        'health': '/health', 
-        'routes': ['/api/generate-lesson', '/api/lessons', '/api/users/*/lessons', '/api/users/*/history']
+        'health': '/health',
+        'routes': ['/api/generate-lesson', '/api/lessons', '/upload_pdf', '/api/upload']
     },
     'teaching-service': {
-        'url': 'http://localhost:8005',
+        'url': 'http://localhost:8004',
         'health': '/health',
-        'routes': ['/api/teaching', '/api/sessions', '/ws/teaching']
-    },
-    'quiz-service': {
-        'url': 'http://localhost:8006',
-        'health': '/health',
-        'routes': ['/api/quizzes', '/api/notes']
-    },
-    'realtime-service': {
-        'url': 'http://localhost:8005',
-        'health': '/health',
-        'routes': ['/api/sessions', '/ws']
-    },
-    'analytics-service': {
-        'url': 'http://localhost:8006',
-        'health': '/health',
-        'routes': ['/api/analytics', '/api/progress']
+        'routes': ['/api/conversations', '/api/teaching', '/ws/teaching']  # Added conversations
     }
 }
+
+# Add specific route handler for conversations
+@app.route('/api/conversations/', methods=['GET', 'POST'])
+@app.route('/api/conversations/<path:subpath>', methods=['GET', 'POST', 'DELETE'])
+def proxy_conversations(subpath=''):
+    """Proxy conversations requests to Teaching Service"""
+    teaching_service = SERVICES.get('teaching-service')
+    if not teaching_service:
+        return jsonify({'error': 'Teaching service not configured'}), 500
+    
+    target_url = f"{teaching_service['url']}/api/conversations/"
+    if subpath:
+        target_url += subpath
+    
+    # Forward the request
+    try:
+        if request.method == 'GET':
+            params = dict(request.args)
+            response = requests.get(target_url, params=params, timeout=30)
+        elif request.method == 'DELETE':
+            response = requests.delete(target_url, timeout=30)
+        elif request.method == 'POST':
+            if subpath:
+                response = requests.post(target_url, json=request.json, timeout=30)
+            else:
+                # POST to create conversation - route to create endpoint
+                create_url = f"{teaching_service['url']}/api/conversations/create/"
+                response = requests.post(create_url, json=request.json, timeout=30)
+            
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error proxying to teaching service: {e}")
+        return jsonify({'error': 'Teaching service unavailable'}), 503
+
 
 def get_service_for_route(path):
     """Determine which service should handle the request based on the path."""
@@ -81,6 +99,9 @@ def check_service_health(service_name, service_config):
 def proxy_request(target_url, method, headers=None, data=None, files=None):
     """Proxy request to target service."""
     try:
+        # Use longer timeout for file upload operations
+        timeout = 180 if (files or 'generate-lesson' in target_url or 'upload' in target_url) else 30
+        
         # Prepare headers
         proxy_headers = {}
         if headers:
@@ -92,17 +113,17 @@ def proxy_request(target_url, method, headers=None, data=None, files=None):
         
         # Make request to target service
         if method == 'GET':
-            response = requests.get(target_url, headers=proxy_headers, params=request.args, timeout=30)
+            response = requests.get(target_url, headers=proxy_headers, params=request.args, timeout=timeout)
         elif method == 'POST':
             if files:
                 response = requests.post(target_url, headers={k: v for k, v in proxy_headers.items() if k.lower() != 'content-type'}, 
-                                       data=data, files=files, timeout=30)
+                                       data=data, files=files, timeout=timeout)
             else:
-                response = requests.post(target_url, headers=proxy_headers, json=data, timeout=30)
+                response = requests.post(target_url, headers=proxy_headers, json=data, timeout=timeout)
         elif method == 'PUT':
-            response = requests.put(target_url, headers=proxy_headers, json=data, timeout=30)
+            response = requests.put(target_url, headers=proxy_headers, json=data, timeout=timeout)
         elif method == 'DELETE':
-            response = requests.delete(target_url, headers=proxy_headers, timeout=30)
+            response = requests.delete(target_url, headers=proxy_headers, timeout=timeout)
         else:
             return jsonify({'error': 'Method not supported'}), 405
         
@@ -147,19 +168,25 @@ def gateway_health():
 # AUTHENTICATION ROUTES (User Service Integration)
 # ============================================================================
 
-@app.route('/api/auth/login/', methods=['POST'])
+@app.route('/api/auth/login/', methods=['POST', 'OPTIONS'])
 def auth_login():
     """Proxy login request to User Service."""
-    target_url = f"{SERVICES['user-service']['url']}/api/auth/login"
+    if request.method == 'OPTIONS':
+        logger.info(f"OPTIONS /api/auth/login/ from {request.remote_addr}")
+        return '', 200
+    
+    logger.info(f"POST /api/auth/login/ received from {request.remote_addr}")
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/login/"
     data = request.get_json()
     
-    logger.info(f"Proxying login request for: {data.get('email', 'unknown')}")
+    logger.info(f"Proxying login request for: {data.get('email', 'unknown') if data else 'NO DATA'}")
+    logger.info(f"Request data: {data}")
     return proxy_request(target_url, 'POST', request.headers, data)
 
 @app.route('/api/auth/signup/', methods=['POST'])
 def auth_signup():
     """Proxy signup request to User Service."""
-    target_url = f"{SERVICES['user-service']['url']}/api/auth/register"
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/register/"
     data = request.get_json()
     
     # Transform the request to match User Service format
@@ -174,7 +201,7 @@ def auth_signup():
 @app.route('/api/auth/forgot-password/', methods=['POST'])
 def auth_forgot_password():
     """Proxy forgot password request to User Service."""
-    target_url = f"{SERVICES['user-service']['url']}/api/auth/forgot-password"
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/forgot-password/"
     data = request.get_json()
     
     logger.info(f"Proxying forgot password request for: {data.get('email', 'unknown')}")
@@ -183,7 +210,7 @@ def auth_forgot_password():
 @app.route('/api/auth/reset-password/', methods=['POST'])
 def auth_reset_password():
     """Proxy reset password request to User Service."""
-    target_url = f"{SERVICES['user-service']['url']}/api/auth/reset-password"
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/reset-password/"
     data = request.get_json()
     
     logger.info("Proxying reset password request")
@@ -192,7 +219,7 @@ def auth_reset_password():
 @app.route('/api/auth/logout/', methods=['POST'])
 def auth_logout():
     """Proxy logout request to User Service."""
-    target_url = f"{SERVICES['user-service']['url']}/api/auth/logout"
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/logout/"
     
     logger.info("Proxying logout request")
     return proxy_request(target_url, 'POST', request.headers)
@@ -200,7 +227,7 @@ def auth_logout():
 @app.route('/api/auth/profile/', methods=['GET', 'PUT'])
 def auth_profile():
     """Proxy profile requests to User Service."""
-    target_url = f"{SERVICES['user-service']['url']}/api/auth/profile"
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/profile/"
     data = request.get_json() if request.method == 'PUT' else None
     
     logger.info(f"Proxying profile {request.method} request")
@@ -220,18 +247,29 @@ def auth_verify_token():
 
 @app.route('/upload_pdf/', methods=['POST'])
 @app.route('/api/upload', methods=['POST'])
+@app.route('/api/generate-lesson/', methods=['POST', 'OPTIONS'])
 def upload_pdf():
-    """Proxy PDF upload to PDF Service."""
-    target_url = f"{SERVICES['pdf-service']['url']}/api/upload"
+    """Proxy PDF upload to Lesson Service."""
+    if request.method == 'OPTIONS':
+        logger.info(f"OPTIONS /api/generate-lesson/ from {request.remote_addr}")
+        return '', 200
+    
+    logger.info(f"POST /api/generate-lesson/ received from {request.remote_addr}")
+    target_url = f"{SERVICES['lesson-service']['url']}/api/generate-lesson/"
     
     # Handle file upload
     files = {}
     if 'pdf_file' in request.files:
         pdf_file = request.files['pdf_file']
         files['pdf_file'] = (pdf_file.filename, pdf_file.stream, pdf_file.content_type)
+        logger.info(f"File received: {pdf_file.filename}, Size: {pdf_file.content_length}")
     
-    logger.info("Proxying PDF upload request")
-    return proxy_request(target_url, 'POST', request.headers, request.form.to_dict(), files)
+    form_data = request.form.to_dict()
+    logger.info(f"Form data: {form_data}")
+    logger.info(f"Files: {list(files.keys())}")
+    
+    logger.info("Proxying PDF upload request to Lesson Service")
+    return proxy_request(target_url, 'POST', request.headers, form_data, files)
 
 @app.route('/api/documents', methods=['GET'])
 @app.route('/api/documents/<document_id>', methods=['GET', 'DELETE'])
@@ -356,3 +394,9 @@ if __name__ == '__main__':
         logger.info(f"  {service_name}: {config['url']} -> {config['routes']}")
     
     app.run(host='0.0.0.0', port=8000, debug=True)
+
+@app.route('/api/conversations/<conversation_id>/delete/', methods=['DELETE'])
+def proxy_delete_conversation(conversation_id):
+    """Proxy conversation deletion to Teaching Service"""
+    target_url = f"{SERVICES['teaching-service']['url']}/api/conversations/{conversation_id}/delete/"
+    return proxy_request(target_url, 'DELETE', request.headers)

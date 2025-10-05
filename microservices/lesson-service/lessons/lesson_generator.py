@@ -13,7 +13,7 @@ class LessonGenerator:
     def __init__(self):
         """Initialize Gemini AI client"""
         self.api_key = settings.AI_SETTINGS.get('GEMINI_API_KEY')
-        self.model_name = settings.AI_SETTINGS.get('MODEL_NAME', 'gemini-1.5-flash')
+        self.model_name = 'gemini-2.5-flash'  # Use available model name
         self.max_tokens = settings.AI_SETTINGS.get('MAX_TOKENS', 8000)
         self.temperature = settings.AI_SETTINGS.get('TEMPERATURE', 0.7)
         
@@ -24,6 +24,23 @@ class LessonGenerator:
         else:
             self.model = None
             logger.warning("Gemini API key not provided - lesson generation will not work")
+    
+    def _safe_extract_text(self, response, fallback="Educational Content"):
+        """Safely extract text from Gemini response"""
+        try:
+            if response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content and candidate.content.parts:
+                    return candidate.content.parts[0].text
+                else:
+                    logger.warning(f"Gemini response has no content parts. Finish reason: {candidate.finish_reason}")
+                    return fallback
+            else:
+                logger.warning("Gemini response has no candidates")
+                return fallback
+        except Exception as e:
+            logger.error(f"Error extracting text from Gemini response: {e}")
+            return fallback
     
     def generate_lesson(self, pdf_text, images_ocr_text="", lesson_type="interactive", user_context=None):
         """
@@ -79,29 +96,49 @@ class LessonGenerator:
     def _generate_lesson_title(self, content):
         """Generate an appropriate title for the lesson"""
         try:
+            # More aggressive content cleaning for safety filters
+            content_preview = content[:1000] if len(content) > 1000 else content
+            
+            # Clean the content to avoid safety filter issues
+            import re
+            # Remove any potentially problematic patterns
+            cleaned_content = re.sub(r'[^\w\s\-\.\,\;\:\!\?\(\)]', ' ', content_preview)
+            cleaned_content = re.sub(r'\s+', ' ', cleaned_content)  # Normalize whitespace
+            cleaned_content = cleaned_content.strip()
+            
+            # More neutral prompt to avoid content policy issues
             prompt = f"""
-            Based on the following educational content, generate a clear, engaging, and descriptive title for a lesson.
-            The title should be:
-            - Between 3-8 words
-            - Educational and engaging
-            - Descriptive of the main topic
-            - Suitable for students
+            This is educational content for creating a learning lesson. Please generate a simple, appropriate title for this educational material.
             
-            Content preview (first 1000 characters):
-            {content[:1000]}
+            Requirements:
+            - Use 3-6 words maximum
+            - Make it educational and neutral
+            - Focus on learning topics
             
-            Generate only the title, nothing else:
+            Educational content sample:
+            {cleaned_content[:500]}
+            
+            Title:
             """
             
             response = self.model.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=0.7,
-                    max_output_tokens=50
-                )
+                    temperature=0.1,  # Very low temperature for consistency
+                    max_output_tokens=20,  # Very short for just a title
+                    candidate_count=1
+                ),
+                safety_settings=[
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
             )
             
-            title = response.text.strip().replace('"', '').replace("'", "")
+            # Better error handling for Gemini response
+            text_result = self._safe_extract_text(response, "Educational Lesson")
+            title = text_result.strip().replace('"', '').replace("'", "")
             return title if title else "Educational Lesson"
             
         except Exception as e:
@@ -140,7 +177,7 @@ class LessonGenerator:
                     max_output_tokens=self.max_tokens
                 )
             )
-            return response.text
+            return self._safe_extract_text(response, self._create_basic_lesson(content, title))
             
         except Exception as e:
             logger.error(f"Error generating interactive lesson: {e}")
@@ -178,7 +215,7 @@ class LessonGenerator:
                     max_output_tokens=self.max_tokens
                 )
             )
-            return response.text
+            return self._safe_extract_text(response, self._create_basic_lesson(content, title))
             
         except Exception as e:
             logger.error(f"Error generating quiz lesson: {e}")
@@ -216,7 +253,7 @@ class LessonGenerator:
                     max_output_tokens=4000  # Shorter for summaries
                 )
             )
-            return response.text
+            return self._safe_extract_text(response, self._create_basic_lesson(content, title))
             
         except Exception as e:
             logger.error(f"Error generating summary lesson: {e}")
@@ -255,7 +292,7 @@ class LessonGenerator:
                     max_output_tokens=self.max_tokens
                 )
             )
-            return response.text
+            return self._safe_extract_text(response, self._create_basic_lesson(content, title))
             
         except Exception as e:
             logger.error(f"Error generating detailed lesson: {e}")

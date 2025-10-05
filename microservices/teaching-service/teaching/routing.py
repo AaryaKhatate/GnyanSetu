@@ -1,20 +1,10 @@
-# WebSocket routing for real-time teaching
-from django.urls import re_path, path
+# WebSocket routing for real-time teaching sessions
+from django.urls import re_path
 from . import consumers
 
 websocket_urlpatterns = [
-    # Main teaching session WebSocket
+    # Allow connections with session_id
     re_path(r'ws/teaching/(?P<session_id>\w+)/$', consumers.TeachingConsumer.as_asgi()),
-    
-    # Whiteboard WebSocket for collaborative drawing
-    re_path(r'ws/whiteboard/(?P<session_id>\w+)/$', consumers.WhiteboardConsumer.as_asgi()),
-    
-    # Voice/Audio WebSocket for real-time voice synthesis
-    re_path(r'ws/voice/(?P<session_id>\w+)/$', consumers.VoiceConsumer.as_asgi()),
-    
-    # AI Tutor WebSocket for real-time Q&A
-    re_path(r'ws/ai-tutor/(?P<session_id>\w+)/$', consumers.AITutorConsumer.as_asgi()),
-    
-    # Session control WebSocket for session management
-    re_path(r'ws/session-control/(?P<session_id>\w+)/$', consumers.SessionControlConsumer.as_asgi()),
+    # Allow connections without session_id (will be assigned dynamically)
+    re_path(r'ws/teaching/$', consumers.TeachingConsumer.as_asgi()),
 ]
