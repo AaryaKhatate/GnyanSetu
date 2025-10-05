@@ -101,9 +101,8 @@ if exist "package.json" (
     echo Installing landing page dependencies...
     call npm install >nul 2>&1
     echo Starting Landing Page...
-    start "GnyanSetu Landing Page" cmd /k "echo ========================================== && echo    GNYANSETU LANDING PAGE - PORT 3000 && echo ========================================== && echo Entry point for sign up and login && echo After login: User gets redirected to port 3001 && echo This runs in background - NO browser opens yet && echo ========================================== && set BROWSER=none && npm start"
-    timeout /t 5 /nobreak >nul
-    echo ✓ Landing Page started (port 3000)
+    echo BROWSER=none > .env
+    start "Landing Page" cmd /k "echo Landing Page server running on http://localhost:3000 && echo Browser opening disabled - manual access required && npm start"
 ) else (
     echo ❌ Landing Page package.json not found!
     echo Please check the landing page directory structure.
@@ -116,20 +115,44 @@ if exist "package.json" (
     echo Installing dashboard dependencies...
     call npm install >nul 2>&1
     echo Starting React Dashboard on port 3001...
-    start "GnyanSetu Dashboard - Port 3001" cmd /k "echo ========================================== && echo    GNYANSETU DASHBOARD - PORT 3001 && echo ========================================== && echo Main application after login && echo All features: Teaching, Lessons, Chat History && echo WebSocket connects to port 8004 && echo API calls go through port 8000 && echo ========================================== && set PORT=3001 && set BROWSER=none && npm start"
-    timeout /t 5 /nobreak >nul
-    echo ✓ Dashboard started (port 3001)
+    echo PORT=3001 > .env
+    echo BROWSER=none >> .env
+    start "Dashboard - Port 3001" cmd /k "echo Dashboard server running on http://localhost:3001 && echo Accessible after login from Landing Page && echo Dashboard will NOT open in browser automatically && npm start"
 ) else (
     echo ❌ Dashboard package.json not found!
     echo Please check the UI directory structure.
 )
+
+timeout /t 3 /nobreak >nul
+
+REM Wait for services to start, then open landing page
+timeout /t 8 /nobreak >nul
+echo Opening Landing Page in browser...
+start http://localhost:3000
 
 echo.
 echo ========================================
 echo         Platform Ready!
 echo ========================================
 echo.
-echo 🌟 GnyanSetu Platform is now running!
+echo ========================================
+echo  TO ACCESS YOUR APPLICATION:
+echo ========================================
+echo.
+echo 1. Wait 10-15 seconds for all services to fully start
+echo 2. Then manually open: http://localhost:3000
+echo 3. Sign up or Login on the landing page
+echo 4. You'll be redirected to the dashboard automatically
+echo.
+echo ========================================
+echo.
+echo Service URLs:
+echo    API Gateway:      http://localhost:8000/health
+echo    Django User Service: http://localhost:8002/api/v1/health/
+echo    Lesson Service:   http://localhost:8003/health
+echo    Teaching Service: http://localhost:8004/health
+echo    Landing Page:     http://localhost:3000 (opens in browser)
+echo    Dashboard:        http://localhost:3001 (opens after login)
 echo.
 echo 📱 Two-Port User Experience:
 echo    ► Landing Page: http://localhost:3000 (Sign up/Login)

@@ -47,6 +47,9 @@ urlpatterns = [
     # API endpoints - Legacy/Frontend compatibility endpoints 
     path('api/', include('authentication.urls', namespace='api-compat')),
     
+    # Social authentication (allauth)
+    path('accounts/', include('allauth.urls')),
+    
     # Favicon handler
     path('favicon.ico', favicon, name='favicon'),
     
