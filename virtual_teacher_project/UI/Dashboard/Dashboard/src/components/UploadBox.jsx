@@ -59,13 +59,18 @@ export default function UploadBox({ onStartSession }) {
         // Upload PDF to Django backend
         const formData = new FormData();
         formData.append("pdf_file", selectedFile);
+        
+        // Add user ID - for now use a default value since authentication might not be fully implemented
+        // TODO: Get actual user ID from authentication context
+        formData.append("user_id", "anonymous_user");
+        formData.append("lesson_type", "interactive");
 
         console.log("Sending request to backend...");
-        console.log("URL:", "http://localhost:8001/upload_pdf/");
+        console.log("URL:", "http://localhost:8000/api/generate-lesson/");
         console.log("FormData:", formData);
         console.log("File:", selectedFile);
 
-        const response = await fetch("http://localhost:8001/upload_pdf/", {
+        const response = await fetch("http://localhost:8000/api/generate-lesson/", {
           method: "POST",
           body: formData,
           headers: {
@@ -93,13 +98,29 @@ export default function UploadBox({ onStartSession }) {
         }
 
         console.log("PDF uploaded successfully:", result);
+        console.log("PDF text length:", result.text?.length);
+        console.log("PDF text preview:", result.text?.substring(0, 200) + "...");
+        console.log("Lesson data:", result.lesson);
 
-        // Store PDF text and filename for WebSocket communication
-        sessionStorage.setItem("pdfText", result.text);
+        // Store PDF text, filename AND lesson data for WebSocket communication
+        sessionStorage.setItem("pdfText", result.text || "");
         sessionStorage.setItem(
           "pdfFilename",
           result.filename || selectedFile.name
         );
+        
+        // ✅ CRITICAL: Store the complete lesson data from Lesson Service
+        if (result.lesson) {
+          sessionStorage.setItem("lessonData", JSON.stringify(result.lesson));
+          console.log("✅ Lesson data stored:", result.lesson.teaching_steps?.length, "steps");
+        } else {
+          console.warn("⚠️ No lesson data in response!");
+        }
+        
+        // Verify storage
+        console.log("Stored in sessionStorage - pdfText length:", sessionStorage.getItem("pdfText")?.length);
+        console.log("Stored in sessionStorage - pdfFilename:", sessionStorage.getItem("pdfFilename"));
+        console.log("Stored in sessionStorage - lessonData:", !!sessionStorage.getItem("lessonData"));
 
         // Start the session flow
         onStartSession(result.filename || selectedFile.name);

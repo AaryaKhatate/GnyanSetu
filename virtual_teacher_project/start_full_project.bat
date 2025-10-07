@@ -1,69 +1,83 @@
 @echo off
 echo ========================================
-echo Starting GnyanSetu Full Project
+echo Starting GnyanSetu (Quick Start)
 echo ========================================
 
+:: -------------------------------
+:: Step 0 - Start MongoDB
+:: -------------------------------
 echo.
-echo [1/4] Installing Python dependencies...
-cd /d "d:\Virtual-Tutor\virtual_teacher_project"
-C:/Python313/python.exe -m pip install -r requirements.txt
+echo [0/3] Starting MongoDB...
+cd /d "e:\Project\GnyanSetu\virtual_teacher_project"
+start "MongoDB" cmd /k "mongod.exe --dbpath e:\Project\GnyanSetu\virtual_teacher_project\mongo_data"
+timeout /t 5 > nul
+
+:: -------------------------------
+:: Step 1 - Start Django Backend
+:: -------------------------------
+echo.
+echo [1/3] Starting Django Backend (ASGI Server)...
+echo Backend will run at: http://localhost:8001
+cd /d "e:\Project\GnyanSetu\virtual_teacher_project"
+start "GnyanSetu Backend" powershell -ExecutionPolicy Bypass -File "e:\Project\GnyanSetu\virtual_teacher_project\start_asgi.ps1"
 
 echo.
-echo [2/4] Checking environment setup...
-if not exist .env (
-    echo GOOGLE_API_KEY=your_google_api_key_here > .env
-    echo [WARNING] Please add your Google API key to the .env file!
-    echo Location: d:\Virtual-Tutor\virtual_teacher_project\.env
-    pause
-)
+echo Waiting 3 seconds for backend to start...
+timeout /t 3 /nobreak > nul
 
+:: -------------------------------
+:: Step 2 - Start Dashboard (React on 3001)
+:: -------------------------------
 echo.
-echo [3/4] Starting Django Backend (Daphne ASGI Server)...
-echo Backend will run at: http://localhost:8000
-echo WebSocket will be at: ws://localhost:8000/ws/teacher/
-start "GnyanSetu Backend" cmd /k "cd /d d:\Virtual-Tutor\virtual_teacher_project && C:/Python313/python.exe -m daphne -b 0.0.0.0 -p 8000 virtual_teacher_project.asgi:application"
-
-echo.
-echo Waiting 5 seconds for backend to start...
-timeout /t 5 /nobreak > nul
-
-echo.
-echo [4/5] Starting Dashboard...
+echo [2/3] Starting Dashboard...
 echo Dashboard will run at: http://localhost:3001
-cd /d "d:\Virtual-Tutor\virtual_teacher_project\UI\Dashboard\Dashboard"
-start "GnyanSetu Dashboard" cmd /k "npm install && set BROWSER=none && set PORT=3001 && npm start"
+cd /d "e:\Project\GnyanSetu\virtual_teacher_project\UI\dashboard\dashboard"
+:: Set port to 3001 explicitly
+set PORT=3001
+set BROWSER=none
+start "GnyanSetu Dashboard" cmd /k "npm start"
 
 echo.
 echo Waiting 3 seconds for dashboard to start...
 timeout /t 3 /nobreak > nul
 
+:: -------------------------------
+:: Step 3 - Start Landing Page (React on 3000)
+:: -------------------------------
 echo.
-echo [5/5] Starting Landing Page...
+echo [3/3] Starting Landing Page...
 echo Landing Page will run at: http://localhost:3000
-cd /d "d:\Virtual-Tutor\virtual_teacher_project\UI\landing_page\landing_page"
-start "GnyanSetu Landing" cmd /k "npm install && set BROWSER=none && npm start"
+cd /d "e:\Project\GnyanSetu\virtual_teacher_project\UI\landing_page\landing_page"
+:: Set port to 3000 explicitly
+set PORT=3000
+set BROWSER=none
+start "GnyanSetu Landing" cmd /k "npm start"
 
 echo.
 echo Waiting 5 seconds for landing page to start...
 timeout /t 5 /nobreak > nul
 
+:: -------------------------------
+:: Step 4 - Open Landing Page in Browser
+:: -------------------------------
 echo.
 echo Opening Landing Page in browser...
 start http://localhost:3000
 
+:: -------------------------------
+:: Step 5 - Summary
+:: -------------------------------
 echo.
 echo ========================================
 echo ✅ GnyanSetu is starting up!
 echo ========================================
 echo.
 echo 🌐 Access Points:
-echo   Frontend: http://localhost:3000
-echo   Backend:  http://localhost:8000
-echo   WebSocket: ws://localhost:8000/ws/teacher/
+echo   Landing Page: http://localhost:3000
+echo   Dashboard:    http://localhost:3001
+echo   Backend:      http://localhost:8001
 echo.
-echo 📝 Note: Two terminal windows will open:
-echo   1. Backend (Django + Daphne)
-echo   2. Frontend (React Dev Server)
+echo 📝 Note: Three terminal windows will open
 echo.
 echo Press any key to close this window...
 pause > nul

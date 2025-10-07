@@ -1,0 +1,196 @@
+# ============================================
+# GnyanSetu - Complete .gitignore
+# ============================================
+
+# ===================
+# Python
+# ===================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.pyc
+
+# ===================
+# Virtual Environments
+# ===================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ===================
+# Django
+# ===================
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+/media/
+/staticfiles/
+/static/
+
+# ===================
+# Flask
+# ===================
+instance/
+.webassets-cache
+
+# ===================
+# Environment Variables
+# ===================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ===================
+# Database
+# ===================
+*.db
+*.sqlite
+*.sqlite3
+mongo_data/
+mongodb_data/
+redis_data/
+
+# ===================
+# Node.js & React
+# ===================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.pnp
+.pnp.js
+
+# ===================
+# React Build
+# ===================
+/build/
+/dist/
+/.next/
+/out/
+
+# ===================
+# Testing
+# ===================
+coverage/
+*.cover
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# ===================
+# IDEs & Editors
+# ===================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# ===================
+# Logs
+# ===================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+teaching_service.log
+
+# ===================
+# OS Files
+# ===================
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ===================
+# Temporary Files
+# ===================
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# ===================
+# Uploads & Media
+# ===================
+uploads/
+media/
+user_uploads/
+temp_uploads/
+
+# ===================
+# Documentation (Keep main README)
+# ===================
+# Keep: README.md, LICENSE
+# Ignore: others
+*_INTEGRATION.md
+*_SETUP.md
+MONGODB_SETUP.md
+LANDING_PAGE_INTEGRATION.md
+
+# ===================
+# Certificates & Keys
+# ===================
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# ===================
+# Backup Files
+# ===================
+*.backup
+*.old
+backup/
+
+# ===================
+# Cache
+# ===================
+.cache/
+*.cache
+.parcel-cache/
+
+# ===================
+# Miscellaneous
+# ===================
+.ipynb_checkpoints/
+*.pid
+*.seed
+*.pid.lock

@@ -19,7 +19,7 @@ const ChatHistory = ({
     try {
       setLoading(true);
       const response = await fetch(
-        `http://localhost:8001/api/conversations/?user_id=${userId}`
+        `http://localhost:8000/api/conversations/?user_id=${userId}`
       );
       const data = await response.json();
 
@@ -43,7 +43,7 @@ const ChatHistory = ({
 
     try {
       const response = await fetch(
-        `http://localhost:8001/api/conversations/${conversationId}/delete/`,
+        `http://localhost:8000/api/conversations/${conversationId}/delete/`,
         {
           method: "DELETE",
         }

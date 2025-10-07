@@ -1,0 +1,94 @@
+# ============================================
+# GnyanSetu - AI-Powered Learning Platform
+# Consolidated Requirements for All Services
+# ============================================
+
+# ===================
+# Core Django & DRF
+# ===================
+Django==4.2.16
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+daphne==4.0.0
+python-decouple==3.8
+
+# ===================
+# Flask (API Gateway)
+# ===================
+flask==2.3.3
+flask-cors==4.0.0
+
+# ===================
+# WebSocket & Async
+# ===================
+channels==4.0.0
+channels-redis==4.1.0
+channels-rabbitmq==4.0.0
+
+# ===================
+# Authentication & Security
+# ===================
+djangorestframework-simplejwt==5.3.0
+django-allauth==0.57.0
+argon2-cffi==21.3.0
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+
+# ===================
+# Database
+# ===================
+pymongo==4.15.0
+mongoengine==0.27.0
+motor==3.7.1
+
+# ===================
+# PDF Processing
+# ===================
+PyMuPDF==1.23.26
+pytesseract==0.3.10
+Pillow==10.1.0
+pdf2image==1.16.3
+
+# ===================
+# AI & LangChain
+# ===================
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-google-genai==0.0.8
+openai==1.3.7
+google-generativeai==0.3.2
+
+# ===================
+# Task Queue
+# ===================
+celery==5.3.4
+redis==5.0.1
+pika==1.3.2
+
+# ===================
+# API & Communication
+# ===================
+requests==2.31.0
+aiohttp==3.8.5
+
+# ===================
+# Development Tools
+# ===================
+django-extensions==3.2.3
+django-debug-toolbar==4.2.0
+drf-spectacular==0.26.5
+
+# ===================
+# Utilities
+# ===================
+python-dotenv==1.0.0
+colorama==0.4.6
+
+# ===================
+# FastAPI (for Quiz & Notes Services)
+# ===================
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6

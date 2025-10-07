@@ -1,4 +1,5 @@
 @echo off
+cd /d e:\Project\GnyanSetu\virtual_teacher_project
 echo Starting GnyanSetu React Frontend...
 
 cd "UI\Dashboard\Dashboard"

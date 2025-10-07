@@ -15,12 +15,17 @@ import os
 
 from dotenv import load_dotenv
 
+from dotenv import load_dotenv
+import os
+
 load_dotenv()
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# MongoDB Configuration
-MONGO_DB_URI = os.getenv("MONGO_DB_URI", "mongodb://localhost:27017/")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "gyansetu_db")
+# MongoDB Configuration (from environment)
+MONGO_DB_URI = os.getenv("MONGO_DB_URI", "mongodb://localhost:27017")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "Gnyansetu")
+
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -113,9 +118,6 @@ DATABASES = {
     }
 }
 
-# MongoDB configuration for async operations
-MONGO_DB_NAME = "Gnyansetu"
-MONGO_DB_URI = "mongodb://localhost:27017"
 
 # Channels config
 ASGI_APPLICATION = "virtual_teacher_project.asgi.application"
@@ -218,5 +220,3 @@ SOCIALACCOUNT_PROVIDERS['google']['APP'] = {
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 
-MONGO_DB_NAME = "Gnyansetu"
-MONGO_DB_URI = "mongodb://localhost:27017"

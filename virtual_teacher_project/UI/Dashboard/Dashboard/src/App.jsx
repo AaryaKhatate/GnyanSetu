@@ -6,7 +6,7 @@ import GlowingBackground from "./components/GlowingBackground";
 import SessionManager from "./components/SessionManager";
 
 // API Configuration
-const API_BASE_URL = "http://localhost:8001";
+const API_BASE_URL = "http://localhost:8000";
 
 // API Helper function
 const apiCall = async (endpoint, options = {}) => {

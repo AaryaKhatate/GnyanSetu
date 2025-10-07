@@ -100,6 +100,49 @@ const SessionManager = ({
   };
 
   const renderStage = () => {
+    // Extract PDF data from sessionStorage for WebSocket communication
+    const pdfText = sessionStorage.getItem("pdfText");
+    const pdfFilename = sessionStorage.getItem("pdfFilename");
+    const lessonDataStr = sessionStorage.getItem("lessonData");
+    
+    console.log("📋 === SESSION MANAGER PDF DATA DEBUG ===");
+    console.log("📋 PDF Name prop:", pdfName);
+    console.log("📋 PDF Text from sessionStorage:", pdfText?.length, "characters");
+    console.log("📋 PDF Text preview:", pdfText?.substring(0, 100) + "...");
+    console.log("📋 PDF Filename from sessionStorage:", pdfFilename);
+    console.log("📋 Lesson Data from sessionStorage:", !!lessonDataStr);
+    console.log("📋 Current conversation ID:", currentConversationId);
+    console.log("📋 Current user ID:", currentUserId);
+    
+    // Parse lesson data if available
+    let lessonData = null;
+    if (lessonDataStr) {
+      try {
+        lessonData = JSON.parse(lessonDataStr);
+        console.log("📋 ✅ Parsed lesson data:", lessonData.teaching_steps?.length, "steps");
+      } catch (e) {
+        console.error("📋 ❌ Failed to parse lesson data:", e);
+      }
+    }
+    
+    const pdfData = {
+      topic: pdfName,
+      pdf_filename: pdfFilename || pdfName,
+      pdf_text: pdfText || "",
+      conversation_id: currentConversationId,
+      user_id: currentUserId || "anonymous",
+      lessonData: lessonData  // ✅ Include lesson data
+    };
+
+    console.log("📋 Constructed PDF data for WebSocket:");
+    console.log("📋   Topic:", pdfData.topic);
+    console.log("📋   Filename:", pdfData.pdf_filename);
+    console.log("📋   Text length:", pdfData.pdf_text.length);
+    console.log("📋   Conversation ID:", pdfData.conversation_id);
+    console.log("📋   User ID:", pdfData.user_id);
+    console.log("📋   Has Lesson Data:", !!pdfData.lessonData);
+    console.log("📋 === SESSION MANAGER DEBUG END ===");
+
     switch (currentStage) {
       case "whiteboard":
         return (
@@ -114,6 +157,7 @@ const SessionManager = ({
             currentUserId={currentUserId}
             currentConversationId={currentConversationId}
             onConversationCreated={onConversationCreated}
+            pdfData={pdfData} // Pass PDF data for WebSocket
           />
         );
       case "quiz":
