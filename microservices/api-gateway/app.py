@@ -29,7 +29,7 @@ SERVICES = {
     'user-service': {
         'url': 'http://localhost:8002',
         'health': '/api/v1/health',
-        'routes': ['/api/auth', '/api/users']
+        'routes': ['/api/v1/auth', '/api/auth', '/api/users', '/api/v1/users']
     },
     'lesson-service': {
         'url': 'http://localhost:8003',
@@ -40,6 +40,11 @@ SERVICES = {
         'url': 'http://localhost:8004',
         'health': '/health',
         'routes': ['/api/conversations', '/api/teaching', '/ws/teaching']  # Added conversations
+    },
+    'quiz-notes-service': {
+        'url': 'http://localhost:8005',
+        'health': '/health',
+        'routes': ['/api/quiz', '/api/notes']
     }
 }
 

@@ -24,8 +24,10 @@ urlpatterns = [
     path('auth/verify-email/', views.EmailVerificationView.as_view(), name='verify_email'),
     path('auth/resend-verification/', views.ResendVerificationEmailView.as_view(), name='resend_verification'),
     
-    # Password reset
+    # Password reset with OTP
     path('auth/password-reset/', views.PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('auth/forgot-password/', views.PasswordResetRequestView.as_view(), name='forgot_password'),  # Alias for frontend
+    path('auth/verify-otp/', views.VerifyOTPView.as_view(), name='verify_otp'),  # Verify OTP
     path('auth/password-reset-confirm/', views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     
     # User management
@@ -42,12 +44,7 @@ urlpatterns = [
     
     # Debug endpoint
     path('debug/login/', views.debug_login_data, name='debug_login'),
+    
+    # Google OAuth
+    path('auth/google/', views.google_oauth_callback, name='google_oauth_callback'),
 ]
-
-# Additional compatibility URLs for frontend
-compatibility_urlpatterns = [
-    # Google OAuth compatibility (placeholder)
-    path('accounts/google/login/', views.google_oauth_placeholder, name='google_oauth'),
-]
-
-urlpatterns += compatibility_urlpatterns

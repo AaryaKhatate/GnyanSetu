@@ -1,6 +1,7 @@
 # Django Views for Lesson Service API
 import logging
 import json
+import threading
 from datetime import datetime
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -10,15 +11,81 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
 
-from .models import PDFDataModel, LessonModel, UserHistoryModel, check_database_connection, get_database_stats
+from .models import PDFDataModel, LessonModel, UserHistoryModel, check_database_connection, get_database_stats, lessons_collection
 from .pdf_processor_simple import PDFProcessor
 from .lesson_generator import LessonGenerator
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
 # Initialize processors
 pdf_processor = PDFProcessor()
 lesson_generator = LessonGenerator()
+
+def generate_quiz_and_notes_async(lesson_id, lesson_content, lesson_title):
+    """
+    Background thread to generate quiz and notes while teaching is happening.
+    This runs asynchronously so teaching can start immediately.
+    """
+    try:
+        print("\n" + "="*60)
+        print(f"🔄 ASYNC: Starting quiz and notes generation for lesson: {lesson_id}")
+        print("="*60)
+        
+        # Generate quiz data
+        print("🎯 ASYNC: Generating quiz...")
+        quiz_data = lesson_generator.generate_quiz_data(
+            lesson_content=lesson_content,
+            lesson_title=lesson_title
+        )
+        
+        # Generate notes data
+        print("📝 ASYNC: Generating notes...")
+        notes_data = lesson_generator.generate_notes_data(
+            lesson_content=lesson_content,
+            lesson_title=lesson_title
+        )
+        
+        # Update the lesson document with quiz and notes data
+        if lessons_collection is not None:
+            update_result = lessons_collection.update_one(
+                {'_id': ObjectId(lesson_id)},
+                {
+                    '$set': {
+                        'quiz_data': quiz_data,
+                        'notes_data': notes_data,
+                        'quiz_notes_generated_at': datetime.utcnow(),
+                        'quiz_notes_status': 'completed'
+                    }
+                }
+            )
+            
+            print("="*60)
+            print("📊 ASYNC Generation Complete:")
+            print(f"   ✓ Lesson ID: {lesson_id}")
+            print(f"   ✓ Quiz: {len(quiz_data.get('questions', []))} questions")
+            print(f"   ✓ Notes: {len(notes_data.get('sections', []))} sections")
+            print(f"   ✓ Updated in database: {update_result.modified_count} document(s)")
+            print("="*60 + "\n")
+        else:
+            print("❌ ASYNC: Cannot update - MongoDB not available")
+            
+    except Exception as e:
+        logger.error(f"Error in async quiz/notes generation: {e}")
+        print(f"❌ ASYNC: Error generating quiz and notes: {e}")
+        
+        # Mark as failed in database
+        if lessons_collection is not None:
+            lessons_collection.update_one(
+                {'_id': ObjectId(lesson_id)},
+                {
+                    '$set': {
+                        'quiz_notes_status': 'failed',
+                        'quiz_notes_error': str(e)
+                    }
+                }
+            )
+
 
 @api_view(['GET'])
 def health_check(request):
@@ -109,23 +176,46 @@ def process_pdf_and_generate_lesson(request):
             user_context={'user_id': user_id}
         )
         
-        # Store lesson
+        # Store lesson WITHOUT quiz and notes data (will be added asynchronously)
         lesson_id = LessonModel.create(
             user_id=user_id,
             pdf_id=pdf_id,
             lesson_title=lesson_result['title'],
             lesson_content=lesson_result['content'],
             lesson_type=lesson_type,
+            quiz_data={},  # Empty initially
+            notes_data={},  # Empty initially
             metadata={
                 'ai_generated': lesson_result.get('success', False),
                 'generation_time': lesson_result.get('generated_at'),
-                'fallback_used': lesson_result.get('fallback', False)
+                'fallback_used': lesson_result.get('fallback', False),
+                'quiz_notes_status': 'generating'  # Mark as in progress
             }
         )
+        
+        # Mark initial status in database
+        if lessons_collection is not None:
+            lessons_collection.update_one(
+                {'_id': ObjectId(lesson_id)},
+                {'$set': {'quiz_notes_status': 'generating'}}
+            )
         
         # Create history entry
         if lesson_id:
             UserHistoryModel.create_entry(user_id, pdf_id, lesson_id, 'lesson_generated')
+        
+        # Start async generation of quiz and notes in background thread
+        # This allows teaching to start immediately while quiz/notes are being generated
+        print("\n🚀 Starting ASYNC quiz and notes generation...")
+        print("📚 Teaching can begin immediately!")
+        print("🔄 Quiz and notes will be generated in the background...\n")
+        
+        thread = threading.Thread(
+            target=generate_quiz_and_notes_async,
+            args=(lesson_id, lesson_result['content'], lesson_result['title']),
+            daemon=True
+        )
+        thread.start()
         
         return Response({
             'success': True,
@@ -136,12 +226,13 @@ def process_pdf_and_generate_lesson(request):
                 'content': lesson_result['content'],
                 'type': lesson_type
             },
+            'quiz_notes_status': 'generating',  # Inform frontend that quiz/notes are being generated
             'pdf_stats': {
                 'pages': pdf_result['metadata'].get('total_pages', 0),
                 'images': pdf_result['metadata'].get('total_images', 0),
                 'text_length': pdf_result['metadata'].get('text_length', 0)
             },
-            'message': 'PDF processed and lesson generated successfully'
+            'message': 'PDF processed and lesson generated successfully. Quiz and notes are being generated in the background.'
         })
         
     except Exception as e:
@@ -206,6 +297,44 @@ def get_lesson_detail(request, lesson_id):
         
     except Exception as e:
         logger.error(f"Error getting lesson detail: {e}")
+        return Response({
+            'error': 'Failed to retrieve lesson',
+            'success': False
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def check_quiz_notes_status(request, lesson_id):
+    """
+    Check if quiz and notes have been generated for a lesson.
+    Used by frontend to poll until generation is complete.
+    """
+    try:
+        lesson = LessonModel.get_by_id(lesson_id)
+        
+        if lesson is None:
+            return Response({
+                'error': 'Lesson not found',
+                'success': False
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        quiz_notes_status = lesson.get('quiz_notes_status', 'unknown')
+        has_quiz = bool(lesson.get('quiz_data', {}).get('questions'))
+        has_notes = bool(lesson.get('notes_data', {}).get('sections'))
+        
+        is_ready = has_quiz and has_notes
+        
+        return Response({
+            'success': True,
+            'lesson_id': lesson_id,
+            'quiz_notes_status': quiz_notes_status,
+            'is_ready': is_ready,
+            'has_quiz': has_quiz,
+            'has_notes': has_notes,
+            'generated_at': lesson.get('quiz_notes_generated_at', None)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking quiz/notes status: {e}")
         return Response({
             'error': 'Failed to retrieve lesson',
             'success': False

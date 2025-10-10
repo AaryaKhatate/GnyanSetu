@@ -4,8 +4,12 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from .models import User, UserProfile, UserSession
+from .models import User, UserProfile
+# UserSession moved to MongoDB - see mongodb_manager.py
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -102,13 +106,24 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         password = attrs.get('password')
         password_confirm = attrs.pop('password_confirm', None)
         
+        logger.info(f"Validating password for user: {attrs.get('email')}")
+        
         if password != password_confirm:
             raise serializers.ValidationError("Passwords do not match.")
         
-        # Validate password strength
+        # Validate password strength with user context
         try:
-            validate_password(password)
+            # Create a temporary user object for validation
+            user = User(
+                email=attrs.get('email'),
+                username=attrs.get('username'),
+                full_name=attrs.get('full_name', '')
+            )
+            logger.info(f"Calling validate_password for: {password}")
+            validate_password(password, user=user)
+            logger.info("Password validation passed!")
         except ValidationError as e:
+            logger.error(f"Password validation failed: {e.messages}")
             raise serializers.ValidationError({"password": e.messages})
         
         attrs.pop('terms_accepted')  # Remove from attrs as it's not a model field
@@ -226,23 +241,8 @@ class PasswordChangeSerializer(serializers.Serializer):
         return user
 
 
-class UserSessionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for user session information
-    """
-    user_email = serializers.EmailField(source='user.email', read_only=True)
-    
-    class Meta:
-        model = UserSession
-        fields = [
-            'id', 'user_email', 'ip_address', 'user_agent', 'device_info',
-            'is_active', 'login_time', 'logout_time', 'last_activity',
-            'is_suspicious', 'failed_attempts'
-        ]
-        read_only_fields = [
-            'id', 'user_email', 'login_time', 'logout_time', 'last_activity',
-            'failed_attempts'
-        ]
+# UserSessionSerializer removed - sessions now in MongoDB
+# Use mongodb_manager.get_session_manager() to query sessions directly
 
 
 class EmailVerificationSerializer(serializers.Serializer):
@@ -273,10 +273,8 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     """
     email = serializers.EmailField(required=True)
     
-    def validate_email(self, value):
-        if not User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("No user found with this email address.")
-        return value
+    # Removed validate_email to prevent revealing if email exists
+    # Security best practice: Always return generic message
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):

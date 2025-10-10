@@ -30,60 +30,6 @@ const TeachingCanvas = forwardRef(
     const stageRef = useRef();
     const animationTimeoutRef = useRef();
 
-    // Expose methods to parent component
-    useImperativeHandle(ref, () => ({
-      addDrawingCommand: (command) => {
-        const element = createElementFromCommand(command, drawnElements.length);
-        if (element) {
-          setDrawnElements((prev) => {
-            const newElements = [...prev, element];
-
-            // Update position trackers
-            if (element.type === "text") {
-              const textHeight = (element.fontSize || 18) + 20;
-              const lines = Math.ceil(element.text.length / 50);
-              setNextTextY((prev) => prev + textHeight * lines + 10);
-            } else if (element.type === "rect" || element.type === "circle") {
-              const elementHeight =
-                element.type === "rect" ? element.height : element.radius * 2;
-              setNextShapeY((prev) => prev + elementHeight + 30);
-            }
-
-            return newElements;
-          });
-          
-          // Trigger callback if provided
-          if (onCommandExecuted) {
-            onCommandExecuted(command, drawnElements.length);
-          }
-        }
-      },
-      clearCanvas: () => {
-        setDrawnElements([]);
-        setNextTextY(60);
-        setNextShapeY(80);
-        setCurrentElementIndex(0);
-        elementCounterRef.current = 0;
-        
-        // Force clear the canvas layer
-        if (stageRef.current) {
-          const layer = stageRef.current.getLayers()[0];
-          if (layer) {
-            layer.removeChildren();
-            layer.batchDraw();
-          }
-        }
-      },
-      executeCommand: (command, stepIndex) => {
-        // Execute individual lesson command
-        console.log('Executing command on canvas:', command);
-        const element = createElementFromCommand(command, stepIndex);
-        if (element) {
-          setDrawnElements((prev) => [...prev, element]);
-        }
-      }
-    }));
-
     // Create Konva element from lesson command
     const createElementFromCommand = useCallback((command, index) => {
       if (!command) return null;
@@ -100,73 +46,33 @@ const TeachingCanvas = forwardRef(
       switch (command.type) {
         case "write":
         case "text":
+          const text = command.text || command.content || "";
           return {
             ...commonProps,
             type: "text",
-            text: command.text,
-            x: command.x || 50,
-            y: command.y || nextTextY,
-            fontSize: command.fontSize || 18,
-            fontStyle: command.fontStyle || "normal",
-            fill: command.fill || "#000000",
-            animation: command.animation || "typewriter",
-            duration: command.duration || 2000,
+            text,
+            x: command.x !== undefined ? command.x : 50,
+            y: command.y !== undefined ? command.y : nextTextY,
+            fontSize: command.fontSize || command.font_size || 18,
+            fontFamily: command.fontFamily || command.font_family || "Arial",
+            fill: command.fill || command.color || "#000",
+            animation: command.animation || "fade",
+            duration: command.duration || 1000,
           };
 
         case "draw":
-          // Handle drawing commands with shape specification
-          if (command.shape === "rect") {
-            return {
-              ...commonProps,
-              type: "rect",
-              x: command.x || 100,
-              y: command.y || nextShapeY,
-              width: command.width || 200,
-              height: command.height || 100,
-              fill: command.fill || "transparent",
-              stroke: command.stroke || "#333",
-              strokeWidth: command.strokeWidth || 2,
-              animation: command.animation || "fadeIn",
-              duration: command.duration || 1000,
-            };
-          } else if (command.shape === "circle") {
-            return {
-              ...commonProps,
-              type: "circle",
-              x: command.x || 150,
-              y: command.y || nextShapeY,
-              radius: command.radius || 50,
-              fill: command.fill || "transparent",
-              stroke: command.stroke || "#333",
-              strokeWidth: command.strokeWidth || 2,
-              animation: command.animation || "scale",
-              duration: command.duration || 1000,
-            };
-          } else if (command.shape === "line") {
-            return {
-              ...commonProps,
-              type: "line",
-              points: command.points || [0, 0, 100, 100],
-              stroke: command.stroke || "#333",
-              strokeWidth: command.strokeWidth || 2,
-              animation: command.animation || "draw",
-              duration: command.duration || 1000,
-            };
-          }
-          break;
-
         case "rect":
           return {
             ...commonProps,
             type: "rect",
-            x: command.x || 100,
-            y: command.y || nextShapeY,
-            width: command.width || 200,
-            height: command.height || 100,
+            x: command.x !== undefined ? command.x : 50,
+            y: command.y !== undefined ? command.y : nextShapeY,
+            width: command.width || 100,
+            height: command.height || 80,
             fill: command.fill || "transparent",
             stroke: command.stroke || "#333",
             strokeWidth: command.strokeWidth || 2,
-            animation: command.animation || "fadeIn",
+            animation: command.animation || "scale",
             duration: command.duration || 1000,
           };
 
@@ -174,9 +80,9 @@ const TeachingCanvas = forwardRef(
           return {
             ...commonProps,
             type: "circle",
-            x: command.x || 150,
-            y: command.y || nextShapeY,
-            radius: command.radius || 50,
+            x: command.x !== undefined ? command.x : 150,
+            y: command.y !== undefined ? command.y : nextShapeY + 40,
+            radius: command.radius || 40,
             fill: command.fill || "transparent",
             stroke: command.stroke || "#333",
             strokeWidth: command.strokeWidth || 2,
@@ -217,6 +123,62 @@ const TeachingCanvas = forwardRef(
       }
     }, [nextTextY, nextShapeY]);
 
+    // Expose methods to parent component
+    useImperativeHandle(ref, () => ({
+      addDrawingCommand: (command) => {
+        const element = createElementFromCommand(command, drawnElements.length);
+        if (element) {
+          setDrawnElements((prev) => {
+            const newElements = [...prev, element];
+
+            // Update position trackers
+            if (element.type === "text") {
+              const textHeight = (element.fontSize || 18) + 20;
+              const lines = Math.ceil(element.text.length / 50);
+              setNextTextY((prev) => prev + textHeight * lines + 10);
+            } else if (element.type === "rect" || element.type === "circle") {
+              const elementHeight =
+                element.type === "rect" ? element.height : element.radius * 2;
+              setNextShapeY((prev) => prev + elementHeight + 30);
+            }
+
+            return newElements;
+          });
+          
+          // Trigger callback if provided
+          if (onCommandExecuted) {
+            onCommandExecuted(command, drawnElements.length);
+          }
+        }
+      },
+      clearCanvas: () => {
+        console.log('🧹 clearCanvas called');
+        setDrawnElements([]);
+        setNextTextY(60);
+        setNextShapeY(80);
+        setCurrentElementIndex(0);
+        elementCounterRef.current = 0;
+        
+        // Force clear the canvas layer
+        if (stageRef.current) {
+          const layer = stageRef.current.getLayers()[0];
+          if (layer) {
+            layer.destroyChildren();
+            layer.batchDraw();
+            console.log('🧹 Canvas layer cleared');
+          }
+        }
+      },
+      executeCommand: (command, stepIndex) => {
+        // Execute individual lesson command
+        console.log('Executing command on canvas:', command);
+        const element = createElementFromCommand(command, stepIndex);
+        if (element) {
+          setDrawnElements((prev) => [...prev, element]);
+        }
+      }
+    }), [createElementFromCommand, onCommandExecuted, drawnElements.length]);
+
     // Clear canvas when new step starts
     useEffect(() => {
       if (teachingStep && teachingStep.step !== undefined) {
@@ -249,17 +211,21 @@ const TeachingCanvas = forwardRef(
       console.log('🎨🎨 === TEACHING CANVAS USEEFFECT ===');
       console.log('🎨🎨 isPlaying:', isPlaying);
       console.log('🎨🎨 teachingStep:', teachingStep);
-      console.log('🎨🎨 teachingStep.drawing_commands:', teachingStep?.drawing_commands);
+      console.log('🎨🎨 teachingStep?.step:', teachingStep?.step);
+      console.log('🎨🎨 teachingStep?.drawing_commands:', teachingStep?.drawing_commands);
       console.log('🎨🎨 drawing_commands length:', teachingStep?.drawing_commands?.length);
+      console.log('🎨🎨 drawing_commands array:', JSON.stringify(teachingStep?.drawing_commands));
       
       if (isPlaying && teachingStep && teachingStep.drawing_commands) {
         console.log('✅✅ Starting drawing animation!');
         startDrawingAnimation();
       } else {
-        console.log('❌❌ NOT starting drawing animation:');
+        console.log('❌❌ NOT starting drawing animation');
         console.log('   - isPlaying:', isPlaying);
         console.log('   - has teachingStep:', !!teachingStep);
         console.log('   - has drawing_commands:', !!teachingStep?.drawing_commands);
+        console.log('   - drawing_commands is array:', Array.isArray(teachingStep?.drawing_commands));
+        console.log('   - drawing_commands length:', teachingStep?.drawing_commands?.length);
         
         if (animationTimeoutRef.current) {
           clearTimeout(animationTimeoutRef.current);

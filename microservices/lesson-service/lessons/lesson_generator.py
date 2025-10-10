@@ -2,6 +2,7 @@
 import logging
 import json
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from django.conf import settings
 from datetime import datetime
 
@@ -128,12 +129,12 @@ class LessonGenerator:
                     max_output_tokens=20,  # Very short for just a title
                     candidate_count=1
                 ),
-                safety_settings=[
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-                ]
+                safety_settings={
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                }
             )
             
             # Better error handling for Gemini response
@@ -345,3 +346,298 @@ This lesson is based on the provided educational material.
             'success': False,
             'fallback': True
         }
+    
+    def generate_quiz_data(self, lesson_content, lesson_title):
+        """
+        Generate structured quiz data from lesson content
+        Returns a dictionary with quiz questions in JSON format
+        """
+        import json  # Import at the top to avoid 'referenced before assignment' error
+        import re
+        
+        print("🎯 Starting quiz generation from lesson content...")
+        
+        # Limit content length to avoid token limits
+        content_preview = lesson_content[:2000] if len(lesson_content) > 2000 else lesson_content
+        
+        prompt = f"""
+Generate a quiz with EXACTLY 5 multiple choice questions based on this lesson.
+
+Lesson Title: {lesson_title}
+Lesson Content: {content_preview}
+
+IMPORTANT: Return ONLY valid JSON. No markdown, no code blocks, no explanations.
+
+Format:
+{{
+    "title": "Quiz: {lesson_title}",
+    "questions": [
+        {{
+            "question": "What is the main concept?",
+            "options": [
+                {{"key": "A", "text": "Option A"}},
+                {{"key": "B", "text": "Option B"}},
+                {{"key": "C", "text": "Option C"}},
+                {{"key": "D", "text": "Option D"}}
+            ],
+            "correct_answer": "A",
+            "explanation": "Brief explanation"
+        }}
+    ]
+}}
+
+Create 5 questions following this EXACT format.
+"""
+        
+        try:
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.2,  # Lower temperature for more consistent output
+                    max_output_tokens=2000,
+                    candidate_count=1
+                ),
+                safety_settings={
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                }
+            )
+            
+            # Check if response was blocked
+            if not response.candidates or len(response.candidates) == 0:
+                logger.warning("Quiz generation blocked by Gemini - using fallback")
+                raise ValueError("Response blocked by safety filters")
+            
+            candidate = response.candidates[0]
+            if candidate.finish_reason == 2:  # SAFETY
+                logger.warning("Quiz generation blocked by safety filters - using fallback")
+                raise ValueError("Response blocked by safety filters")
+            
+            quiz_text = self._safe_extract_text(response, "{}")
+            
+            # Aggressive cleaning of the response
+            quiz_text = quiz_text.strip()
+            
+            # Remove markdown code blocks
+            if "```json" in quiz_text:
+                quiz_text = quiz_text.split("```json")[1].split("```")[0]
+            elif "```" in quiz_text:
+                quiz_text = quiz_text.split("```")[1].split("```")[0]
+            
+            quiz_text = quiz_text.strip()
+            
+            # Remove any text before the first {
+            if quiz_text.find('{') > 0:
+                quiz_text = quiz_text[quiz_text.find('{'):]
+            
+            # Remove any text after the last }
+            if quiz_text.rfind('}') < len(quiz_text) - 1:
+                quiz_text = quiz_text[:quiz_text.rfind('}')+1]
+            
+            # Fix common JSON issues (json and re already imported at top of function)
+            # Escape unescaped quotes in text fields
+            # This is a simple fix - may need more sophisticated handling
+            quiz_text = quiz_text.replace('\n', ' ').replace('\r', ' ')
+            
+            # Parse JSON
+            try:
+                quiz_data = json.loads(quiz_text)
+            except json.JSONDecodeError as json_err:
+                # Try to fix common issues and retry
+                logger.warning(f"First JSON parse failed, attempting to fix: {json_err}")
+                # Remove trailing commas
+                quiz_text = re.sub(r',\s*}', '}', quiz_text)
+                quiz_text = re.sub(r',\s*]', ']', quiz_text)
+                quiz_data = json.loads(quiz_text)
+            
+            # Validate structure
+            if 'questions' not in quiz_data:
+                raise ValueError("Missing 'questions' field in quiz data")
+            
+            print(f"✅ Quiz generated successfully: {len(quiz_data.get('questions', []))} questions")
+            return quiz_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error in quiz generation: {e}")
+            logger.error(f"Problematic JSON text: {quiz_text[:500] if 'quiz_text' in locals() else 'No text'}")
+            print(f"❌ Error generating quiz: {e}")
+            # Return fallback quiz structure
+            return {
+                "title": f"Quiz: {lesson_title}",
+                "questions": [
+                    {
+                        "question": "What is the main topic of this lesson?",
+                        "options": [
+                            {"key": "A", "text": "Review the lesson content"},
+                            {"key": "B", "text": "Study the material carefully"},
+                            {"key": "C", "text": "Focus on key concepts"},
+                            {"key": "D", "text": "Practice regularly"}
+                        ],
+                        "correct_answer": "A",
+                        "explanation": "Review the lesson content for details."
+                    }
+                ]
+            }
+        except Exception as e:
+            logger.error(f"Error generating quiz data: {e}")
+            print(f"❌ Error generating quiz: {e}")
+            return {
+                "title": f"Quiz: {lesson_title}",
+                "questions": [
+                    {
+                        "question": "What is the main topic of this lesson?",
+                        "options": [
+                            {"key": "A", "text": "Option A"},
+                            {"key": "B", "text": "Option B"},
+                            {"key": "C", "text": "Option C"},
+                            {"key": "D", "text": "Option D"}
+                        ],
+                        "correct_answer": "A",
+                        "explanation": "Review the lesson content for details."
+                    }
+                ]
+            }
+    
+    def generate_notes_data(self, lesson_content, lesson_title):
+        """
+        Generate structured notes from lesson content
+        Returns a dictionary with organized notes in JSON format
+        """
+        import json  # Import at the top to avoid 'referenced before assignment' error
+        import re
+        
+        print("📝 Starting notes generation from lesson content...")
+        
+        # Limit content length to avoid token limits
+        content_preview = lesson_content[:2000] if len(lesson_content) > 2000 else lesson_content
+        
+        prompt = f"""
+Generate structured study notes based on this lesson.
+
+Lesson Title: {lesson_title}
+Lesson Content: {content_preview}
+
+IMPORTANT: Return ONLY valid JSON. No markdown, no code blocks, no explanations.
+
+Format:
+{{
+    "title": "Notes: {lesson_title}",
+    "summary": "Brief 2-3 sentence summary",
+    "sections": [
+        {{
+            "heading": "Main Concept",
+            "key_points": [
+                "First key point",
+                "Second key point"
+            ]
+        }}
+    ],
+    "key_terms": [
+        {{
+            "term": "Important Term",
+            "definition": "Clear definition"
+        }}
+    ]
+}}
+
+Create notes following this EXACT format.
+"""
+        
+        try:
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.2,
+                    max_output_tokens=2000,
+                    candidate_count=1
+                ),
+                safety_settings={
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                }
+            )
+            
+            # Check if response was blocked
+            if not response.candidates or len(response.candidates) == 0:
+                logger.warning("Notes generation blocked by Gemini - using fallback")
+                raise ValueError("Response blocked by safety filters")
+            
+            candidate = response.candidates[0]
+            if candidate.finish_reason == 2:  # SAFETY
+                logger.warning("Notes generation blocked by safety filters - using fallback")
+                raise ValueError("Response blocked by safety filters")
+            
+            notes_text = self._safe_extract_text(response, "{}")
+            
+            # Aggressive cleaning of the response
+            notes_text = notes_text.strip()
+            
+            # Remove markdown code blocks
+            if "```json" in notes_text:
+                notes_text = notes_text.split("```json")[1].split("```")[0]
+            elif "```" in notes_text:
+                notes_text = notes_text.split("```")[1].split("```")[0]
+            
+            notes_text = notes_text.strip()
+            
+            # Remove any text before the first {
+            if notes_text.find('{') > 0:
+                notes_text = notes_text[notes_text.find('{'):]
+            
+            # Remove any text after the last }
+            if notes_text.rfind('}') < len(notes_text) - 1:
+                notes_text = notes_text[:notes_text.rfind('}')+1]
+            
+            # Parse JSON (json already imported at top of function)
+            notes_data = json.loads(notes_text)
+            
+            # Validate structure
+            if 'sections' not in notes_data:
+                raise ValueError("Missing 'sections' field in notes data")
+            
+            sections_count = len(notes_data.get('sections', []))
+            print(f"✅ Notes generated successfully: {sections_count} sections")
+            return notes_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error in notes generation: {e}")
+            logger.error(f"Problematic JSON text: {notes_text[:500]}")
+            print(f"❌ Error generating notes: {e}")
+            # Return fallback notes structure
+            return {
+                "title": f"Notes: {lesson_title}",
+                "summary": "Review the lesson content for comprehensive understanding of the key concepts.",
+                "sections": [
+                    {
+                        "heading": "Main Concepts",
+                        "key_points": [
+                            "Review the lesson carefully",
+                            "Take your own notes",
+                            "Focus on understanding key concepts"
+                        ]
+                    }
+                ],
+                "key_terms": []
+            }
+        except Exception as e:
+            logger.error(f"Error generating notes data: {e}")
+            print(f"❌ Error generating notes: {e}")
+            return {
+                "title": f"Notes: {lesson_title}",
+                "summary": "Review the lesson content for comprehensive understanding.",
+                "sections": [
+                    {
+                        "heading": "Main Concepts",
+                        "key_points": [
+                            "Review the lesson carefully",
+                            "Take your own notes",
+                            "Focus on understanding key concepts"
+                        ]
+                    }
+                ],
+                "key_terms": []
+            }

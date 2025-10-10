@@ -48,21 +48,122 @@ export default function App() {
   const [isSessionFullscreen, setIsSessionFullscreen] = useState(false);
   const [historyItems, setHistoryItems] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
+
+  // Check for login data in URL hash (passed from landing page)
+  useEffect(() => {
+    console.log("🔍 Dashboard: Checking for login data in URL...");
+    
+    const hash = window.location.hash;
+    if (hash.includes('#login?')) {
+      console.log("✅ Found login data in URL!");
+      
+      // Parse the URL parameters
+      const params = new URLSearchParams(hash.split('?')[1]);
+      
+      const userId = params.get('userId');
+      const userEmail = params.get('userEmail');
+      const userName = params.get('userName');
+      const accessToken = params.get('accessToken');
+      const refreshToken = params.get('refreshToken');
+      const userJson = params.get('user');
+      
+      console.log("📦 Storing user data in Dashboard's localStorage...");
+      
+      if (accessToken) {
+        localStorage.setItem('access_token', accessToken);
+        localStorage.setItem('gnyansetu_auth_token', accessToken);
+        console.log("✅ Access token stored");
+      }
+      
+      if (refreshToken) {
+        localStorage.setItem('refresh_token', refreshToken);
+        console.log("✅ Refresh token stored");
+      }
+      
+      if (userId) {
+        localStorage.setItem('userId', userId);
+        sessionStorage.setItem('userId', userId);
+        console.log("✅ User ID stored:", userId);
+      }
+      
+      if (userEmail) {
+        localStorage.setItem('userEmail', userEmail);
+        sessionStorage.setItem('userEmail', userEmail);
+        console.log("✅ User email stored:", userEmail);
+      }
+      
+      if (userName) {
+        localStorage.setItem('userName', userName);
+        sessionStorage.setItem('userName', userName);
+        console.log("✅ User name stored:", userName);
+      }
+      
+      if (userJson) {
+        try {
+          const user = JSON.parse(userJson);
+          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('gnyansetu_user', JSON.stringify(user));
+          console.log("✅ User object stored");
+        } catch (e) {
+          console.error("❌ Failed to parse user JSON:", e);
+        }
+      }
+      
+      console.log("\n📦 Storage Summary (Dashboard):");
+      console.log("- userId:", localStorage.getItem('userId') || "❌ Missing");
+      console.log("- userEmail:", localStorage.getItem('userEmail') || "❌ Missing");
+      console.log("- userName:", localStorage.getItem('userName') || "❌ Missing");
+      console.log("- access_token:", localStorage.getItem('access_token') ? "✅ Stored" : "❌ Missing");
+      
+      // Clean up URL
+      window.history.replaceState(null, '', '/');
+      console.log("✅ URL cleaned up");
+    } else {
+      console.log("ℹ️ No login data in URL, checking existing storage...");
+      console.log("- userId:", localStorage.getItem('userId') || sessionStorage.getItem('userId') || "❌ Not found");
+    }
+  }, []);
   const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState("anonymous");
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load chat history on component mount
+  // Get user ID from sessionStorage/localStorage on mount
   useEffect(() => {
-    loadChatHistory();
+    const storedUserId = 
+      sessionStorage.getItem('userId') || 
+      sessionStorage.getItem('studentId') || 
+      localStorage.getItem('userId') ||
+      localStorage.getItem('studentId');
+    
+    if (storedUserId) {
+      console.log('✅ User ID loaded:', storedUserId);
+      setCurrentUserId(storedUserId);
+    } else {
+      console.warn('⚠️ No user ID found in storage. User needs to login.');
+      // Optionally redirect to login
+      // window.location.href = 'http://localhost:3001';
+    }
   }, []);
 
+  // Load chat history when user ID is available
+  useEffect(() => {
+    if (currentUserId) {
+      loadChatHistory();
+    }
+  }, [currentUserId]);
+
   const loadChatHistory = async () => {
+    if (!currentUserId) {
+      console.warn('⚠️ Cannot load chat history: No user ID');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       
+      console.log(`📜 Loading chat history for user: ${currentUserId}`);
       const response = await apiCall(
         `/api/conversations/?user_id=${currentUserId}`
       );
@@ -300,6 +401,12 @@ export default function App() {
 
   const handleConversationCreated = (conversationId, title) => {
     if (!conversationId) return;
+    
+    // Store conversation ID for Quiz and Notes components
+    console.log('💾 Storing conversation ID for Quiz/Notes:', conversationId);
+    sessionStorage.setItem('lessonId', conversationId);
+    sessionStorage.setItem('conversationId', conversationId);
+    localStorage.setItem('currentConversationId', conversationId);
     
     // Replace the temporary conversation with the real one
     setCurrentSessionId(conversationId);

@@ -168,8 +168,8 @@ class LessonModel:
     """Model for storing AI-generated lessons"""
     
     @staticmethod
-    def create(user_id, pdf_id, lesson_title, lesson_content, lesson_type='interactive', metadata=None):
-        """Create a new lesson"""
+    def create(user_id, pdf_id, lesson_title, lesson_content, lesson_type='interactive', metadata=None, quiz_data=None, notes_data=None):
+        """Create a new lesson with quiz and notes data"""
         document = {
             '_id': ObjectId(),
             'user_id': user_id,
@@ -177,6 +177,8 @@ class LessonModel:
             'lesson_title': lesson_title,
             'lesson_content': lesson_content,
             'lesson_type': lesson_type,  # interactive, quiz, summary, detailed
+            'quiz_data': quiz_data or {},  # Structured quiz data
+            'notes_data': notes_data or {},  # Structured notes data
             'metadata': metadata or {},
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
@@ -186,12 +188,16 @@ class LessonModel:
         try:
             if lessons_collection is not None:
                 result = lessons_collection.insert_one(document)
+                print(f"💾 Lesson saved to MongoDB with ID: {result.inserted_id}")
+                print(f"   - Quiz data included: {bool(quiz_data)}")
+                print(f"   - Notes data included: {bool(notes_data)}")
                 return str(result.inserted_id)
             else:
                 logger.warning("MongoDB unavailable, returning mock lesson ID")
                 return str(document['_id'])
         except Exception as e:
             logger.error(f"Error creating lesson: {e}")
+            print(f"❌ Error saving lesson to MongoDB: {e}")
             return str(document['_id'])  # Return mock ID as fallback
     
     @staticmethod

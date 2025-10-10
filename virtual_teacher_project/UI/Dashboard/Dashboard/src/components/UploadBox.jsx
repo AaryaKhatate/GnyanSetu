@@ -54,21 +54,39 @@ export default function UploadBox({ onStartSession }) {
   const handleUpload = async () => {
     if (selectedFile) {
       try {
-        console.log("Starting PDF upload...", selectedFile);
+        console.log("📤 Starting PDF upload...", selectedFile);
+
+        // Get user ID from session storage (set during login)
+        const userId = 
+          sessionStorage.getItem('userId') || 
+          sessionStorage.getItem('studentId') || 
+          localStorage.getItem('userId') ||
+          localStorage.getItem('studentId');
+        
+        console.log("🔍 Checking for userId in storage...");
+        console.log("- sessionStorage.userId:", sessionStorage.getItem('userId'));
+        console.log("- localStorage.userId:", localStorage.getItem('userId'));
+        
+        if (!userId) {
+          console.error("❌ No user ID found in storage!");
+          console.log("📦 All localStorage keys:", Object.keys(localStorage));
+          console.log("📦 All sessionStorage keys:", Object.keys(sessionStorage));
+          alert("Please login first to upload a PDF.\n\nDebug info:\n- localStorage.userId: " + localStorage.getItem('userId') + "\n- sessionStorage.userId: " + sessionStorage.getItem('userId'));
+          return;
+        }
+        
+        console.log("✅ User ID found:", userId);
 
         // Upload PDF to Django backend
         const formData = new FormData();
         formData.append("pdf_file", selectedFile);
-        
-        // Add user ID - for now use a default value since authentication might not be fully implemented
-        // TODO: Get actual user ID from authentication context
-        formData.append("user_id", "anonymous_user");
+        formData.append("user_id", userId);  // Use actual user ID
         formData.append("lesson_type", "interactive");
 
         console.log("Sending request to backend...");
         console.log("URL:", "http://localhost:8000/api/generate-lesson/");
-        console.log("FormData:", formData);
-        console.log("File:", selectedFile);
+        console.log("User ID:", userId);
+        console.log("File:", selectedFile.name);
 
         const response = await fetch("http://localhost:8000/api/generate-lesson/", {
           method: "POST",

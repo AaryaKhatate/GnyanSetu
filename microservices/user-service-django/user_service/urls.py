@@ -6,8 +6,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
-from test_view import simple_test
-from authentication.views import google_oauth_placeholder
 
 
 def api_root(request):
@@ -32,9 +30,6 @@ def favicon(request):
 
 
 urlpatterns = [
-    # Test endpoint
-    path('test/', simple_test, name='simple_test'),
-    
     # API root
     path('', api_root, name='api_root'),
     
@@ -47,11 +42,11 @@ urlpatterns = [
     # API endpoints - Legacy/Frontend compatibility endpoints 
     path('api/', include('authentication.urls', namespace='api-compat')),
     
+    # Social authentication (allauth)
+    path('accounts/', include('allauth.urls')),
+    
     # Favicon handler
     path('favicon.ico', favicon, name='favicon'),
-    
-    # Google OAuth compatibility (direct path)
-    path('accounts/google/login/', google_oauth_placeholder, name='google_oauth'),
     
     # API documentation (when drf-spectacular is configured)
     # path('api/docs/', SpectacularAPIView.as_view(), name='schema'),

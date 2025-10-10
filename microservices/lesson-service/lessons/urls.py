@@ -18,5 +18,6 @@ urlpatterns = [
     
     # Lesson-specific endpoints
     path('api/lessons/<str:lesson_id>/', views.get_lesson_detail, name='lesson_detail'),
+    path('api/lessons/<str:lesson_id>/quiz-notes-status/', views.check_quiz_notes_status, name='quiz_notes_status'),
     path('api/lessons/<str:lesson_id>/regenerate/', views.regenerate_lesson, name='regenerate_lesson'),
 ]

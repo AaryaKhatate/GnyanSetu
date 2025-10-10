@@ -6,6 +6,7 @@ import {
   SparklesIcon,
 } from "@heroicons/react/24/solid";
 import classNames from "classnames";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 // API Configuration - Use API Gateway instead of direct service calls
 const API_BASE_URL = "http://localhost:8000";
@@ -33,7 +34,46 @@ const apiCall = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || "An error occurred");
+      // Handle various error response formats from Django/DRF
+      let errorMessage = "An error occurred";
+
+      if (data.error) {
+        errorMessage = data.error;
+      } else if (data.detail) {
+        errorMessage = data.detail;
+      } else if (data.password) {
+        // Handle password validation errors specifically
+        errorMessage = Array.isArray(data.password)
+          ? data.password.join(" ")
+          : data.password;
+      } else if (data.email) {
+        // Handle email validation errors
+        errorMessage = Array.isArray(data.email)
+          ? data.email.join(" ")
+          : data.email;
+      } else if (data.username) {
+        // Handle username validation errors
+        errorMessage = Array.isArray(data.username)
+          ? data.username.join(" ")
+          : data.username;
+      } else if (data.non_field_errors) {
+        errorMessage = Array.isArray(data.non_field_errors)
+          ? data.non_field_errors[0]
+          : data.non_field_errors;
+      } else if (typeof data === "object" && Object.keys(data).length > 0) {
+        // Extract all field errors and combine them
+        const errors = Object.entries(data)
+          .map(([field, msgs]) => {
+            const messages = Array.isArray(msgs) ? msgs.join(" ") : msgs;
+            return `${field}: ${messages}`;
+          })
+          .join("; ");
+        errorMessage = errors || "Validation error occurred";
+      } else if (typeof data === "string") {
+        errorMessage = data;
+      }
+
+      throw new Error(errorMessage);
     }
 
     return data;
@@ -50,16 +90,16 @@ const authAPI = {
       body: JSON.stringify({ email, password }),
     }),
 
-  signup: (name, email, password, confirm_password) =>
+  signup: (full_name, email, password, password_confirm, username) =>
     apiCall("/api/auth/signup/", {
       method: "POST",
-      body: JSON.stringify({ 
-        username: email.split('@')[0], // Use email prefix as username
-        full_name: name,
-        email, 
-        password, 
-        password_confirm: confirm_password,
-        terms_accepted: true // Auto-accept for now
+      body: JSON.stringify({
+        full_name,
+        email,
+        password,
+        password_confirm,
+        username: username || email.split("@")[0], // Generate username from email if not provided
+        terms_accepted: true, // Auto-accept for now, can add checkbox later
       }),
     }),
 
@@ -76,9 +116,82 @@ const authAPI = {
 };
 
 // Google OAuth handler
-const handleGoogleSignup = () => {
-  // Redirect to Google OAuth endpoint
-  window.location.href = `${API_BASE_URL}/accounts/google/login/?next=/dashboard/`;
+const handleGoogleSuccess = async (credentialResponse) => {
+  try {
+    console.log("🔐 Google Login - Credential received");
+    console.log("📤 Sending to backend:", {
+      token: credentialResponse.credential ? "✓ Present" : "✗ Missing"
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/google/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        token: credentialResponse.credential, // Backend expects 'token', not 'access_token'
+      }),
+    });
+
+    console.log("📥 Backend response status:", response.status);
+    const data = await response.json();
+    console.log("📥 Backend response data:", data);
+
+    if (response.ok) {
+      // Save tokens
+      const accessToken = data.tokens.access;
+      const refreshToken = data.tokens.refresh;
+      
+      localStorage.setItem("access_token", accessToken);
+      localStorage.setItem("refresh_token", refreshToken);
+      localStorage.setItem("gnyansetu_auth_token", accessToken);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      
+      // Save user data for dashboard
+      const userId = data.user?.id || data.user?._id;
+      const userEmail = data.user?.email;
+      const userName = data.user?.full_name || data.user?.name;
+      
+      if (userId) {
+        sessionStorage.setItem("userId", userId);
+        localStorage.setItem("userId", userId);
+      }
+      
+      if (userEmail) {
+        sessionStorage.setItem("userEmail", userEmail);
+        localStorage.setItem("userEmail", userEmail);
+      }
+      
+      if (userName) {
+        sessionStorage.setItem("userName", userName);
+        localStorage.setItem("userName", userName);
+      }
+      
+      console.log("✅ Google login - User data stored:", { userId, userEmail, userName });
+
+      // Redirect to dashboard with data in URL hash
+      const dashboardUrl = `http://localhost:3001/#login?` +
+        `userId=${encodeURIComponent(userId)}&` +
+        `userEmail=${encodeURIComponent(userEmail)}&` +
+        `userName=${encodeURIComponent(userName)}&` +
+        `accessToken=${encodeURIComponent(accessToken)}&` +
+        `refreshToken=${encodeURIComponent(refreshToken)}&` +
+        `user=${encodeURIComponent(JSON.stringify(data.user))}`;
+      
+      window.location.href = dashboardUrl;
+    } else {
+      console.error("Google login failed:", data);
+      alert(data.error || "Google login failed. Please try again.");
+    }
+  } catch (error) {
+    console.error("Error during Google login:", error);
+    alert("An error occurred during Google login. Please try again.");
+  }
+};
+
+const handleGoogleError = () => {
+  console.log("Google Login Failed");
+  alert("Google login was cancelled or failed. Please try again.");
 };
 
 function useLockBodyScroll(locked) {
@@ -588,36 +701,19 @@ const Checkbox = ({ label, ...props }) => (
   </label>
 );
 
-const GoogleButton = ({ text, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-2 text-slate-200 hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 533.5 544.3"
-      className="h-5 w-5"
-    >
-      <path
-        fill="#4285F4"
-        d="M533.5 278.4c0-18.6-1.7-37-5.2-54.8H272.1v103.9h147.2c-6.2 33.6-25 62-53.5 81v67.2h86.6c50.8-46.8 81.1-115.7 81.1-197.3z"
-      />
-      <path
-        fill="#34A853"
-        d="M272.1 544.3c72.7 0 133.8-24.1 178.4-65.7l-86.6-67.2c-24.1 16.2-55 25.6-91.8 25.6-70.7 0-130.6-47.7-152-111.8H30.1v70.1c44.2 87.7 134.9 149 242 149z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M120.1 325.2c-10.4-30.9-10.4-64.2 0-95.1V160H30.1c-43.3 86.6-43.3 189.8 0 276.5l90-70.9z"
-      />
-      <path
-        fill="#EA4335"
-        d="M272.1 106.6c39.5-.6 77.6 14.5 106.4 42.2l79.1-79.1C409.4 25.1 343 0 272.1 0 165 0 74.2 61.3 30.1 149.9l90 70.1c21.3-64 81.2-111.8 152-111.8z"
-      />
-    </svg>
-    <span>{text}</span>
-  </button>
+const GoogleButton = ({ text }) => (
+  <div className="mt-3 w-full">
+    <GoogleLogin
+      onSuccess={handleGoogleSuccess}
+      onError={handleGoogleError}
+      text="continue_with"
+      shape="rectangular"
+      theme="filled_blue"
+      size="large"
+      width="100%"
+      logo_alignment="left"
+    />
+  </div>
 );
 
 const LoginForm = ({ onForgot, onSignup, onSuccess, onError }) => {
@@ -683,7 +779,7 @@ const LoginForm = ({ onForgot, onSignup, onSuccess, onError }) => {
       >
         {loading ? "Logging in..." : "Login"}
       </button>
-      <GoogleButton text="Login using Google" onClick={handleGoogleSignup} />
+      <GoogleButton text="Login using Google" />
       <div className="text-center text-sm text-slate-400">
         New to GyanSetu?{" "}
         <button
@@ -724,6 +820,8 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
       );
       onSuccess(result);
     } catch (error) {
+      console.error("Signup error:", error);
+      console.error("Error message:", error.message);
       onError(error.message);
     } finally {
       setLoading(false);
@@ -764,6 +862,10 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
           onChange={handleChange}
           required
         />
+        <p className="mt-1 text-xs text-slate-400">
+          Must be 8+ characters with uppercase, number, and special character
+          (!@#$%^&* etc.)
+        </p>
       </div>
       <div>
         <label className="mb-1 block text-sm text-slate-300">
@@ -785,7 +887,7 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
       >
         {loading ? "Creating account..." : "Create account"}
       </button>
-      <GoogleButton text="Continue with Google" onClick={handleGoogleSignup} />
+      <GoogleButton text="Continue with Google" />
       <div className="text-center text-sm text-slate-400">
         Already a user?{" "}
         <button
@@ -800,17 +902,59 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
   );
 };
 
-const ForgotPasswordForm = ({ onLogin, onSuccess, onError }) => {
+const ForgotPasswordForm = ({ onLogin, onSuccess, onError, onStepChange }) => {
+  const [step, setStep] = useState(1); // 1: email, 2: OTP, 3: new password
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
+  const [canResend, setCanResend] = useState(false);
 
-  const handleSubmit = async (e) => {
+  // Notify parent component of step changes
+  React.useEffect(() => {
+    if (onStepChange) {
+      onStepChange(step);
+    }
+  }, [step, onStepChange]);
+
+  // Countdown timer effect
+  React.useEffect(() => {
+    if (step === 2 && countdown > 0) {
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [step, countdown]);
+
+  // Format countdown as MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const result = await authAPI.forgotPassword(email);
-      onSuccess(result.message);
+      setStep(2);
+      setCountdown(600);
+      setCanResend(false);
+      onSuccess(
+        result.message ||
+          "If an account exists with this email, an OTP has been sent."
+      );
     } catch (error) {
       onError(error.message);
     } finally {
@@ -818,47 +962,263 @@ const ForgotPasswordForm = ({ onLogin, onSuccess, onError }) => {
     }
   };
 
-  return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <div>
-        <label className="mb-1 block text-sm text-slate-300">Email</label>
-        <Input
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
-      <p className="text-sm text-slate-400 text-center">
-        Enter your email address and we'll send you a link to reset your
-        password.
-      </p>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading ? "Sending..." : "Send Reset Link"}
-      </button>
-      <div className="text-center text-sm text-slate-400">
-        Remember your password?{" "}
+  const handleResendOTP = async () => {
+    setLoading(true);
+    try {
+      const result = await authAPI.forgotPassword(email);
+      setCountdown(600);
+      setCanResend(false);
+      onSuccess(
+        result.message ||
+          "If an account exists with this email, an OTP has been sent."
+      );
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setStep(3);
+        onSuccess("OTP verified! Enter your new password.");
+      } else {
+        onError(data.error || "Invalid OTP");
+      }
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmPassword) {
+      onError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/auth/password-reset-confirm/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            otp,
+            new_password: newPassword,
+            confirm_password: confirmPassword,
+          }),
+        }
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        onSuccess("Password reset successful! You can now log in.");
+        setTimeout(() => onLogin(), 2000);
+      } else {
+        onError(data.error || "Failed to reset password");
+      }
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 1: Enter Email
+  if (step === 1) {
+    return (
+      <form className="space-y-4" onSubmit={handleSendOTP}>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">Email</label>
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <p className="text-sm text-slate-400 text-center">
+          Enter your email address and we'll send you an OTP to reset your
+          password.
+        </p>
         <button
-          type="button"
-          onClick={onLogin}
-          className="text-accentBlue hover:underline font-medium"
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Back to Login
+          {loading ? "Sending OTP..." : "Send OTP"}
         </button>
-      </div>
-    </form>
-  );
+        <div className="text-center text-sm text-slate-400">
+          Remember your password?{" "}
+          <button
+            type="button"
+            onClick={onLogin}
+            className="text-accentBlue hover:underline font-medium"
+          >
+            Back to Login
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  // Step 2: Enter OTP
+  if (step === 2) {
+    return (
+      <form className="space-y-4" onSubmit={handleVerifyOTP}>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">Enter OTP</label>
+          <Input
+            type="text"
+            placeholder="123456"
+            value={otp}
+            onChange={(e) =>
+              setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+            maxLength="6"
+            required
+            className="text-center text-2xl tracking-widest"
+          />
+          <p className="mt-2 text-xs text-slate-400 text-center">
+            We sent a 6-digit code to{" "}
+            <span className="text-accentBlue font-medium">{email}</span>
+          </p>
+        </div>
+
+        {/* Countdown Timer */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-lg">
+            <svg
+              className="w-4 h-4 text-accentBlue"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+            </svg>
+            <span
+              className={`text-sm font-mono ${
+                countdown < 60 ? "text-red-400" : "text-slate-300"
+              }`}
+            >
+              {formatTime(countdown)}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Verifying..." : "Verify OTP"}
+        </button>
+
+        {/* Resend OTP Button */}
+        <div className="text-center text-sm">
+          {canResend || countdown === 0 ? (
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={loading}
+              className="text-accentBlue hover:underline font-medium disabled:opacity-50"
+            >
+              Resend OTP
+            </button>
+          ) : (
+            <span className="text-slate-500">
+              Didn't receive? Resend in {formatTime(countdown)}
+            </span>
+          )}
+        </div>
+
+        <div className="text-center text-sm text-slate-400">
+          <button
+            type="button"
+            onClick={() => setStep(1)}
+            className="text-accentBlue hover:underline font-medium"
+          >
+            ← Change Email
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  // Step 3: Reset Password
+  if (step === 3) {
+    return (
+      <form className="space-y-4" onSubmit={handleResetPassword}>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">
+            New Password
+          </label>
+          <Input
+            type="password"
+            placeholder="Enter new password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Must be 8+ characters with uppercase, number, and special character
+            (!@#$%^&* etc.)
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-slate-300">
+            Confirm Password
+          </label>
+          <Input
+            type="password"
+            placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-accentBlue to-accentPurple px-4 py-2 text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Resetting..." : "Reset Password"}
+        </button>
+      </form>
+    );
+  }
 };
 
 export default function App() {
   const [modal, setModal] = useState(null); // 'login' | 'signup' | 'forgot' | null
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [forgotPasswordStep, setForgotPasswordStep] = useState(1);
 
   // Apply scroll lock when any modal is open
   useLockBodyScroll(modal !== null);
@@ -879,24 +1239,120 @@ export default function App() {
     setModal("forgot");
     setError("");
     setSuccess("");
+    setForgotPasswordStep(1); // Reset to step 1
   };
 
   const closeModal = () => {
     setModal(null);
     setError("");
     setSuccess("");
+    setForgotPasswordStep(1); // Reset step when closing
   };
 
   const handleAuthSuccess = (result) => {
-    if (result.user) {
-      // Authentication successful, open dashboard in new tab
-      console.log("Authentication successful:", result);
-      // Store user data for dashboard
-      localStorage.setItem('gnyansetu_user', JSON.stringify(result.user));
-      // Open dashboard in new tab instead of redirecting
-      window.location.replace("http://localhost:3001", '_blank');
-      // Close modal
-      closeModal();
+    console.log("====================================");
+    console.log("🔍 RAW Login API Response:");
+    console.log("====================================");
+    console.log("Full result object:", JSON.stringify(result, null, 2));
+    console.log("result.access:", result.access);
+    console.log("result.token:", result.token);
+    console.log("result.refresh:", result.refresh);
+    console.log("result.user:", result.user);
+    console.log("====================================");
+    
+    // Clear any old data first
+    localStorage.removeItem("user");
+    localStorage.removeItem("gnyansetu_user");
+    sessionStorage.clear();
+    
+    if (result.access || result.user || result.token) {
+      // Authentication successful, store tokens and user data
+      console.log("✅ Authentication successful:", result);
+      
+      // Store JWT tokens (Django returns 'access' and 'refresh')
+      const accessToken = result.access || result.token;
+      const refreshToken = result.refresh;
+      
+      if (accessToken) {
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("gnyansetu_auth_token", accessToken);
+        console.log("✅ Access token stored:", accessToken.substring(0, 20) + "...");
+      } else {
+        console.error("❌ No access token in response!");
+      }
+      
+      if (refreshToken) {
+        localStorage.setItem("refresh_token", refreshToken);
+        console.log("✅ Refresh token stored");
+      }
+      
+      // Store user data
+      if (result.user) {
+        localStorage.setItem("user", JSON.stringify(result.user));
+        localStorage.setItem("gnyansetu_user", JSON.stringify(result.user));
+        console.log("✅ User object stored:", result.user);
+        
+        // Extract and store user details
+        const userId = result.user.id || result.user._id;
+        const userEmail = result.user.email;
+        const userName = result.user.full_name || result.user.name;
+        
+        if (userId) {
+          sessionStorage.setItem("userId", userId);
+          localStorage.setItem("userId", userId);
+          console.log("✅ User ID stored:", userId);
+        } else {
+          console.error("❌ No userId found in user object!");
+        }
+        
+        if (userEmail) {
+          sessionStorage.setItem("userEmail", userEmail);
+          localStorage.setItem("userEmail", userEmail);
+          console.log("✅ User email stored:", userEmail);
+        }
+        
+        if (userName) {
+          sessionStorage.setItem("userName", userName);
+          localStorage.setItem("userName", userName);
+          console.log("✅ User name stored:", userName);
+        }
+        
+        console.log("\n📦 Storage Summary:");
+        console.log("- access_token:", localStorage.getItem("access_token") ? "✅ Stored" : "❌ Missing");
+        console.log("- userId:", localStorage.getItem("userId") || "❌ Missing");
+        console.log("- userEmail:", localStorage.getItem("userEmail") || "❌ Missing");
+        console.log("- userName:", localStorage.getItem("userName") || "❌ Missing");
+      } else {
+        console.error("❌ No user object in response!");
+      }
+      
+      console.log("\n🚀 Redirecting to dashboard with user data...");
+      
+      // Small delay to ensure storage is written
+      setTimeout(() => {
+        // Since localhost:3000 and localhost:3001 have separate localStorage,
+        // we need to pass the data via URL or store it on the dashboard side
+        const userId = result.user.id || result.user._id;
+        const userEmail = result.user.email;
+        const userName = result.user.full_name || result.user.name;
+        const accessToken = result.access || result.token;
+        const refreshToken = result.refresh;
+        
+        // Create a URL with all the data as hash (not query params to avoid server logs)
+        const dashboardUrl = `http://localhost:3001/#login?` +
+          `userId=${encodeURIComponent(userId)}&` +
+          `userEmail=${encodeURIComponent(userEmail)}&` +
+          `userName=${encodeURIComponent(userName)}&` +
+          `accessToken=${encodeURIComponent(accessToken)}&` +
+          `refreshToken=${encodeURIComponent(refreshToken)}&` +
+          `user=${encodeURIComponent(JSON.stringify(result.user))}`;
+        
+        console.log("📡 Redirecting with user data in URL hash");
+        window.location.href = dashboardUrl;
+      }, 100);
+    } else {
+      console.error("❌ Invalid response format:", result);
+      setError("Login failed: Invalid response from server");
     }
   };
 
@@ -912,86 +1368,95 @@ export default function App() {
 
   const redirectToDashboard = () => {
     // Open dashboard in new tab instead of redirecting
-    window.location.replace("http://localhost:3001", '_blank');
+    window.open("http://localhost:3001", "_blank");
   };
 
   return (
-    <div className="relative min-h-screen">
-      <BackgroundBlobs />
-      <NavBar onLogin={openLogin} onSignup={openSignup} />
-      <main>
-        <Hero onPrimary={openSignup} />
-        <About />
-        <Features />
-        <CTA onClick={openSignup} />
-      </main>
-      <Footer />
+    <GoogleOAuthProvider clientId="334410826401-5dc8sdfntd1unbfnjamd6k4dvd7c3g1r.apps.googleusercontent.com">
+      <div className="relative min-h-screen">
+        <BackgroundBlobs />
+        <NavBar onLogin={openLogin} onSignup={openSignup} />
+        <main>
+          <Hero onPrimary={openSignup} />
+          <About />
+          <Features />
+          <CTA onClick={openSignup} />
+        </main>
+        <Footer />
 
-      {/* Error/Success Messages */}
-      {error && (
-        <div className="fixed top-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-lg shadow-lg max-w-md">
-          <div className="flex items-start justify-between">
-            <span className="text-sm">{error}</span>
-            <button
-              onClick={() => setError("")}
-              className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
-            >
-              ✕
-            </button>
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="fixed top-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-lg shadow-lg max-w-md">
+            <div className="flex items-start justify-between">
+              <span className="text-sm">{error}</span>
+              <button
+                onClick={() => setError("")}
+                className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {success && (
-        <div className="fixed top-4 right-4 z-[200] bg-green-500 text-white p-4 rounded-lg shadow-lg max-w-md">
-          <div className="flex items-start justify-between">
-            <span className="text-sm">{success}</span>
-            <button
-              onClick={() => setSuccess("")}
-              className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
-            >
-              ✕
-            </button>
+        {success && (
+          <div className="fixed top-4 right-4 z-[200] bg-green-500 text-white p-4 rounded-lg shadow-lg max-w-md">
+            <div className="flex items-start justify-between">
+              <span className="text-sm">{success}</span>
+              <button
+                onClick={() => setSuccess("")}
+                className="ml-2 text-white hover:text-gray-200 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <Modal
-        isOpen={modal === "login"}
-        title="Login to GyanSetu"
-        onClose={closeModal}
-      >
-        <LoginForm
-          onForgot={() => setModal("forgot")}
-          onSignup={() => setModal("signup")}
-          onSuccess={handleAuthSuccess}
-          onError={handleAuthError}
-        />
-      </Modal>
+        <Modal
+          isOpen={modal === "login"}
+          title="Login to GyanSetu"
+          onClose={closeModal}
+        >
+          <LoginForm
+            onForgot={() => setModal("forgot")}
+            onSignup={() => setModal("signup")}
+            onSuccess={handleAuthSuccess}
+            onError={handleAuthError}
+          />
+        </Modal>
 
-      <Modal
-        isOpen={modal === "signup"}
-        title="Create your account"
-        onClose={closeModal}
-      >
-        <SignupForm
-          onLogin={() => setModal("login")}
-          onSuccess={handleAuthSuccess}
-          onError={handleAuthError}
-        />
-      </Modal>
+        <Modal
+          isOpen={modal === "signup"}
+          title="Create your account"
+          onClose={closeModal}
+        >
+          <SignupForm
+            onLogin={() => setModal("login")}
+            onSuccess={handleAuthSuccess}
+            onError={handleAuthError}
+          />
+        </Modal>
 
-      <Modal
-        isOpen={modal === "forgot"}
-        title="Reset Password"
-        onClose={closeModal}
-      >
-        <ForgotPasswordForm
-          onLogin={() => setModal("login")}
-          onSuccess={handleForgotPasswordSuccess}
-          onError={handleAuthError}
-        />
-      </Modal>
-    </div>
+        <Modal
+          isOpen={modal === "forgot"}
+          title={
+            forgotPasswordStep === 1
+              ? "Reset Password"
+              : forgotPasswordStep === 2
+              ? "Verify OTP"
+              : "Create New Password"
+          }
+          onClose={closeModal}
+        >
+          <ForgotPasswordForm
+            onLogin={() => setModal("login")}
+            onSuccess={handleForgotPasswordSuccess}
+            onError={handleAuthError}
+            onStepChange={setForgotPasswordStep}
+          />
+        </Modal>
+      </div>
+    </GoogleOAuthProvider>
   );
 }

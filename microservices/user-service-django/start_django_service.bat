@@ -11,7 +11,7 @@ echo.
 
 REM Set base paths
 set "VENV_PATH=e:\Project\venv\Scripts\activate"
-set "DJANGO_PATH=e:\Project\Gnyansetu_Updated_Architecture\microservices\user-service-django"
+set "DJANGO_PATH=e:\Project\GnyanSetu\microservices\user-service-django"
 
 REM Check if virtual environment exists
 if not exist "%VENV_PATH%" (

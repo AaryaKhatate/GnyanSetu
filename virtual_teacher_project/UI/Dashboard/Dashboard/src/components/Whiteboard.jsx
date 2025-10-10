@@ -368,9 +368,11 @@ const Whiteboard = ({
       console.log(`⚙️ isTeaching set to true`);
 
       // Clear canvas for new step
-      if (canvasRef.current) {
+      if (canvasRef.current && typeof canvasRef.current.clearCanvas === 'function') {
         canvasRef.current.clearCanvas();
         console.log("🎨 Canvas cleared for step", stepIndex + 1);
+      } else {
+        console.warn("⚠️ Canvas clearCanvas method not available");
       }
 
       // Validate and prepare speech text

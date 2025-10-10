@@ -126,18 +126,58 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await LandingAuthAPI.login(email, password);
-      if (response.success || response.token) {
-        const token = response.token;
+      console.log('🔍 Login API Response:', response);
+      
+      // Django returns { access, refresh, user } - check for access token
+      if (response.access || response.token) {
+        const token = response.access || response.token; // Support both formats
+        const userId = response.user?.id || response.user?._id;
+        const userEmail = response.user?.email;
+        const userName = response.user?.full_name || response.user?.name;
+        
+        console.log('📦 Extracted data:', { token: token?.substring(0, 20) + '...', userId, userEmail, userName });
+        
+        // Store auth tokens
         localStorage.setItem('gnyansetu_auth_token', token);
+        localStorage.setItem('access_token', token);
+        if (response.refresh) {
+          localStorage.setItem('refresh_token', response.refresh);
+        }
+        
+        // Store user data for dashboard
+        if (userId) {
+          sessionStorage.setItem('userId', userId);
+          localStorage.setItem('userId', userId);
+          console.log('✅ User ID stored in storage:', userId);
+        } else {
+          console.error('❌ No userId found in response:', response);
+        }
+        
+        if (userEmail) {
+          sessionStorage.setItem('userEmail', userEmail);
+          localStorage.setItem('userEmail', userEmail);
+        }
+        
+        if (userName) {
+          sessionStorage.setItem('userName', userName);
+          localStorage.setItem('userName', userName);
+        }
+        
+        // Store complete user object
+        localStorage.setItem('user', JSON.stringify(response.user));
         
         setUser({
-          id: response.user._id,
-          email: response.user.email,
-          name: response.user.name,
-          role: response.user.role
+          id: userId,
+          email: userEmail,
+          name: userName,
+          role: response.user?.role
         });
         
+        console.log('✅ Login successful - redirecting to dashboard');
         return response;
+      } else {
+        console.error('❌ No access token in response:', response);
+        throw new Error('Invalid response format from server');
       }
     } catch (error) {
       setError(error.message);

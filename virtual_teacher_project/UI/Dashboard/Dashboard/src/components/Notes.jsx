@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Download,
@@ -10,34 +10,155 @@ import {
 import jsPDF from "jspdf";
 
 const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
-  // Use provided notes content or fallback to mock data
-  const lessonNotes = notesContent
-    ? // If notesContent is HTML, extract text content or parse it
-      typeof notesContent === "string" && notesContent.includes("<")
-      ? // Simple HTML to text conversion for display
-        notesContent
-          .replace(/<[^>]*>/g, " ")
-          .split(/\s+/)
-          .filter((word) => word.length > 0)
-          .join(" ")
-          .split(/[.!?]+/)
-          .filter((sentence) => sentence.trim().length > 10)
-          .map((sentence) => sentence.trim())
-      : [notesContent]
-    : [
-        "Understanding fundamental principles is crucial for advanced learning",
-        "Active engagement leads to better retention and comprehension",
-        "Real-world application reinforces theoretical knowledge",
-        "Regular practice and review improve long-term memory",
-        "Breaking complex concepts into smaller parts aids understanding",
-        "Visual and interactive learning methods enhance engagement",
-        "Consistent study habits lead to better academic performance",
-        "Collaborative learning can provide new perspectives and insights",
-      ];
+  const [lessonNotes, setLessonNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [notesData, setNotesData] = useState(null);
+
+  // Fetch notes from API
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        setLoading(true);
+        
+        // Try multiple ways to get the lesson ID
+        const lessonId = 
+          sessionStorage.getItem('lessonId') || 
+          sessionStorage.getItem('conversationId') ||
+          localStorage.getItem('currentConversationId') ||
+          sessionStorage.getItem('currentConversationId');
+          
+        const userId = 
+          sessionStorage.getItem('userId') || 
+          localStorage.getItem('userId') ||
+          sessionStorage.getItem('studentId') || 
+          'default_student';
+        
+        if (!lessonId || lessonId === 'default_lesson') {
+          console.warn('⚠️ No lesson ID found. Using fallback data.');
+          throw new Error('No active lesson found. Please start a lesson first.');
+        }
+        
+        console.log('📝 Fetching notes for lesson:', lessonId);
+        console.log('👤 User ID:', userId);
+        
+        // Updated endpoint: /api/notes/get/ (retrieves pre-generated notes)
+        const response = await fetch(
+          `http://localhost:8000/api/notes/get/${lessonId}?user_id=${userId}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          // If 202 (Accepted), notes are still being generated
+          if (response.status === 202) {
+            throw new Error('Notes are being generated. Please wait a moment...');
+          }
+          throw new Error('Failed to fetch notes data');
+        }
+
+        const data = await response.json();
+        setNotesData(data);
+        
+        // Transform API data into an array of notes
+        const notesArray = [];
+        
+        // Add summary
+        if (data.summary) {
+          notesArray.push(data.summary);
+        }
+        
+        // Add key takeaways
+        if (data.key_takeaways && Array.isArray(data.key_takeaways)) {
+          notesArray.push(...data.key_takeaways);
+        }
+        
+        // Add content from sections
+        if (data.sections && Array.isArray(data.sections)) {
+          data.sections.forEach(section => {
+            if (section.content) {
+              notesArray.push(section.content);
+            }
+          });
+        }
+        
+        setLessonNotes(notesArray);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching notes:', err);
+        setError('Failed to load notes. Please try again.');
+        setLoading(false);
+        
+        // Fallback to mock data on error
+        setLessonNotes([
+          "Understanding fundamental principles is crucial for advanced learning",
+          "Active engagement leads to better retention and comprehension",
+          "Real-world application reinforces theoretical knowledge",
+          "Regular practice and review improve long-term memory",
+          "Breaking complex concepts into smaller parts aids understanding",
+          "Visual and interactive learning methods enhance engagement",
+          "Consistent study habits lead to better academic performance",
+          "Collaborative learning can provide new perspectives and insights",
+        ]);
+      }
+    };
+
+    // Only fetch if notesContent prop is not provided
+    if (!notesContent) {
+      fetchNotes();
+    } else {
+      // Use provided notes content or fallback to mock data
+      const processedNotes = typeof notesContent === "string" && notesContent.includes("<")
+        ? // Simple HTML to text conversion for display
+          notesContent
+            .replace(/<[^>]*>/g, " ")
+            .split(/\s+/)
+            .filter((word) => word.length > 0)
+            .join(" ")
+            .split(/[.!?]+/)
+            .filter((sentence) => sentence.trim().length > 10)
+            .map((sentence) => sentence.trim())
+        : [notesContent];
+      
+      setLessonNotes(processedNotes);
+      setLoading(false);
+    }
+  }, [notesContent]);
 
   const handleDownloadNotes = async () => {
     try {
-      // Create a proper PDF using jsPDF
+      // If we have notes_id from API, use the download endpoint
+      if (notesData && notesData.notes_id) {
+        const response = await fetch(
+          `http://localhost:8000/api/notes/download/${notesData.notes_id}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (response.ok) {
+          // Get the content from the response
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `lesson-notes-${notesData.lesson_id}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          return;
+        }
+      }
+
+      // Fallback: Create a PDF using jsPDF
       const doc = new jsPDF();
 
       // Add title
@@ -107,6 +228,18 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
       alert("Error downloading slides. Please try again.");
     }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-300 text-lg">Generating your notes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

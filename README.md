@@ -1,430 +1,756 @@
 # 📘 GnyanSetu – AI-Powered Interactive Learning Platform
 
-**GnyanSetu** is an AI-powered interactive learning platform that converts static educational content into dynamic, personalized lessons with real-time voice narration, whiteboard-style visualizations, and interactive diagrams.
+<div align="center">
 
-The platform allows students to upload study materials (PDFs), generates AI-driven interactive lessons, and provides step-by-step teaching with quizzes and downloadable notes.
+<img src="./virtual_teacher_project/GnyanSetu.png" alt="GnyanSetu Logo" width="200"/>
+
+<br/><br/>
+
+![GnyanSetu Badge](https://img.shields.io/badge/GnyanSetu-AI%20Learning-blue?style=for-the-badge)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-4.2-green?style=for-the-badge&logo=django)](https://www.djangoproject.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-4.4+-green?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/)
+
+**Transform static educational content into dynamic, AI-powered interactive lessons**
+
+[Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [API Documentation](#-api-documentation)
+
+</div>
+
+---
+
+## 🌟 Overview
+
+**GnyanSetu** (Bridge to Knowledge) is an advanced AI-powered learning platform that revolutionizes education by converting static study materials into interactive, personalized learning experiences. The platform combines cutting-edge AI technology with real-time visualization and adaptive learning mechanisms.
+
+### What Makes GnyanSetu Different?
+
+- 🎯 **Interactive AI Teaching** - Not just content, but a virtual teacher that explains step-by-step
+- 🎨 **Visual Learning** - Dynamic whiteboard with animations, diagrams, and real-time drawing
+- 🧠 **Smart Assessment** - AI-generated quizzes that adapt to your learning pace
+- 📝 **Intelligent Notes** - Auto-generated, organized notes with key concepts highlighted
+- 🔄 **Real-time Interaction** - WebSocket-powered live learning experience
+- 📊 **Progress Tracking** - Comprehensive analytics to monitor learning journey
 
 ---
 
 ## ✨ Features
 
-- **PDF Upload & Processing**: Upload educational PDFs and extract text content
-- **AI-Powered Lesson Generation**: Uses Google's Gemini AI to create interactive lessons
-- **Real-time Whiteboard**: Dynamic visualizations with shapes, text, and arrows
-- **Interactive Quizzes**: Auto-generated quizzes based on lesson content
-- **Notes Generation**: Automatic summary notes with downloadable PDFs
-- **WebSocket Communication**: Real-time communication between frontend and backend
-- **MongoDB Storage**: Store lessons, quizzes, student progress, and analytics
-- **Responsive UI**: Modern React interface with Tailwind CSS
-
-## 🛠️ Technical Stack
-
-### Backend
-
-- **Django 4.2**: Web framework with ASGI support
-- **Channels & Daphne**: WebSocket support and ASGI server
-- **Motor & PyMongo**: Async MongoDB integration
-- **Google Generative AI**: AI lesson generation
-- **PyMuPDF**: PDF text extraction
-- **LangChain**: AI prompt management
-- **Django CORS Headers**: Cross-origin resource sharing
-
-### Frontend
-
-- **React 18**: User interface framework
-- **Tailwind CSS**: Utility-first styling
-- **Framer Motion**: Smooth animations
-- **Lucide React**: Modern icon library
-- **jsPDF**: Client-side PDF generation
-
-### Database
-
-- **MongoDB**: Document storage for lessons, quizzes, and analytics
-
-## 📁 Project Structure
-
-```
-virtual_teacher_project/
-├── teacher_app/                 # Django app
-│   ├── views.py                # API endpoints and PDF handling
-│   ├── consumers.py            # WebSocket consumer for real-time communication
-│   ├── models.py              # Django models
-│   ├── mongo.py               # MongoDB connection and document schemas
-│   ├── mongo_collections.py   # MongoDB collections
-│   ├── urls.py                # URL routing
-│   └── routing.py             # WebSocket routing
-├── virtual_teacher_project/    # Django project settings
-│   ├── settings.py            # Configuration with CORS and MongoDB
-│   ├── urls.py                # Main URL routing
-│   └── asgi.py                # ASGI application for WebSocket support
-├── UI/Dashboard/Dashboard/     # React frontend
-│   ├── src/
-│   │   ├── App.jsx            # Main application component
-│   │   ├── components/        # React components
-│   │   │   ├── UploadBox.jsx  # PDF upload with backend integration
-│   │   │   ├── Whiteboard.jsx # Interactive lesson display with WebSocket
-│   │   │   ├── Quiz.jsx       # Quiz component with backend API
-│   │   │   ├── Notes.jsx      # Notes and downloads
-│   │   │   └── SessionManager.jsx # Main session controller
-│   │   └── index.js           # Entry point
-│   └── package.json           # Node.js dependencies
-├── requirements.txt           # Python dependencies
-├── start_server.bat          # Backend startup script
-└── start_frontend.bat        # Frontend startup script
-```
-
-## 🚀 Quick Start
-
-### Option 1: One-Click Startup (Recommended)
-
-**Windows:**
-
-```bash
-# Double-click or run:
-start_full_project.bat
-# OR
-powershell -ExecutionPolicy Bypass -File start_full_project.ps1
-```
-
-**Linux/Mac:**
-
-```bash
-chmod +x start_dev.sh
-./start_dev.sh
-```
-
-### Option 2: Manual Setup (for development)
-
-### Prerequisites
-
-1. **Python 3.8+** installed
-2. **Node.js 16+** and npm installed
-3. **MongoDB** installed and running on localhost:27017
-4. **Google API Key** for Gemini AI ([Get it here](https://makersuite.google.com/app/apikey))
-
-#### Backend Setup
-
-1. **Navigate to the project directory:**
-
-   ```bash
-   cd virtual_teacher_project
-   ```
-
-2. **Install Python dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up environment variables:**
-   Create a `.env` file in the project root:
-
-   ```
-   GOOGLE_API_KEY=your_google_api_key_here
-   ```
-
-4. **Start MongoDB:**
-   Make sure MongoDB is running on `mongodb://localhost:27017`
-
-5. **Run database migrations:**
-
-   ```bash
-   python manage.py makemigrations
-   python manage.py migrate
-   ```
-
-6. **Start the Django server with Daphne:**
-
-   ```bash
-   daphne -b 0.0.0.0 -p 8000 virtual_teacher_project.asgi:application
-   ```
-
-   Or use the provided script:
-
-   ```bash
-   start_server.bat
-   ```
-
-### Frontend Setup
-
-1. **Navigate to the React app directory:**
-
-   ```bash
-   cd UI/Dashboard/Dashboard
-   ```
-
-2. **Install Node.js dependencies:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Start the React development server:**
-
-   ```bash
-   npm start
-   ```
-
-   Or use the provided script from the project root:
-
-   ```bash
-   start_frontend.bat
-   ```
-
-### 🌐 Access the Application
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **WebSocket**: ws://localhost:8000/ws/teacher/
-
-## 📡 API Endpoints
-
-### File Upload
-
-- `POST /upload_pdf/` - Upload and process PDF files
-
-### Student Management
-
-- `GET /api/students/` - List all students
-- `POST /api/students/` - Create new student
-
-### Lesson Management
-
-- `GET /api/lessons/` - List all lessons
-- `POST /api/lessons/` - Create new lesson
-
-### Quiz Management
-
-- `GET /api/quizzes/` - List all quizzes
-- `POST /api/quizzes/` - Submit quiz results
-
-### Progress Tracking
-
-- `GET /api/progress/` - Get student progress
-- `POST /api/progress/` - Update progress
-
-## 🔌 WebSocket Communication
-
-The WebSocket connection at `ws://localhost:8000/ws/teacher/` handles real-time communication for:
-
-- **Lesson Generation**: AI creates lessons step-by-step
-- **Whiteboard Commands**: Dynamic visualization updates
-- **Interactive Learning**: Progressive content delivery
-- **Quiz & Notes Generation**: End-of-lesson content creation
-
-### Message Flow
-
-**Client → Server:**
-
-```json
-{
-  "topic": "lesson_topic",
-  "pdf_text": "extracted_pdf_content"
-}
-```
-
-**Server → Client:**
-
-```json
-{
-  "type": "lesson_step",
-  "data": {
-    "text_explanation": "Step explanation for students",
-    "tts_text": "Text optimized for voice synthesis",
-    "whiteboard_commands": [
-      {
-        "action": "write_text",
-        "text": "Hello World",
-        "x_percent": 50,
-        "y_percent": 30,
-        "font_size": 24,
-        "color": "black"
-      }
-    ]
-  }
-}
-```
-
-## 📋 Usage Flow
-
-1. **Upload PDF**: Students upload educational PDFs through the drag-and-drop interface
-2. **PDF Processing**: Backend extracts text content and prepares for AI processing
-3. **AI Lesson Generation**: Google Gemini AI creates interactive step-by-step lessons
-4. **Real-time Learning**: Students follow along with dynamic whiteboard visualizations
-5. **Interactive Quizzes**: AI generates relevant quizzes based on lesson content
-6. **Notes & Downloads**: Students can download lesson slides and notes as PDFs
-
-## 🗄️ Database Schema
-
-### MongoDB Collections
-
-**Students Collection:**
-
-```json
-{
-  "_id": "ObjectId",
-  "name": "string",
-  "email": "string",
-  "password_hash": "string",
-  "created_at": "datetime"
-}
-```
-
-**Lessons Collection:**
-
-```json
-{
-  "_id": "ObjectId",
-  "student_id": "string",
-  "pdf_data": "object",
-  "llm_output": "object",
-  "topic": "string",
-  "created_at": "datetime"
-}
-```
-
-**Quizzes Collection:**
-
-```json
-{
-  "_id": "ObjectId",
-  "student_id": "string",
-  "lesson_id": "string",
-  "questions": "array",
-  "score": "number",
-  "time_taken": "string",
-  "attempted_at": "datetime"
-}
-```
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-1. **WebSocket Connection Failed**
-
-   - Ensure Daphne server is running on port 8000
-   - Check firewall settings
-   - Verify WebSocket URL in frontend code
-
-2. **PDF Upload Issues**
-
-   - Check file size (max 50MB)
-   - Ensure file is valid PDF format
-   - Verify CORS settings in Django
-
-3. **MongoDB Connection Issues**
-
-   - Ensure MongoDB service is running
-   - Check connection string in settings.py
-   - Verify database permissions
-
-4. **AI Generation Issues**
-   - Verify Google API key is valid and active
-   - Check API quota and rate limits
-   - Ensure stable internet connectivity
-
-## 🧪 Development & Testing
-
-### Backend Testing
-
-```bash
-python manage.py test
-```
-
-### Frontend Testing
-
-```bash
-cd UI/Dashboard/Dashboard
-npm test
-```
-
-### Development Tips
-
-- Use browser DevTools to monitor WebSocket messages
-- Check Django console for backend errors
-- Monitor MongoDB logs for database issues
-- Use React DevTools for component debugging
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-### 🎓 AI Virtual Teacher
-
-- Interactive topic explanations in simple language
-- Whiteboard-style teaching with **voice + diagrams**
-- Step-by-step breakdown of concepts
-
-### 📚 Study Material Support
-
-- Upload PDFs or notes
-- AI extracts and explains content
-- Summarization + Q&A on uploaded materials
-
-### 🔎 Smart Q&A
-
-- Ask questions on any topic
-- AI searches within uploaded materials + knowledge base
-- Retrieval-Augmented Generation (RAG) for accurate answers
-
-### 👥 User Management
-
-- Secure login system
-- Personalized learning environment
+### 🎓 Core Learning Features
+
+#### 1. **PDF Upload & Processing**
+- Drag-and-drop interface for easy file upload
+- Supports PDFs up to 50MB
+- Intelligent text extraction with PyMuPDF
+- OCR support for scanned documents
+- Automatic content structuring
+
+#### 2. **AI-Powered Lesson Generation**
+- **Google Gemini AI** integration for content analysis
+- Breaks complex topics into digestible steps
+- Context-aware explanations
+- Adaptive difficulty levels
+- Multi-format content support (PDF, text, images)
+
+#### 3. **Interactive Whiteboard Teaching**
+- **Real-time Canvas Rendering** with Konva.js
+- Dynamic text animation (typewriter effect)
+- Shape drawing (rectangles, circles, arrows, lines)
+- Color-coded elements for better understanding
+- Step-by-step progression with visual cues
+- Fullscreen mode for immersive learning
+- Export whiteboard content as images
+
+#### 4. **AI-Generated Quizzes** 🚧 *(In Development)*
+- **Automatic Question Generation** from lesson content
+- Multiple question types:
+  - Multiple Choice Questions (MCQs)
+  - True/False statements
+  - Fill in the blanks
+  - Short answer questions
+  - Match the following
+- **Instant Feedback** with detailed explanations
+- **Difficulty Adaptation** based on performance
+- **Score Tracking** and performance analytics
+- **Time-bound quizzes** with progress indicators
+- **Question bank** management for review
+
+#### 5. **Smart Notes System** 📝 *(In Development)*
+- **AI-Generated Summaries** of lessons
+- **Key Points Extraction** with importance ranking
+- **Concept Mapping** and relationship visualization
+- **Downloadable PDF** with formatted content
+- **Searchable Database** of all notes
+- **Highlighting and Annotations** support
+- **Version Control** for note updates
+- **Collaborative Notes** sharing (planned)
+- **Mind Map Generation** from topics
+
+### 🔒 User Management & Authentication
+
+- **Google OAuth 2.0** - One-click sign-in
+- **Traditional Auth** - Email/password with JWT tokens
+- **Secure Sessions** - Token-based authentication
+- **User Profiles** - Personalized dashboards
+- **Progress Tracking** - Individual learning history
+- **Multi-device Sync** - Learn anywhere, anytime
+
+### 🛠️ Technical Features
+
+- **Microservices Architecture** - Scalable and maintainable
+- **API Gateway** - Centralized routing (Port 8000)
+- **WebSocket Support** - Real-time bidirectional communication
+- **MongoDB Integration** - Flexible document storage
+- **RESTful APIs** - Standard API design
+- **CORS Enabled** - Cross-origin resource sharing
+- **Error Handling** - Comprehensive error management
+- **Logging System** - Detailed application logs
+- **Load Balancing** - Distributed request handling
 
 ---
 
-🛠 **Technology Stack**
+## 🛠️ Tech Stack
 
-- **Frontend:** React + TailwindCSS
-- **Backend:** Django + Django Channels (for real-time interaction), Daphene server
-- **Database:** MongoDB
-- **AI Models:** OpenAI/Generative AI APIs, LangChain
-- **Architecture:** Modular + Microservices-ready
+### Backend Services
+
+| Service | Technology | Port | Purpose |
+|---------|-----------|------|---------|
+| **API Gateway** | Flask 2.3 | 8000 | Request routing, load balancing |
+| **User Service** | Django 4.2 + DRF | 8002 | Authentication, user management |
+| **Lesson Service** | Django 4.2 + DRF | 8003 | PDF processing, AI lesson generation |
+| **Teaching Service** | Django 4.2 + Channels | 8004 | WebSocket, real-time teaching |
+| **Quiz Service** | FastAPI *(Planned)* | 8005 | Quiz generation and management |
+| **Notes Service** | FastAPI *(Planned)* | 8006 | Notes generation and storage |
+
+### Core Technologies
+
+#### Backend
+- **Django 4.2.16** - Web framework with ORM
+- **Django REST Framework** - RESTful API development
+- **Channels & Daphne** - WebSocket and ASGI server
+- **Flask 2.3** - Lightweight API gateway
+- **FastAPI** *(Planned)* - Modern, fast API framework for Quiz/Notes services
+
+#### AI & ML
+- **Google Generative AI (Gemini Pro)** - Content generation and analysis
+- **LangChain** - AI orchestration and prompt management
+- **OpenAI API** - Alternative AI model support
+
+#### Database & Caching
+- **MongoDB 4.4+** - Primary NoSQL database
+- **Motor** - Async MongoDB driver
+- **PyMongo** - Sync MongoDB driver
+- **Redis** - Caching and session storage
+- **Celery** - Distributed task queue
+
+#### Frontend
+- **React 18** - Component-based UI library
+- **Tailwind CSS 3** - Utility-first styling
+- **Framer Motion** - Smooth animations
+- **Konva.js** - Canvas rendering for whiteboard
+- **jsPDF** - Client-side PDF generation
+- **Lucide React** - Modern icon library
+- **Axios** - HTTP client
+
+#### Development & DevOps
+- **Git** - Version control
+- **Docker** *(Planned)* - Containerization
+- **Nginx** *(Planned)* - Reverse proxy
+- **pytest** - Testing framework
+- **ESLint** - JavaScript linting
+- **Black** - Python code formatting
 
 ---
 
-⚙️ **Installation & Setup**
+## 📁 Project Architecture
+
+### Directory Structure
+
+```
+GnyanSetu/
+│
+├── microservices/              # Backend microservices
+│   │
+│   ├── api-gateway/           # Port 8000 - Flask API Gateway
+│   │   ├── app.py            # Main gateway application
+│   │   ├── config.py         # Service registry configuration
+│   │   ├── requirements.txt  # Gateway dependencies
+│   │   └── README.md         # Gateway documentation
+│   │
+│   ├── user-service-django/  # Port 8002 - User Management
+│   │   ├── accounts/         # User authentication app
+│   │   │   ├── models.py    # User models
+│   │   │   ├── views.py     # Auth endpoints
+│   │   │   ├── serializers.py # DRF serializers
+│   │   │   └── urls.py      # URL routing
+│   │   ├── manage.py         # Django management
+│   │   ├── settings.py       # Django configuration
+│   │   ├── requirements.txt  # Service dependencies
+│   │   └── .env.example      # Environment variables template
+│   │
+│   ├── lesson-service/       # Port 8003 - Lesson Generation
+│   │   ├── lessons/          # Lesson app
+│   │   │   ├── views.py     # API endpoints
+│   │   │   ├── models.py    # Lesson models
+│   │   │   └── ai_engine.py # AI lesson generator
+│   │   ├── pdf_processor/    # PDF extraction module
+│   │   ├── manage.py
+│   │   ├── requirements.txt
+│   │   └── celery_config.py  # Async task configuration
+│   │
+│   ├── teaching-service/     # Port 8004 - Real-time Teaching
+│   │   ├── teaching/         # Teaching app
+│   │   │   ├── consumers.py # WebSocket consumers
+│   │   │   ├── views.py     # API endpoints
+│   │   │   ├── models.py    # Teaching models
+│   │   │   └── routing.py   # WebSocket routing
+│   │   ├── manage.py
+│   │   └── requirements.txt
+│   │
+│   ├── quiz-service/         # Port 8005 - Quiz Management (Planned)
+│   │   ├── main.py          # FastAPI application
+│   │   ├── models.py        # Pydantic models
+│   │   ├── quiz_generator.py # AI quiz generation
+│   │   ├── routes/          # API routes
+│   │   └── requirements.txt
+│   │
+│   ├── notes-service/        # Port 8006 - Notes Generation (Planned)
+│   │   ├── main.py          # FastAPI application
+│   │   ├── models.py        # Pydantic models
+│   │   ├── notes_generator.py # AI notes generation
+│   │   ├── pdf_export.py    # PDF export functionality
+│   │   └── requirements.txt
+│   │
+│   ├── requirements.txt      # Microservices dependencies
+│   ├── start_project.bat     # All services startup script
+│   └── logs/                 # Service logs directory
+│
+├── virtual_teacher_project/   # Legacy Django Project
+│   ├── teacher_app/          # Core teaching application
+│   │   ├── views.py          # API endpoints
+│   │   ├── consumers.py      # WebSocket handlers
+│   │   ├── models.py         # Django models
+│   │   ├── mongo.py          # MongoDB integration
+│   │   └── urls.py           # URL routing
+│   │
+│   ├── UI/                   # Frontend applications
+│   │   │
+│   │   ├── landing_page/     # Landing & Auth (Port 3000)
+│   │   │   ├── src/
+│   │   │   │   ├── App.jsx   # Main landing component
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── Hero.jsx
+│   │   │   │   │   ├── Features.jsx
+│   │   │   │   │   ├── LoginModal.jsx
+│   │   │   │   │   └── SignupModal.jsx
+│   │   │   │   └── index.js
+│   │   │   ├── public/
+│   │   │   ├── package.json
+│   │   │   └── tailwind.config.js
+│   │   │
+│   │   └── Dashboard/        # Main Dashboard (Port 3001)
+│   │       └── Dashboard/
+│   │           ├── src/
+│   │           │   ├── App.jsx
+│   │           │   ├── components/
+│   │           │   │   ├── Whiteboard.jsx      # Interactive canvas
+│   │           │   │   ├── TeachingCanvas.jsx  # Drawing engine
+│   │           │   │   ├── UploadBox.jsx       # PDF upload
+│   │           │   │   ├── Quiz.jsx            # Quiz component
+│   │           │   │   ├── Notes.jsx           # Notes viewer
+│   │           │   │   ├── ChatHistory.jsx     # Conversation history
+│   │           │   │   └── SessionManager.jsx  # State management
+│   │           │   ├── utils/
+│   │           │   │   ├── api.js             # API client
+│   │           │   │   └── websocket.js       # WebSocket client
+│   │           │   └── index.js
+│   │           ├── public/
+│   │           ├── package.json
+│   │           └── tailwind.config.js
+│   │
+│   ├── virtual_teacher_project/ # Django project settings
+│   │   ├── settings.py       # Configuration
+│   │   ├── urls.py           # Main URL routing
+│   │   ├── asgi.py           # ASGI application
+│   │   └── wsgi.py           # WSGI application
+│   │
+│   ├── manage.py
+│   ├── requirements.txt
+│   └── .env.example
+│
+├── requirements.txt          # Consolidated project dependencies
+├── .gitignore               # Git ignore rules
+├── .env.example             # Environment variables template
+├── README.md                # This file
+├── LICENSE                  # MIT License
+├── CONTRIBUTING.md          # Contribution guidelines
+└── docker-compose.yml       # Docker configuration (Planned)
+```
+
+### System Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│                   Client Layer                        │
+│  ┌────────────────┐         ┌────────────────┐      │
+│  │  Landing Page  │         │   Dashboard    │       │
+│  │  (Port 3000)   │         │  (Port 3001)   │       │
+│  │  - Auth UI     │         │  - Whiteboard  │       │
+│  │  - Google OAuth│         │  - Quiz UI     │       │
+│  └────────┬───────┘         └───────┬────────┘       │
+└───────────┼─────────────────────────┼────────────────┘
+            │                         │
+            ▼                         ▼
+┌──────────────────────────────────────────────────────┐
+│              API Gateway (Port 8000)                  │
+│  - Request Routing                                    │
+│  - Load Balancing                                     │
+│  - Service Discovery                                  │
+│  - Health Checks                                      │
+└──────────────────┬───────────────────────────────────┘
+                   │
+        ┌──────────┼──────────┬──────────┬──────────┐
+        ▼          ▼          ▼          ▼          ▼
+┌─────────────┐ ┌────────┐ ┌────────┐ ┌──────┐ ┌──────┐
+│User Service │ │Lesson  │ │Teaching│ │Quiz  │ │Notes │
+│(Port 8002)  │ │Service │ │Service │ │Svc   │ │ Svc  │
+│             │ │(8003)  │ │(8004)  │ │(8005)│ │(8006)│
+│- Auth       │ │        │ │        │ │      │ │      │
+│- Google     │ │- PDF   │ │- WS    │ │- Gen │ │- Gen │
+│  OAuth      │ │  Upload│ │- Real  │ │- Eval│ │- PDF │
+│- JWT        │ │- AI Gen│ │  time  │ │      │ │      │
+│- Users CRUD │ │- Store │ │- Teach │ │      │ │      │
+└──────┬──────┘ └───┬────┘ └───┬────┘ └───┬──┘ └───┬──┘
+       │            │          │          │        │
+       └────────────┴──────────┴──────────┴────────┘
+                            │
+                            ▼
+               ┌────────────────────────┐
+               │      MongoDB           │
+               │  - users               │
+               │  - lessons             │
+               │  - conversations       │
+               │  - quizzes             │
+               │  - notes               │
+               │  - progress            │
+               └────────────────────────┘
+                            │
+               ┌────────────┴────────────┐
+               │                         │
+               ▼                         ▼
+        ┌─────────────┐        ┌──────────────┐
+        │   Redis     │        │  Celery      │
+        │   Cache     │        │  Task Queue  │
+        └─────────────┘        └──────────────┘
+```
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Python 3.10+
-- React
-- Django
-- Daphne (`pip install daphne`)
-- MongoDB
+Ensure you have the following installed:
 
-### Steps
+- **Python 3.8+** - [Download](https://www.python.org/downloads/)
+- **Node.js 16+** - [Download](https://nodejs.org/)
+- **MongoDB 4.4+** - [Download](https://www.mongodb.com/try/download/community)
+- **Git** - [Download](https://git-scm.com/downloads/)
+- **Google API Key** - [Get Key](https://makersuite.google.com/app/apikey)
+
+### Quick Start (Windows - Recommended)
+
+```batch
+# 1. Clone the repository
+git clone https://github.com/AaryaKhatate/GnyanSetu.git
+cd GnyanSetu
+
+# 2. Run the automated startup script
+cd microservices
+start_project.bat
+```
+
+This will automatically:
+- ✅ Install all Python dependencies
+- ✅ Install all Node.js dependencies  
+- ✅ Start MongoDB
+- ✅ Start all microservices (Ports 8000-8004)
+- ✅ Start React applications (Ports 3000, 3001)
+- ✅ Open browser to landing page
+
+### Manual Setup
+
+#### Step 1: Clone Repository
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/Daphene-Server.git
-cd Daphene-Server
+git clone https://github.com/AaryaKhatate/GnyanSetu.git
+cd GnyanSetu
+```
 
-# Create virtual environment
+#### Step 2: Backend Setup
+
+```bash
+# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate      # Windows
+
+# Windows
+venv\Scripts\activate
+
+# Linux/Mac
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Run migrations
-python manage.py migrate
-
-# Start Daphne server
-daphne -b 0.0.0.0 -p 8000 yourproject.asgi:application
 ```
 
-## 👥 Contributors
+#### Step 3: Configure Environment
 
-- [**Aarya Khatate**](https://github.com/aaryaKhatate)
-- [**Vinay Gone**](https://github.com/VinayGone2006)
-- [**Yashraj Patil**](https://github.com/Yashrajpatil22)
+Create `.env` files in each service directory:
+
+**microservices/user-service-django/.env**
+```env
+SECRET_KEY=your-django-secret-key-here
+DEBUG=True
+MONGODB_URI=mongodb://localhost:27017/gnyansetu
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+JWT_SECRET_KEY=your-jwt-secret-key
+```
+
+**microservices/lesson-service/.env**
+```env
+GOOGLE_API_KEY=your-gemini-api-key
+MONGODB_URI=mongodb://localhost:27017/gnyansetu
+CELERY_BROKER_URL=redis://localhost:6379/0
+```
+
+**microservices/teaching-service/.env**
+```env
+MONGODB_URI=mongodb://localhost:27017/gnyansetu
+REDIS_URL=redis://localhost:6379/1
+```
+
+#### Step 4: Start Services
+
+Open **4 separate terminals**:
+
+```bash
+# Terminal 1 - API Gateway (Port 8000)
+cd microservices/api-gateway
+python app.py
+
+# Terminal 2 - User Service (Port 8002)
+cd microservices/user-service-django
+python manage.py runserver 8002
+
+# Terminal 3 - Lesson Service (Port 8003)
+cd microservices/lesson-service
+python manage.py runserver 8003
+
+# Terminal 4 - Teaching Service (Port 8004)
+cd microservices/teaching-service
+daphne -b 0.0.0.0 -p 8004 teaching_service.asgi:application
+```
+
+#### Step 5: Start Frontend
+
+Open **2 more terminals**:
+
+```bash
+# Terminal 5 - Landing Page (Port 3000)
+cd virtual_teacher_project/UI/landing_page/landing_page
+npm install
+npm start
+
+# Terminal 6 - Dashboard (Port 3001)
+cd virtual_teacher_project/UI/Dashboard/Dashboard
+npm install
+set PORT=3001 && npm start  # Windows
+PORT=3001 npm start          # Linux/Mac
+```
+
+#### Step 6: Access Application
+
+- 🌐 **Landing Page**: http://localhost:3000
+- 📊 **Dashboard**: http://localhost:3001  
+- 🔧 **API Gateway**: http://localhost:8000/health
 
 ---
 
-## 📜 License
+## 📚 API Documentation
 
-This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
+### Authentication Endpoints
+
+#### User Service (Port 8002)
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| POST | `/api/v1/auth/signup/` | Register new user | `{full_name, email, password, password_confirm, username}` |
+| POST | `/api/v1/auth/login/` | User login | `{email, password}` |
+| POST | `/api/v1/auth/logout/` | User logout | - |
+| POST | `/api/v1/auth/google/` | Google OAuth login | `{credential}` |
+| GET | `/api/v1/users/profile/` | Get user profile | Headers: `Authorization: Bearer <token>` |
+| PUT | `/api/v1/users/profile/` | Update profile | `{full_name, email}` |
+| GET | `/api/v1/health/` | Health check | - |
+
+### Lesson Management
+
+#### Lesson Service (Port 8003)
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| POST | `/api/upload/` | Upload PDF file | FormData: `{file: <pdf>}` |
+| POST | `/api/generate-lesson/` | Generate AI lesson | `{topic, pdf_text, difficulty}` |
+| GET | `/api/lessons/` | Get all lessons | Query: `?user_id=<id>` |
+| GET | `/api/lessons/<id>/` | Get specific lesson | - |
+| DELETE | `/api/lessons/<id>/` | Delete lesson | - |
+| GET | `/health` | Health check | - |
+
+### Real-time Teaching
+
+#### Teaching Service (Port 8004)
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| GET | `/api/conversations/` | Get conversations | Query: `?user_id=<id>` |
+| POST | `/api/conversations/create/` | Create conversation | `{user_id, lesson_id, topic}` |
+| DELETE | `/api/conversations/<id>/` | Delete conversation | - |
+| GET | `/api/teaching/<session_id>/` | Get teaching session | - |
+| WS | `/ws/teaching/<session_id>/` | WebSocket connection | - |
+| GET | `/health` | Health check | - |
+
+### Quiz System (Planned - Port 8005)
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| POST | `/api/quizzes/generate/` | Generate quiz | `{lesson_id, question_count, difficulty}` |
+| GET | `/api/quizzes/<lesson_id>/` | Get quizzes | - |
+| POST | `/api/quizzes/<quiz_id>/submit/` | Submit answers | `{answers: [{question_id, answer}]}` |
+| GET | `/api/quizzes/<quiz_id>/results/` | Get quiz results | - |
+| GET | `/api/quizzes/<quiz_id>/review/` | Review quiz with answers | - |
+
+### Notes System (Planned - Port 8006)
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| POST | `/api/notes/generate/` | Generate notes | `{lesson_id, format, detail_level}` |
+| GET | `/api/notes/<lesson_id>/` | Get notes | - |
+| GET | `/api/notes/<note_id>/download/` | Download as PDF | Query: `?format=pdf` |
+| PUT | `/api/notes/<note_id>/` | Update notes | `{content, highlights}` |
+| POST | `/api/notes/<note_id>/export/` | Export notes | `{format: 'pdf'|'markdown'|'html'}` |
+
+### WebSocket Protocol
+
+**Connection URL**: `ws://localhost:8004/ws/teaching/<session_id>/`
+
+**Client → Server Messages**:
+
+```javascript
+// Start lesson
+{
+  "type": "start_lesson",
+  "lesson_id": "12345",
+  "user_id": "user_abc"
+}
+
+// Request next step
+{
+  "type": "next_step"
+}
+
+// Pause lesson
+{
+  "type": "pause"
+}
+```
+
+**Server → Client Messages**:
+
+```javascript
+// Lesson step
+{
+  "type": "step",
+  "step": 1,
+  "total_steps": 10,
+  "speech_text": "Let's learn about...",
+  "drawing_commands": [
+    {
+      "type": "text",
+      "text": "Hello World",
+      "x": 100,
+      "y": 50,
+      "fontSize": 24,
+      "color": "#000000"
+    }
+  ]
+}
+
+// Lesson complete
+{
+  "type": "lesson_complete",
+  "quiz_available": true,
+  "notes_available": true
+}
+```
+
+---
+
+## 🎯 Roadmap
+
+### ✅ Phase 1: Core Platform (Completed)
+- [x] Microservices architecture
+- [x] PDF upload and processing
+- [x] AI lesson generation with Gemini
+- [x] Real-time whiteboard with WebSocket
+- [x] User authentication (Google OAuth + JWT)
+- [x] Interactive teaching canvas
+- [x] Landing page and dashboard
+
+### 🚧 Phase 2: Quiz System (In Progress)
+- [ ] AI-powered quiz generation from lessons
+- [ ] Multiple question type support
+- [ ] Instant feedback mechanism
+- [ ] Score tracking and analytics
+- [ ] Adaptive difficulty system
+- [ ] Question bank management
+- [ ] Quiz review with explanations
+- [ ] Performance insights dashboard
+
+### 📋 Phase 3: Notes System (Planned - Q1 2026)
+- [ ] AI-generated summary notes
+- [ ] Key points extraction
+- [ ] Concept mapping visualization
+- [ ] PDF export with formatting
+- [ ] Markdown export support
+- [ ] Search functionality
+- [ ] Note annotations and highlights
+- [ ] Version control for notes
+- [ ] Collaborative notes sharing
+
+### 🚀 Phase 4: Advanced Features (Q2 2026)
+- [ ] Mobile application (React Native)
+- [ ] Offline mode support
+- [ ] Video integration
+- [ ] Voice commands for navigation
+- [ ] Advanced analytics dashboard
+- [ ] Gamification elements
+- [ ] Leaderboards and achievements
+- [ ] Discussion forums
+- [ ] Study groups and collaboration
+- [ ] Multi-language support
+- [ ] Custom lesson templates
+- [ ] Admin dashboard
+
+### 🌐 Phase 5: Scale & Performance (Q3 2026)
+- [ ] Docker containerization
+- [ ] Kubernetes orchestration
+- [ ] CDN integration
+- [ ] Database optimization
+- [ ] Caching layer enhancement
+- [ ] Load testing and optimization
+- [ ] Security audits
+- [ ] GDPR compliance
+- [ ] Accessibility improvements (WCAG 2.1)
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Here's how you can help:
+
+### Getting Started
+
+1. **Fork the repository**
+2. **Clone your fork**: `git clone https://github.com/YOUR_USERNAME/GnyanSetu.git`
+3. **Create a branch**: `git checkout -b feature/AmazingFeature`
+4. **Make your changes**
+5. **Commit**: `git commit -m 'Add some AmazingFeature'`
+6. **Push**: `git push origin feature/AmazingFeature`
+7. **Open a Pull Request**
+
+### Development Guidelines
+
+- Follow **PEP 8** for Python code
+- Use **ESLint** for JavaScript/React code
+- Write **meaningful commit messages**
+- Add **tests** for new features
+- Update **documentation**
+- Keep **code DRY** (Don't Repeat Yourself)
+
+### Code Review Process
+
+1. All submissions require review
+2. Changes must pass CI/CD checks
+3. Maintain test coverage above 80%
+4. Follow existing code patterns
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👥 Team
+
+### Core Contributors
+
+- **Aarya Khatate** - Project Lead & Full Stack Developer
+  - GitHub: [@AaryaKhatate](https://github.com/AaryaKhatate)
+  - Email: aryakhatate@gmail.com
+
+- **Vinay Gone** - Backend Developer
+  - GitHub: [@VinayGone2006](https://github.com/VinayGone2006)
+
+- **Yashraj Patil** - Frontend Developer
+  - GitHub: [@Yashrajpatil22](https://github.com/Yashrajpatil22)
+
+### Contributors
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of contributors.
+
+---
+
+## 📧 Contact & Support
+
+- **Email**: aryakhatate@gmail.com
+- **GitHub Issues**: [Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues)
+- **Feature Requests**: [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement)
+- **Discussions**: [GitHub Discussions](https://github.com/AaryaKhatate/GnyanSetu/discussions)
+
+---
+
+## 🙏 Acknowledgments
+
+- **Google Gemini AI** - Advanced language model for content generation
+- **OpenAI** - GPT models and research
+- **MongoDB** - Flexible database solutions
+- **React Community** - UI framework and ecosystem
+- **Django Community** - Web framework and tools
+- **All Contributors** - Thank you for your support!
+
+---
+
+## 📊 Project Stats
+
+![GitHub stars](https://img.shields.io/github/stars/AaryaKhatate/GnyanSetu?style=social)
+![GitHub forks](https://img.shields.io/github/forks/AaryaKhatate/GnyanSetu?style=social)
+![GitHub issues](https://img.shields.io/github/issues/AaryaKhatate/GnyanSetu)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/AaryaKhatate/GnyanSetu)
+
+---
+
+<div align="center">
+
+**Made with ❤️ for Education**
+
+**GnyanSetu** - Building Bridges to Knowledge
+
+⭐ Star this repository if you find it helpful!
+
+[Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues) • [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement) • [Contribute](CONTRIBUTING.md)
+
+</div>

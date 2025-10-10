@@ -8,46 +8,125 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [quizId, setQuizId] = useState(null);
 
-  // Use provided quiz data or fallback to mock data
-  const questions = quizData || [
-    {
-      question: "What is the main concept discussed in this lesson?",
-      options: [
-        "Advanced mathematics",
-        "Fundamental principles",
-        "Historical events",
-        "Scientific theories",
-      ],
-      correct: 1,
-      feedback:
-        "The lesson focuses on understanding fundamental principles as the foundation for advanced learning.",
-    },
-    {
-      question: "Which of the following best describes the key takeaway?",
-      options: [
-        "Memorization is key",
-        "Understanding fundamentals",
-        "Practice makes perfect",
-        "Theory over practice",
-      ],
-      correct: 1,
-      feedback:
-        "Understanding fundamentals is crucial because it provides the building blocks for more complex concepts.",
-    },
-    {
-      question: "How should you apply this knowledge?",
-      options: [
-        "Only in exams",
-        "In real-world scenarios",
-        "Never use it",
-        "Share with friends only",
-      ],
-      correct: 1,
-      feedback:
-        "Applying knowledge in real-world scenarios helps reinforce learning and demonstrates practical understanding.",
-    },
-  ];
+  // Fetch quiz data from API
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      try {
+        setLoading(true);
+        
+        // Try multiple ways to get the lesson ID
+        const lessonId = 
+          sessionStorage.getItem('lessonId') || 
+          sessionStorage.getItem('conversationId') ||
+          localStorage.getItem('currentConversationId') ||
+          sessionStorage.getItem('currentConversationId');
+          
+        const userId = 
+          sessionStorage.getItem('userId') || 
+          localStorage.getItem('userId') ||
+          sessionStorage.getItem('studentId') || 
+          'default_student';
+        
+        if (!lessonId || lessonId === 'default_lesson') {
+          console.warn('⚠️ No lesson ID found. Using fallback data.');
+          throw new Error('No active lesson found. Please start a lesson first.');
+        }
+        
+        console.log('📚 Fetching quiz for lesson:', lessonId);
+        console.log('👤 User ID:', userId);
+        
+        // Updated endpoint: /api/quiz/get/ (retrieves pre-generated quiz)
+        const response = await fetch(
+          `http://localhost:8000/api/quiz/get/${lessonId}?user_id=${userId}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          // If 202 (Accepted), quiz is still being generated
+          if (response.status === 202) {
+            throw new Error('Quiz is being generated. Please wait a moment...');
+          }
+          throw new Error('Failed to fetch quiz data');
+        }
+
+        const data = await response.json();
+        
+        // Transform API data to match component format
+        const transformedQuestions = data.questions.map((q, index) => ({
+          question: q.question,
+          options: q.options,
+          correct: q.options.indexOf(q.correct_answer),
+          feedback: q.explanation || q.feedback || 'No explanation available.',
+        }));
+        
+        setQuestions(transformedQuestions);
+        setQuizId(data.quiz_id);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching quiz:', err);
+        setError('Failed to load quiz. Please try again.');
+        setLoading(false);
+        
+        // Fallback to mock data on error
+        setQuestions([
+          {
+            question: "What is the main concept discussed in this lesson?",
+            options: [
+              "Advanced mathematics",
+              "Fundamental principles",
+              "Historical events",
+              "Scientific theories",
+            ],
+            correct: 1,
+            feedback:
+              "The lesson focuses on understanding fundamental principles as the foundation for advanced learning.",
+          },
+          {
+            question: "Which of the following best describes the key takeaway?",
+            options: [
+              "Memorization is key",
+              "Understanding fundamentals",
+              "Practice makes perfect",
+              "Theory over practice",
+            ],
+            correct: 1,
+            feedback:
+              "Understanding fundamentals is crucial because it provides the building blocks for more complex concepts.",
+          },
+          {
+            question: "How should you apply this knowledge?",
+            options: [
+              "Only in exams",
+              "In real-world scenarios",
+              "Never use it",
+              "Share with friends only",
+            ],
+            correct: 1,
+            feedback:
+              "Applying knowledge in real-world scenarios helps reinforce learning and demonstrates practical understanding.",
+          },
+        ]);
+      }
+    };
+
+    // Only fetch if quizData prop is not provided
+    if (!quizData) {
+      fetchQuiz();
+    } else {
+      setQuestions(quizData);
+      setLoading(false);
+    }
+  }, [quizData]);
 
   // Save quiz results to backend
   useEffect(() => {
@@ -59,30 +138,37 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
 
   const saveQuizResults = async () => {
     try {
-      const quizResults = {
-        student_id: sessionStorage.getItem("studentId") || "default_student",
-        lesson_id: sessionStorage.getItem("lessonId") || "default_lesson",
-        questions: questions.map((q, index) => ({
-          question: q.question,
-          options: q.options,
-          correct_answer: q.correct,
-          user_answer: index <= currentQuestion ? selectedAnswer : null,
-        })),
-        score: score,
-        time_taken: "5 minutes", // You could track actual time
+      const userId = sessionStorage.getItem('userId') || sessionStorage.getItem('studentId') || 'default_student';
+      const lessonId = sessionStorage.getItem('lessonId') || 'default_lesson';
+      
+      // Create answers array with user selections
+      const answers = questions.map((q, index) => ({
+        question_index: index,
+        selected_option: index <= currentQuestion ? selectedAnswer : null,
+      }));
+
+      const submissionData = {
+        quiz_id: quizId,
+        user_id: userId,
+        lesson_id: lessonId,
+        answers: answers,
       };
 
-      const response = await fetch("http://localhost:8000/api/quizzes/", {
+      const response = await fetch("http://localhost:8000/api/quiz/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(quizResults),
+        body: JSON.stringify(submissionData),
       });
 
       if (response.ok) {
         const result = await response.json();
         console.log("Quiz results saved:", result);
+        // Update score from backend if available
+        if (result.score !== undefined) {
+          setScore(result.score);
+        }
       } else {
         console.error("Failed to save quiz results");
       }
@@ -129,6 +215,35 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
       return "Not bad! Review the concepts for better understanding.";
     return "Keep practicing! Review the lesson and try again.";
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-300 text-lg">Generating your quiz...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-800 rounded-2xl p-8 text-center border border-slate-700/40">
+          <p className="text-red-400 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (showResult) {
     return (
