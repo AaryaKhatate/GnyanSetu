@@ -192,10 +192,11 @@ def delete_conversation(request, conversation_id):
         if request.method != 'DELETE':
             return JsonResponse({'error': 'Method not allowed'}, status=405)
             
-        logger.info(f"🗑️ Deleting conversation: {conversation_id}")
+        logger.info(f"Deleting conversation: {conversation_id}")
         
-        # Delete teaching session
-        # For now, just return success (implement actual deletion if needed)
+        # Delete teaching session if exists
+        if TeachingSessionModel.delete_session(conversation_id):
+            logger.info(f"Deleted teaching session: {conversation_id}")
         
         return JsonResponse({
             'success': True,
@@ -204,7 +205,7 @@ def delete_conversation(request, conversation_id):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error deleting conversation: {e}")
+        logger.error(f"Error deleting conversation: {e}")
         return JsonResponse({
             'error': 'Failed to delete conversation',
             'details': str(e)

@@ -2,7 +2,6 @@
 import logging
 import json
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from django.conf import settings
 from datetime import datetime
 
@@ -129,12 +128,12 @@ class LessonGenerator:
                     max_output_tokens=20,  # Very short for just a title
                     candidate_count=1
                 ),
-                safety_settings={
-                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                }
+                safety_settings=[
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
             )
             
             # Better error handling for Gemini response
@@ -352,9 +351,6 @@ This lesson is based on the provided educational material.
         Generate structured quiz data from lesson content
         Returns a dictionary with quiz questions in JSON format
         """
-        import json  # Import at the top to avoid 'referenced before assignment' error
-        import re
-        
         print("🎯 Starting quiz generation from lesson content...")
         
         # Limit content length to avoid token limits
@@ -366,9 +362,13 @@ Generate a quiz with EXACTLY 5 multiple choice questions based on this lesson.
 Lesson Title: {lesson_title}
 Lesson Content: {content_preview}
 
-IMPORTANT: Return ONLY valid JSON. No markdown, no code blocks, no explanations.
+CRITICAL INSTRUCTIONS:
+1. Return ONLY valid JSON - no markdown, no code blocks, no explanations
+2. Use proper JSON formatting with commas between all array elements
+3. Ensure all strings are properly quoted
+4. Each option MUST have both "key" and "text" fields
 
-Format:
+Required Format:
 {{
     "title": "Quiz: {lesson_title}",
     "questions": [
@@ -386,7 +386,7 @@ Format:
     ]
 }}
 
-Create 5 questions following this EXACT format.
+Generate EXACTLY 5 questions following this format. Ensure proper JSON syntax with commas between all elements.
 """
         
         try:
@@ -394,26 +394,9 @@ Create 5 questions following this EXACT format.
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.2,  # Lower temperature for more consistent output
-                    max_output_tokens=2000,
-                    candidate_count=1
-                ),
-                safety_settings={
-                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                }
+                    max_output_tokens=3000
+                )
             )
-            
-            # Check if response was blocked
-            if not response.candidates or len(response.candidates) == 0:
-                logger.warning("Quiz generation blocked by Gemini - using fallback")
-                raise ValueError("Response blocked by safety filters")
-            
-            candidate = response.candidates[0]
-            if candidate.finish_reason == 2:  # SAFETY
-                logger.warning("Quiz generation blocked by safety filters - using fallback")
-                raise ValueError("Response blocked by safety filters")
             
             quiz_text = self._safe_extract_text(response, "{}")
             
@@ -436,21 +419,12 @@ Create 5 questions following this EXACT format.
             if quiz_text.rfind('}') < len(quiz_text) - 1:
                 quiz_text = quiz_text[:quiz_text.rfind('}')+1]
             
-            # Fix common JSON issues (json and re already imported at top of function)
-            # Escape unescaped quotes in text fields
-            # This is a simple fix - may need more sophisticated handling
-            quiz_text = quiz_text.replace('\n', ' ').replace('\r', ' ')
+            # Try to fix common JSON errors
+            quiz_text = self._fix_json_errors(quiz_text)
             
             # Parse JSON
-            try:
-                quiz_data = json.loads(quiz_text)
-            except json.JSONDecodeError as json_err:
-                # Try to fix common issues and retry
-                logger.warning(f"First JSON parse failed, attempting to fix: {json_err}")
-                # Remove trailing commas
-                quiz_text = re.sub(r',\s*}', '}', quiz_text)
-                quiz_text = re.sub(r',\s*]', ']', quiz_text)
-                quiz_data = json.loads(quiz_text)
+            import json
+            quiz_data = json.loads(quiz_text)
             
             # Validate structure
             if 'questions' not in quiz_data:
@@ -461,25 +435,20 @@ Create 5 questions following this EXACT format.
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error in quiz generation: {e}")
-            logger.error(f"Problematic JSON text: {quiz_text[:500] if 'quiz_text' in locals() else 'No text'}")
+            logger.error(f"Problematic JSON text (first 1000 chars): {quiz_text[:1000]}")
             print(f"❌ Error generating quiz: {e}")
-            # Return fallback quiz structure
-            return {
-                "title": f"Quiz: {lesson_title}",
-                "questions": [
-                    {
-                        "question": "What is the main topic of this lesson?",
-                        "options": [
-                            {"key": "A", "text": "Review the lesson content"},
-                            {"key": "B", "text": "Study the material carefully"},
-                            {"key": "C", "text": "Focus on key concepts"},
-                            {"key": "D", "text": "Practice regularly"}
-                        ],
-                        "correct_answer": "A",
-                        "explanation": "Review the lesson content for details."
-                    }
-                ]
-            }
+            
+            # Try to salvage what we can with a more aggressive fix
+            try:
+                fixed_text = self._aggressive_json_fix(quiz_text)
+                quiz_data = json.loads(fixed_text)
+                print(f"✅ Recovered quiz after aggressive fix: {len(quiz_data.get('questions', []))} questions")
+                return quiz_data
+            except:
+                # Return fallback quiz structure
+                print("⚠️ Using fallback quiz structure")
+                return self._get_fallback_quiz(lesson_title)
+                
         except Exception as e:
             logger.error(f"Error generating quiz data: {e}")
             print(f"❌ Error generating quiz: {e}")
@@ -494,20 +463,84 @@ Create 5 questions following this EXACT format.
                             {"key": "C", "text": "Option C"},
                             {"key": "D", "text": "Option D"}
                         ],
-                        "correct_answer": "A",
-                        "explanation": "Review the lesson content for details."
-                    }
-                ]
+                "correct_answer": "A",
+                "explanation": "Review the lesson content for details."
+                }
+            ]
+        }
+    
+    def _aggressive_json_fix_notes(self, json_text):
+        """More aggressive JSON fixing for notes - try to salvage what we can"""
+        import re
+        
+        # Apply basic fixes first
+        json_text = self._fix_json_errors(json_text)
+        
+        # Try to find the sections array and extract it
+        sections_match = re.search(r'"sections"\s*:\s*\[(.*)\]', json_text, re.DOTALL)
+        if sections_match:
+            sections_text = sections_match.group(1)
+            
+            # Split by section objects
+            section_parts = re.split(r'\},\s*\{', sections_text)
+            
+            # Clean and reconstruct each section
+            cleaned_sections = []
+            for part in section_parts[:5]:  # Max 5 sections
+                # Ensure it starts with {
+                if not part.strip().startswith('{'):
+                    part = '{' + part
+                # Ensure it ends with }
+                if not part.strip().endswith('}'):
+                    part = part + '}'
+                
+                # Fix the part
+                part = self._fix_json_errors(part)
+                cleaned_sections.append(part)
+            
+            # Reconstruct JSON
+            reconstructed = {
+                "title": "Notes",
+                "summary": "Study notes for the lesson",
+                "sections": [],
+                "key_terms": []
             }
+            
+            for s_text in cleaned_sections:
+                try:
+                    import json
+                    s_obj = json.loads(s_text)
+                    reconstructed["sections"].append(s_obj)
+                except:
+                    continue
+            
+            return json.dumps(reconstructed)
+        
+        return json_text
+    
+    def _get_fallback_notes(self, lesson_title):
+        """Return a fallback notes structure"""
+        return {
+            "title": f"Notes: {lesson_title}",
+            "summary": "Review the lesson content for comprehensive understanding of the key concepts.",
+            "sections": [
+                {
+                    "heading": "Main Concepts",
+                    "key_points": [
+                        "Review the lesson carefully",
+                        "Take your own notes",
+                        "Focus on understanding key concepts"
+                    ]
+                }
+            ],
+            "key_terms": []
+        }
     
     def generate_notes_data(self, lesson_content, lesson_title):
         """
         Generate structured notes from lesson content
         Returns a dictionary with organized notes in JSON format
         """
-        import json  # Import at the top to avoid 'referenced before assignment' error
-        import re
-        
         print("📝 Starting notes generation from lesson content...")
         
         # Limit content length to avoid token limits
@@ -519,9 +552,13 @@ Generate structured study notes based on this lesson.
 Lesson Title: {lesson_title}
 Lesson Content: {content_preview}
 
-IMPORTANT: Return ONLY valid JSON. No markdown, no code blocks, no explanations.
+CRITICAL INSTRUCTIONS:
+1. Return ONLY valid JSON - no markdown, no code blocks, no explanations
+2. Use proper JSON formatting with commas between all array elements
+3. Ensure all strings are properly quoted
+4. Each section MUST have both "heading" and "key_points" fields
 
-Format:
+Required Format:
 {{
     "title": "Notes: {lesson_title}",
     "summary": "Brief 2-3 sentence summary",
@@ -542,7 +579,7 @@ Format:
     ]
 }}
 
-Create notes following this EXACT format.
+Generate notes following this format. Ensure proper JSON syntax with commas between all elements.
 """
         
         try:
@@ -550,26 +587,9 @@ Create notes following this EXACT format.
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.2,
-                    max_output_tokens=2000,
-                    candidate_count=1
-                ),
-                safety_settings={
-                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                }
+                    max_output_tokens=3000
+                )
             )
-            
-            # Check if response was blocked
-            if not response.candidates or len(response.candidates) == 0:
-                logger.warning("Notes generation blocked by Gemini - using fallback")
-                raise ValueError("Response blocked by safety filters")
-            
-            candidate = response.candidates[0]
-            if candidate.finish_reason == 2:  # SAFETY
-                logger.warning("Notes generation blocked by safety filters - using fallback")
-                raise ValueError("Response blocked by safety filters")
             
             notes_text = self._safe_extract_text(response, "{}")
             
@@ -592,7 +612,11 @@ Create notes following this EXACT format.
             if notes_text.rfind('}') < len(notes_text) - 1:
                 notes_text = notes_text[:notes_text.rfind('}')+1]
             
-            # Parse JSON (json already imported at top of function)
+            # Try to fix common JSON errors
+            notes_text = self._fix_json_errors(notes_text)
+            
+            # Parse JSON
+            import json
             notes_data = json.loads(notes_text)
             
             # Validate structure
@@ -602,6 +626,22 @@ Create notes following this EXACT format.
             sections_count = len(notes_data.get('sections', []))
             print(f"✅ Notes generated successfully: {sections_count} sections")
             return notes_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error in notes generation: {e}")
+            logger.error(f"Problematic JSON text (first 1000 chars): {notes_text[:1000]}")
+            print(f"❌ Error generating notes: {e}")
+            
+            # Try to salvage what we can with aggressive fix
+            try:
+                fixed_text = self._aggressive_json_fix_notes(notes_text)
+                notes_data = json.loads(fixed_text)
+                print(f"✅ Recovered notes after aggressive fix: {len(notes_data.get('sections', []))} sections")
+                return notes_data
+            except:
+                # Return fallback notes structure
+                print("⚠️ Using fallback notes structure")
+                return self._get_fallback_notes(lesson_title)
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error in notes generation: {e}")
@@ -641,3 +681,87 @@ Create notes following this EXACT format.
                 ],
                 "key_terms": []
             }
+
+    def _fix_json_errors(self, json_text):
+        """Fix common JSON formatting errors"""
+        import re
+        
+        # Fix missing commas between objects in arrays
+        # Pattern: } { -> }, {
+        json_text = re.sub(r'\}\s*\n\s*\{', '},\n{', json_text)
+        
+        # Fix missing commas between array elements
+        # Pattern: ] [ -> ], [
+        json_text = re.sub(r'\]\s*\n\s*\[', '],\n[', json_text)
+        
+        # Fix trailing commas before closing brackets
+        json_text = re.sub(r',\s*\]', ']', json_text)
+        json_text = re.sub(r',\s*\}', '}', json_text)
+        
+        return json_text
+    
+    def _aggressive_json_fix(self, json_text):
+        """More aggressive JSON fixing - try to salvage what we can"""
+        import re
+        
+        # Apply basic fixes first
+        json_text = self._fix_json_errors(json_text)
+        
+        # Try to find the questions array and extract it
+        questions_match = re.search(r'"questions"\s*:\s*\[(.*)\]', json_text, re.DOTALL)
+        if questions_match:
+            questions_text = questions_match.group(1)
+            
+            # Split by question objects (look for "question" field)
+            question_parts = re.split(r'\},\s*\{', questions_text)
+            
+            # Clean and reconstruct each question
+            cleaned_questions = []
+            for part in question_parts[:5]:  # Max 5 questions
+                # Ensure it starts with {
+                if not part.strip().startswith('{'):
+                    part = '{' + part
+                # Ensure it ends with }
+                if not part.strip().endswith('}'):
+                    part = part + '}'
+                
+                # Fix the part
+                part = self._fix_json_errors(part)
+                cleaned_questions.append(part)
+            
+            # Reconstruct JSON
+            reconstructed = {
+                "title": "Quiz",
+                "questions": []
+            }
+            
+            for q_text in cleaned_questions:
+                try:
+                    import json
+                    q_obj = json.loads(q_text)
+                    reconstructed["questions"].append(q_obj)
+                except:
+                    continue
+            
+            return json.dumps(reconstructed)
+        
+        return json_text
+    
+    def _get_fallback_quiz(self, lesson_title):
+        """Return a fallback quiz structure"""
+        return {
+            "title": f"Quiz: {lesson_title}",
+            "questions": [
+                {
+                    "question": "What is the main topic of this lesson?",
+                    "options": [
+                        {"key": "A", "text": "Review the lesson content"},
+                        {"key": "B", "text": "Study the material carefully"},
+                        {"key": "C", "text": "Focus on key concepts"},
+                        {"key": "D", "text": "Practice regularly"}
+                    ],
+                    "correct_answer": "A",
+                    "explanation": "Review the lesson content for details."
+                }
+            ]
+        }

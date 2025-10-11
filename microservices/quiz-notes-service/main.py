@@ -121,7 +121,7 @@ class NotesData(BaseModel):
 
 def get_lesson_from_db(lesson_id: str) -> Optional[Dict[str, Any]]:
     """Retrieve lesson document from MongoDB"""
-    if not lessons_collection:
+    if lessons_collection is None:
         raise HTTPException(status_code=503, detail="Database not available")
     
     try:
@@ -289,7 +289,7 @@ async def submit_quiz(submission: QuizSubmission):
             "submitted_at": datetime.utcnow()
         }
         
-        if quiz_results_collection:
+        if quiz_results_collection is not None:
             insert_result = quiz_results_collection.insert_one(result_doc)
             result_doc['_id'] = str(insert_result.inserted_id)
         
@@ -313,7 +313,7 @@ async def submit_quiz(submission: QuizSubmission):
 async def get_quiz_results(user_id: str):
     """Get quiz result history for a user"""
     try:
-        if not quiz_results_collection:
+        if quiz_results_collection is None:
             raise HTTPException(status_code=503, detail="Results database not available")
         
         results = list(quiz_results_collection.find(

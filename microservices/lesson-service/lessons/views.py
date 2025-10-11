@@ -450,3 +450,93 @@ def regenerate_lesson(request, lesson_id):
             'error': 'Failed to regenerate lesson',
             'success': False
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+def delete_lesson(request, lesson_id):
+    """
+    Delete a lesson and its associated data.
+    
+    Endpoint: DELETE /api/lessons/{lesson_id}
+    
+    Deletes:
+    - Lesson document from lessons collection
+    - Associated history entries
+    - Associated quiz data (if exists)
+    - Associated notes data (if exists)
+    
+    Returns:
+        Response: JSON with success status and deleted items count
+    """
+    try:
+        logger.info(f"🗑️ Delete request received for lesson ID: {lesson_id}")
+        
+        # Validate lesson ID format
+        if not ObjectId.is_valid(lesson_id):
+            logger.warning(f"❌ Invalid lesson ID format: {lesson_id}")
+            return Response({
+                'error': 'Invalid lesson ID format',
+                'success': False
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find lesson to get metadata before deletion
+        lesson = LessonModel.get_by_id(lesson_id)
+        if not lesson:
+            logger.warning(f"❌ Lesson not found: {lesson_id}")
+            return Response({
+                'error': 'Lesson not found',
+                'success': False
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        deleted_items = {
+            'lesson': False,
+            'history': 0,
+            'quiz': False,
+            'notes': False
+        }
+        
+        # Delete lesson from lessons collection
+        result = lessons_collection.delete_one({'_id': ObjectId(lesson_id)})
+        if result.deleted_count > 0:
+            deleted_items['lesson'] = True
+            logger.info(f"✅ Deleted lesson: {lesson_id}")
+        
+        # Delete history entries
+        history_result = lessons_collection.database['user_history'].delete_many({
+            'lesson_id': lesson_id
+        })
+        deleted_items['history'] = history_result.deleted_count
+        logger.info(f"✅ Deleted {history_result.deleted_count} history entries")
+        
+        # Delete quiz data if exists
+        quiz_result = lessons_collection.database['quiz'].delete_many({
+            'lesson_id': lesson_id
+        })
+        if quiz_result.deleted_count > 0:
+            deleted_items['quiz'] = True
+            logger.info(f"✅ Deleted quiz data for lesson: {lesson_id}")
+        
+        # Delete notes data if exists
+        notes_result = lessons_collection.database['notes'].delete_many({
+            'lesson_id': lesson_id
+        })
+        if notes_result.deleted_count > 0:
+            deleted_items['notes'] = True
+            logger.info(f"✅ Deleted notes data for lesson: {lesson_id}")
+        
+        logger.info(f"✅ Successfully deleted all data for lesson: {lesson_id}")
+        
+        return Response({
+            'success': True,
+            'lesson_id': lesson_id,
+            'deleted': deleted_items,
+            'message': 'Lesson and associated data deleted successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error deleting lesson {lesson_id}: {e}")
+        return Response({
+            'error': 'Failed to delete lesson',
+            'success': False,
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

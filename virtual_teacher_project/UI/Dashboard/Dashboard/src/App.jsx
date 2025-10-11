@@ -320,9 +320,36 @@ export default function App() {
     try {
       setLoading(true);
       
-      await apiCall(`/api/conversations/${conversationId}/delete/`, {
-        method: "POST",
-      });
+      console.log("🗑️ Deleting conversation (lesson):", conversationId);
+      
+      // Try to delete from Lesson Service first (this is the lesson ID)
+      try {
+        const lessonDeleteResponse = await fetch(`${API_BASE_URL}/api/lessons/${conversationId}/delete/`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('access_token') || ''}`
+          }
+        });
+        
+        if (lessonDeleteResponse.ok) {
+          console.log("✅ Lesson deleted successfully");
+        } else {
+          console.warn("⚠️ Failed to delete lesson:", lessonDeleteResponse.status);
+        }
+      } catch (lessonError) {
+        console.warn("⚠️ Error deleting lesson:", lessonError);
+      }
+      
+      // Also try to delete from Teaching Service (conversations endpoint)
+      try {
+        await apiCall(`/api/conversations/${conversationId}/delete/`, {
+          method: "DELETE",
+        });
+        console.log("✅ Conversation deleted successfully");
+      } catch (conversationError) {
+        console.warn("⚠️ Error deleting conversation:", conversationError);
+      }
 
       // Remove from local state immediately
       setHistoryItems((prev) =>
@@ -334,7 +361,7 @@ export default function App() {
         handleNewChat();
       }
 
-      console.log("Conversation deleted successfully");
+      console.log("✅ Deletion completed");
       
       // Optional: Refresh from backend after a short delay to ensure consistency
       setTimeout(() => {
@@ -342,7 +369,7 @@ export default function App() {
       }, 1000);
       
     } catch (error) {
-      console.error("Error deleting conversation:", error);
+      console.error("❌ Error deleting conversation:", error);
       setError("Failed to delete conversation");
       
       // Refresh conversations to ensure UI consistency

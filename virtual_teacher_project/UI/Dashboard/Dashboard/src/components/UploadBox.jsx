@@ -119,6 +119,16 @@ export default function UploadBox({ onStartSession }) {
         console.log("PDF text length:", result.text?.length);
         console.log("PDF text preview:", result.text?.substring(0, 200) + "...");
         console.log("Lesson data:", result.lesson);
+        console.log("Lesson ID:", result.lesson_id);
+
+        // ✅ CRITICAL FIX: Store lesson_id for Quiz and Notes components
+        if (result.lesson_id) {
+          sessionStorage.setItem("lessonId", result.lesson_id);
+          sessionStorage.setItem("conversationId", result.lesson_id); // Also set as conversationId for compatibility
+          console.log("✅ Lesson ID stored:", result.lesson_id);
+        } else {
+          console.warn("⚠️ No lesson_id in response!");
+        }
 
         // Store PDF text, filename AND lesson data for WebSocket communication
         sessionStorage.setItem("pdfText", result.text || "");
@@ -127,7 +137,7 @@ export default function UploadBox({ onStartSession }) {
           result.filename || selectedFile.name
         );
         
-        // ✅ CRITICAL: Store the complete lesson data from Lesson Service
+        // Store the complete lesson data from Lesson Service
         if (result.lesson) {
           sessionStorage.setItem("lessonData", JSON.stringify(result.lesson));
           console.log("✅ Lesson data stored:", result.lesson.teaching_steps?.length, "steps");
@@ -136,6 +146,7 @@ export default function UploadBox({ onStartSession }) {
         }
         
         // Verify storage
+        console.log("Stored in sessionStorage - lessonId:", sessionStorage.getItem("lessonId"));
         console.log("Stored in sessionStorage - pdfText length:", sessionStorage.getItem("pdfText")?.length);
         console.log("Stored in sessionStorage - pdfFilename:", sessionStorage.getItem("pdfFilename"));
         console.log("Stored in sessionStorage - lessonData:", !!sessionStorage.getItem("lessonData"));
