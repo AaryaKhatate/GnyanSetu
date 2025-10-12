@@ -8,6 +8,8 @@ import {
 import classNames from "classnames";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
+// Import logo for watermark
+
 // API Configuration - Use API Gateway instead of direct service calls
 const API_BASE_URL = "http://localhost:8000";
 
@@ -245,23 +247,10 @@ const NavBar = ({ onLogin, onSignup }) => {
             href="#hero"
             className="flex items-center text-xl font-semibold tracking-tight"
           >
-            <div className="w-28 h-28 mr-7 mt-4">
-              <img
-                src="/GnyanSetu.png"
-                alt="GyanSetu Logo"
-                className="w-full h-full object-contain"
-              />
-            </div>
             <span className="text-slate-200">Gyan</span>
             <span className="text-accentBlue">सेतु</span>
           </a>
           <nav className="hidden md:flex items-center gap-8">
-            <a
-              href="#about"
-              className="text-slate-300 hover:text-white transition-colors"
-            >
-              About
-            </a>
             <a
               href="#features"
               className="text-slate-300 hover:text-white transition-colors"
@@ -1508,8 +1497,24 @@ export default function App() {
 
   return (
     <GoogleOAuthProvider clientId="334410826401-5dc8sdfntd1unbfnjamd6k4dvd7c3g1r.apps.googleusercontent.com">
-      <div className="relative min-h-screen">
+      <div className="relative min-h-screen overflow-hidden">
         <BackgroundBlobs />
+        {/* Watermark Logo */}
+        <img
+          src="/GnyanSetu.png"
+          alt="GnyanSetu Watermark"
+          style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "600px",
+            opacity: 0.08,
+            zIndex: 0,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        />
         <NavBar onLogin={openLogin} onSignup={openSignup} />
         <main>
           <Hero onPrimary={openSignup} />

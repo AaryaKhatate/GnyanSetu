@@ -5,6 +5,8 @@ import ProfileMenu from "./components/ProfileMenu";
 import GlowingBackground from "./components/GlowingBackground";
 import SessionManager from "./components/SessionManager";
 
+// Import logo for watermark
+
 // API Configuration
 const API_BASE_URL = "http://localhost:8000";
 
@@ -20,7 +22,7 @@ const apiCall = async (endpoint, options = {}) => {
   };
 
   const response = await fetch(url, { ...defaultOptions, ...options });
-  
+
   if (!response.ok) {
     const errorText = await response.text();
     let errorMessage;
@@ -52,75 +54,89 @@ export default function App() {
   // Check for login data in URL hash (passed from landing page)
   useEffect(() => {
     console.log("🔍 Dashboard: Checking for login data in URL...");
-    
+
     const hash = window.location.hash;
-    if (hash.includes('#login?')) {
+    if (hash.includes("#login?")) {
       console.log("✅ Found login data in URL!");
-      
+
       // Parse the URL parameters
-      const params = new URLSearchParams(hash.split('?')[1]);
-      
-      const userId = params.get('userId');
-      const userEmail = params.get('userEmail');
-      const userName = params.get('userName');
-      const accessToken = params.get('accessToken');
-      const refreshToken = params.get('refreshToken');
-      const userJson = params.get('user');
-      
+      const params = new URLSearchParams(hash.split("?")[1]);
+
+      const userId = params.get("userId");
+      const userEmail = params.get("userEmail");
+      const userName = params.get("userName");
+      const accessToken = params.get("accessToken");
+      const refreshToken = params.get("refreshToken");
+      const userJson = params.get("user");
+
       console.log("📦 Storing user data in Dashboard's localStorage...");
-      
+
       if (accessToken) {
-        localStorage.setItem('access_token', accessToken);
-        localStorage.setItem('gnyansetu_auth_token', accessToken);
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("gnyansetu_auth_token", accessToken);
         console.log("✅ Access token stored");
       }
-      
+
       if (refreshToken) {
-        localStorage.setItem('refresh_token', refreshToken);
+        localStorage.setItem("refresh_token", refreshToken);
         console.log("✅ Refresh token stored");
       }
-      
+
       if (userId) {
-        localStorage.setItem('userId', userId);
-        sessionStorage.setItem('userId', userId);
+        localStorage.setItem("userId", userId);
+        sessionStorage.setItem("userId", userId);
         console.log("✅ User ID stored:", userId);
       }
-      
+
       if (userEmail) {
-        localStorage.setItem('userEmail', userEmail);
-        sessionStorage.setItem('userEmail', userEmail);
+        localStorage.setItem("userEmail", userEmail);
+        sessionStorage.setItem("userEmail", userEmail);
         console.log("✅ User email stored:", userEmail);
       }
-      
+
       if (userName) {
-        localStorage.setItem('userName', userName);
-        sessionStorage.setItem('userName', userName);
+        localStorage.setItem("userName", userName);
+        sessionStorage.setItem("userName", userName);
         console.log("✅ User name stored:", userName);
       }
-      
+
       if (userJson) {
         try {
           const user = JSON.parse(userJson);
-          localStorage.setItem('user', JSON.stringify(user));
-          localStorage.setItem('gnyansetu_user', JSON.stringify(user));
+          localStorage.setItem("user", JSON.stringify(user));
+          localStorage.setItem("gnyansetu_user", JSON.stringify(user));
           console.log("✅ User object stored");
         } catch (e) {
           console.error("❌ Failed to parse user JSON:", e);
         }
       }
-      
+
       console.log("\n📦 Storage Summary (Dashboard):");
-      console.log("- userId:", localStorage.getItem('userId') || "❌ Missing");
-      console.log("- userEmail:", localStorage.getItem('userEmail') || "❌ Missing");
-      console.log("- userName:", localStorage.getItem('userName') || "❌ Missing");
-      console.log("- access_token:", localStorage.getItem('access_token') ? "✅ Stored" : "❌ Missing");
-      
+      console.log("- userId:", localStorage.getItem("userId") || "❌ Missing");
+      console.log(
+        "- userEmail:",
+        localStorage.getItem("userEmail") || "❌ Missing"
+      );
+      console.log(
+        "- userName:",
+        localStorage.getItem("userName") || "❌ Missing"
+      );
+      console.log(
+        "- access_token:",
+        localStorage.getItem("access_token") ? "✅ Stored" : "❌ Missing"
+      );
+
       // Clean up URL
-      window.history.replaceState(null, '', '/');
+      window.history.replaceState(null, "", "/");
       console.log("✅ URL cleaned up");
     } else {
       console.log("ℹ️ No login data in URL, checking existing storage...");
-      console.log("- userId:", localStorage.getItem('userId') || sessionStorage.getItem('userId') || "❌ Not found");
+      console.log(
+        "- userId:",
+        localStorage.getItem("userId") ||
+          sessionStorage.getItem("userId") ||
+          "❌ Not found"
+      );
     }
   }, []);
   const [currentSessionId, setCurrentSessionId] = useState(null);
@@ -130,17 +146,17 @@ export default function App() {
 
   // Get user ID from sessionStorage/localStorage on mount
   useEffect(() => {
-    const storedUserId = 
-      sessionStorage.getItem('userId') || 
-      sessionStorage.getItem('studentId') || 
-      localStorage.getItem('userId') ||
-      localStorage.getItem('studentId');
-    
+    const storedUserId =
+      sessionStorage.getItem("userId") ||
+      sessionStorage.getItem("studentId") ||
+      localStorage.getItem("userId") ||
+      localStorage.getItem("studentId");
+
     if (storedUserId) {
-      console.log('✅ User ID loaded:', storedUserId);
+      console.log("✅ User ID loaded:", storedUserId);
       setCurrentUserId(storedUserId);
     } else {
-      console.warn('⚠️ No user ID found in storage. User needs to login.');
+      console.warn("⚠️ No user ID found in storage. User needs to login.");
       // Optionally redirect to login
       // window.location.href = 'http://localhost:3001';
     }
@@ -155,29 +171,30 @@ export default function App() {
 
   const loadChatHistory = async () => {
     if (!currentUserId) {
-      console.warn('⚠️ Cannot load chat history: No user ID');
+      console.warn("⚠️ Cannot load chat history: No user ID");
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      
+
       console.log(`📜 Loading chat history for user: ${currentUserId}`);
       const response = await apiCall(
         `/api/conversations/?user_id=${currentUserId}`
       );
-      
+
       const conversations = response.conversations || [];
-      
+
       // Transform backend conversations to match frontend format
-      const transformedConversations = conversations.map(conv => ({
+      const transformedConversations = conversations.map((conv) => ({
         ...conv,
         id: getConversationId(conv), // Ensure consistent ID access
         title: conv.title || "Untitled Chat",
-        timestamp: conv.timestamp || formatTimestamp(conv.updated_at || conv.created_at),
+        timestamp:
+          conv.timestamp || formatTimestamp(conv.updated_at || conv.created_at),
       }));
-      
+
       setHistoryItems(transformedConversations);
 
       // If no conversations, create a new one
@@ -208,12 +225,16 @@ export default function App() {
         minute: "2-digit",
       });
     }
-    
+
     const date = new Date(dateString);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
+    const messageDate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+
     if (messageDate.getTime() === today.getTime()) {
       return `Today, ${date.toLocaleString([], {
         hour: "2-digit",
@@ -234,17 +255,17 @@ export default function App() {
       hour: "2-digit",
       minute: "2-digit",
     });
-    
+
     // Create temporary local ID that will be replaced when conversation is created on backend
     const tempId = `temp_${Date.now()}`;
-    
+
     const newItem = {
       id: tempId,
       title: "Untitled Chat",
       timestamp: `Today, ${timestamp}`,
       isTemp: true, // Mark as temporary
     };
-    
+
     setHistoryItems((prev) => [newItem, ...prev]);
     setCurrentSessionId(tempId);
     setCurrentSession(null); // Reset to upload screen
@@ -253,7 +274,7 @@ export default function App() {
   const handleHistoryItemClick = (item) => {
     const itemId = getConversationId(item);
     setCurrentSessionId(itemId);
-    
+
     if (item.title && item.title !== "Untitled Chat") {
       setCurrentSession(item.title);
     } else {
@@ -265,8 +286,8 @@ export default function App() {
     // Update the current untitled chat with the PDF name
     if (currentSessionId) {
       const updatedHistory = historyItems.map((item) =>
-        getConversationId(item) === currentSessionId 
-          ? { ...item, title: pdfName } 
+        getConversationId(item) === currentSessionId
+          ? { ...item, title: pdfName }
           : item
       );
       setHistoryItems(updatedHistory);
@@ -278,14 +299,14 @@ export default function App() {
         minute: "2-digit",
       });
       const tempId = `temp_${Date.now()}`;
-      
+
       const newItem = {
         id: tempId,
         title: pdfName,
         timestamp: `Today, ${timestamp}`,
         isTemp: true,
       };
-      
+
       setHistoryItems((prev) => [newItem, ...prev]);
       setCurrentSessionId(tempId);
       setCurrentSession(pdfName);
@@ -304,12 +325,21 @@ export default function App() {
   };
 
   const handleDeleteConversation = async (conversationId) => {
-    if (!conversationId || conversationId === 'undefined' || conversationId.startsWith('temp_')) {
-      console.error("Invalid or temporary conversation ID for deletion:", conversationId);
-      
+    if (
+      !conversationId ||
+      conversationId === "undefined" ||
+      conversationId.startsWith("temp_")
+    ) {
+      console.error(
+        "Invalid or temporary conversation ID for deletion:",
+        conversationId
+      );
+
       // If it's a temp conversation, just remove it locally
-      if (conversationId.startsWith('temp_')) {
-        setHistoryItems(prev => prev.filter(item => getConversationId(item) !== conversationId));
+      if (conversationId.startsWith("temp_")) {
+        setHistoryItems((prev) =>
+          prev.filter((item) => getConversationId(item) !== conversationId)
+        );
         if (currentSessionId === conversationId) {
           handleNewChat();
         }
@@ -319,28 +349,36 @@ export default function App() {
 
     try {
       setLoading(true);
-      
+
       console.log("🗑️ Deleting conversation (lesson):", conversationId);
-      
+
       // Try to delete from Lesson Service first (this is the lesson ID)
       try {
-        const lessonDeleteResponse = await fetch(`${API_BASE_URL}/api/lessons/${conversationId}/delete/`, {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('access_token') || ''}`
+        const lessonDeleteResponse = await fetch(
+          `${API_BASE_URL}/api/lessons/${conversationId}/delete/`,
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${
+                localStorage.getItem("access_token") || ""
+              }`,
+            },
           }
-        });
-        
+        );
+
         if (lessonDeleteResponse.ok) {
           console.log("✅ Lesson deleted successfully");
         } else {
-          console.warn("⚠️ Failed to delete lesson:", lessonDeleteResponse.status);
+          console.warn(
+            "⚠️ Failed to delete lesson:",
+            lessonDeleteResponse.status
+          );
         }
       } catch (lessonError) {
         console.warn("⚠️ Error deleting lesson:", lessonError);
       }
-      
+
       // Also try to delete from Teaching Service (conversations endpoint)
       try {
         await apiCall(`/api/conversations/${conversationId}/delete/`, {
@@ -362,19 +400,18 @@ export default function App() {
       }
 
       console.log("✅ Deletion completed");
-      
+
       // Optional: Refresh from backend after a short delay to ensure consistency
       setTimeout(() => {
         loadChatHistory();
       }, 1000);
-      
     } catch (error) {
       console.error("❌ Error deleting conversation:", error);
       setError("Failed to delete conversation");
-      
+
       // Refresh conversations to ensure UI consistency
       loadChatHistory();
-      
+
       // Show user-friendly error message
       alert("Failed to delete conversation. Please try again.");
     } finally {
@@ -383,13 +420,21 @@ export default function App() {
   };
 
   const handleRenameConversation = async (conversationId, newTitle) => {
-    if (!conversationId || !newTitle.trim() || conversationId === 'undefined' || conversationId.startsWith('temp_')) {
-      console.error("Invalid conversation ID or title for rename:", conversationId);
-      
+    if (
+      !conversationId ||
+      !newTitle.trim() ||
+      conversationId === "undefined" ||
+      conversationId.startsWith("temp_")
+    ) {
+      console.error(
+        "Invalid conversation ID or title for rename:",
+        conversationId
+      );
+
       // If it's a temp conversation, just update it locally
-      if (conversationId.startsWith('temp_')) {
-        setHistoryItems(prev =>
-          prev.map(item =>
+      if (conversationId.startsWith("temp_")) {
+        setHistoryItems((prev) =>
+          prev.map((item) =>
             getConversationId(item) === conversationId
               ? { ...item, title: newTitle.trim() }
               : item
@@ -408,8 +453,8 @@ export default function App() {
       // Update local state immediately
       setHistoryItems((prev) =>
         prev.map((item) =>
-          getConversationId(item) === conversationId 
-            ? { ...item, title: newTitle.trim() } 
+          getConversationId(item) === conversationId
+            ? { ...item, title: newTitle.trim() }
             : item
         )
       );
@@ -428,13 +473,13 @@ export default function App() {
 
   const handleConversationCreated = (conversationId, title) => {
     if (!conversationId) return;
-    
+
     // Store conversation ID for Quiz and Notes components
-    console.log('💾 Storing conversation ID for Quiz/Notes:', conversationId);
-    sessionStorage.setItem('lessonId', conversationId);
-    sessionStorage.setItem('conversationId', conversationId);
-    localStorage.setItem('currentConversationId', conversationId);
-    
+    console.log("💾 Storing conversation ID for Quiz/Notes:", conversationId);
+    sessionStorage.setItem("lessonId", conversationId);
+    sessionStorage.setItem("conversationId", conversationId);
+    localStorage.setItem("currentConversationId", conversationId);
+
     // Replace the temporary conversation with the real one
     setCurrentSessionId(conversationId);
 
@@ -443,13 +488,13 @@ export default function App() {
       prev.map((item) => {
         const itemId = getConversationId(item);
         return itemId === currentSessionId || item.isTemp
-          ? { 
-              ...item, 
+          ? {
+              ...item,
               id: conversationId,
               _id: conversationId, // Ensure backend compatibility
               conversation_id: conversationId,
               title: title || item.title,
-              isTemp: false // Remove temp flag
+              isTemp: false, // Remove temp flag
             }
           : item;
       })
@@ -471,6 +516,22 @@ export default function App() {
   return (
     <div className="relative min-h-screen bg-background overflow-hidden">
       <GlowingBackground />
+      {/* Watermark Logo */}
+      <img
+        src="/GnyanSetu.png"
+        alt="GnyanSetu Watermark"
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "600px",
+          opacity: 0.08,
+          zIndex: 0,
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      />
 
       {/* Error Toast */}
       {error && (
