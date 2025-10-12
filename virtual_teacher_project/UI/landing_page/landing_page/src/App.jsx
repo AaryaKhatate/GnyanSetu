@@ -252,6 +252,12 @@ const NavBar = ({ onLogin, onSignup }) => {
           </a>
           <nav className="hidden md:flex items-center gap-8">
             <a
+              href="#about"
+              className="text-slate-300 hover:text-white transition-colors"
+            >
+              About
+            </a>
+            <a
               href="#features"
               className="text-slate-300 hover:text-white transition-colors"
             >
@@ -489,10 +495,10 @@ const Features = () => (
   <Section id="features">
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
       <div className="text-center">
-        <h2 className="text-3xl sm:text-4xl font-semibold text-white">
+        <h2 className="text-5xl sm:text-6xl font-bold text-white">
           Powerful features
         </h2>
-        <p className="mt-3 text-slate-300">
+        <p className="mt-7 text-slate-200 text-2xl">
           Everything you need to learn effectively
         </p>
       </div>
@@ -520,10 +526,10 @@ const Features = () => (
 const CTA = ({ onClick }) => (
   <Section id="cta">
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 className="text-3xl sm:text-4xl font-semibold text-white">
+      <h2 className="text-5xl sm:text-6xl font-bold text-white">
         Ready to build your bridge to knowledge?
       </h2>
-      <p className="mt-4 text-slate-300">
+      <p className="mt-7 text-slate-200 text-2xl">
         Join GyanSetu today and transform how you learn.
       </p>
       <button
