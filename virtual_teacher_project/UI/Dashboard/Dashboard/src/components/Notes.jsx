@@ -20,35 +20,37 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
     const fetchNotes = async () => {
       try {
         setLoading(true);
-        
+
         // Try multiple ways to get the lesson ID
-        const lessonId = 
-          sessionStorage.getItem('lessonId') || 
-          sessionStorage.getItem('conversationId') ||
-          localStorage.getItem('currentConversationId') ||
-          sessionStorage.getItem('currentConversationId');
-          
-        const userId = 
-          sessionStorage.getItem('userId') || 
-          localStorage.getItem('userId') ||
-          sessionStorage.getItem('studentId') || 
-          'default_student';
-        
-        if (!lessonId || lessonId === 'default_lesson') {
-          console.warn('⚠️ No lesson ID found. Using fallback data.');
-          throw new Error('No active lesson found. Please start a lesson first.');
+        const lessonId =
+          sessionStorage.getItem("lessonId") ||
+          sessionStorage.getItem("conversationId") ||
+          localStorage.getItem("currentConversationId") ||
+          sessionStorage.getItem("currentConversationId");
+
+        const userId =
+          sessionStorage.getItem("userId") ||
+          localStorage.getItem("userId") ||
+          sessionStorage.getItem("studentId") ||
+          "default_student";
+
+        if (!lessonId || lessonId === "default_lesson") {
+          console.warn("⚠️ No lesson ID found. Using fallback data.");
+          throw new Error(
+            "No active lesson found. Please start a lesson first."
+          );
         }
-        
-        console.log('📝 Fetching notes for lesson:', lessonId);
-        console.log('👤 User ID:', userId);
-        
+
+        console.log("📝 Fetching notes for lesson:", lessonId);
+        console.log("👤 User ID:", userId);
+
         // Updated endpoint: /api/notes/get/ (retrieves pre-generated notes)
         const response = await fetch(
           `http://localhost:8000/api/notes/get/${lessonId}?user_id=${userId}`,
           {
-            method: 'GET',
+            method: "GET",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           }
         );
@@ -56,43 +58,45 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
         if (!response.ok) {
           // If 202 (Accepted), notes are still being generated
           if (response.status === 202) {
-            throw new Error('Notes are being generated. Please wait a moment...');
+            throw new Error(
+              "Notes are being generated. Please wait a moment..."
+            );
           }
-          throw new Error('Failed to fetch notes data');
+          throw new Error("Failed to fetch notes data");
         }
 
         const data = await response.json();
         setNotesData(data);
-        
+
         // Transform API data into an array of notes
         const notesArray = [];
-        
+
         // Add summary
         if (data.summary) {
           notesArray.push(data.summary);
         }
-        
+
         // Add key takeaways
         if (data.key_takeaways && Array.isArray(data.key_takeaways)) {
           notesArray.push(...data.key_takeaways);
         }
-        
+
         // Add content from sections
         if (data.sections && Array.isArray(data.sections)) {
-          data.sections.forEach(section => {
+          data.sections.forEach((section) => {
             if (section.content) {
               notesArray.push(section.content);
             }
           });
         }
-        
+
         setLessonNotes(notesArray);
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching notes:', err);
-        setError('Failed to load notes. Please try again.');
+        console.error("Error fetching notes:", err);
+        setError("Failed to load notes. Please try again.");
         setLoading(false);
-        
+
         // Fallback to mock data on error
         setLessonNotes([
           "Understanding fundamental principles is crucial for advanced learning",
@@ -112,18 +116,19 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
       fetchNotes();
     } else {
       // Use provided notes content or fallback to mock data
-      const processedNotes = typeof notesContent === "string" && notesContent.includes("<")
-        ? // Simple HTML to text conversion for display
-          notesContent
-            .replace(/<[^>]*>/g, " ")
-            .split(/\s+/)
-            .filter((word) => word.length > 0)
-            .join(" ")
-            .split(/[.!?]+/)
-            .filter((sentence) => sentence.trim().length > 10)
-            .map((sentence) => sentence.trim())
-        : [notesContent];
-      
+      const processedNotes =
+        typeof notesContent === "string" && notesContent.includes("<")
+          ? // Simple HTML to text conversion for display
+            notesContent
+              .replace(/<[^>]*>/g, " ")
+              .split(/\s+/)
+              .filter((word) => word.length > 0)
+              .join(" ")
+              .split(/[.!?]+/)
+              .filter((sentence) => sentence.trim().length > 10)
+              .map((sentence) => sentence.trim())
+          : [notesContent];
+
       setLessonNotes(processedNotes);
       setLoading(false);
     }
@@ -136,9 +141,9 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
         const response = await fetch(
           `http://localhost:8000/api/notes/download/${notesData.notes_id}`,
           {
-            method: 'GET',
+            method: "GET",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           }
         );
@@ -147,7 +152,7 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
           // Get the content from the response
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
+          const a = document.createElement("a");
           a.href = url;
           a.download = `lesson-notes-${notesData.lesson_id}.txt`;
           document.body.appendChild(a);
@@ -277,7 +282,7 @@ const Notes = ({ onRetakeLesson, onEndSession, slides = [], notesContent }) => {
             <h2 className="text-2xl font-bold text-white">Lesson Summary</h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4">
             {lessonNotes.map((note, index) => (
               <motion.div
                 key={index}
