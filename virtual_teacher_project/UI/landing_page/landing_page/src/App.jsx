@@ -683,7 +683,6 @@ const Modal = ({ isOpen, title, children, onClose }) => {
   );
 };
 
-
 const Input = (props) => {
   const [show, setShow] = useState(false);
   const isPassword = props.type === "password";
@@ -706,23 +705,73 @@ const Input = (props) => {
           onClick={() => setShow((v) => !v)}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none flex items-center justify-center"
           aria-label={show ? "Hide password" : "Show password"}
-          style={{height: '20px'}}
+          style={{ height: "20px" }}
         >
           {show ? (
             // Eye open icon (full eye)
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-              <path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+              <path
+                d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="3"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
             </svg>
           ) : (
             // Eye open icon with a diagonal slash overlay, perfectly centered
-            <span style={{position:'relative',display:'inline-flex',width:'20px',height:'20px',verticalAlign:'middle',alignItems:'center',justifyContent:'center'}}>
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" style={{position:'absolute',top:0,left:0}}>
-                <path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="currentColor" strokeWidth="2"/>
-                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+            <span
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                width: "20px",
+                height: "20px",
+                verticalAlign: "middle",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                viewBox="0 0 24 24"
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <path
+                  d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
               </svg>
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" style={{position:'absolute',top:0,left:0}}>
-                <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                viewBox="0 0 24 24"
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <line
+                  x1="4"
+                  y1="20"
+                  x2="20"
+                  y2="4"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
             </span>
           )}
@@ -851,8 +900,36 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Check if password contains any part of name or email username (case-insensitive)
+    const password = formData.password.toLowerCase();
+    const nameParts = formData.name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.toLowerCase());
+    const emailUser = formData.email
+      .split("@")[0]
+      .replace(/\s+/g, "")
+      .toLowerCase();
+    const errors = [];
+    for (const part of nameParts) {
+      if (part && password.includes(part)) {
+        errors.push(
+          "Password should not contain part of your name or email username."
+        );
+        break;
+      }
+    }
+    if (emailUser && password.includes(emailUser)) {
+      errors.push(
+        "Password should not contain part of your name or email username."
+      );
+    }
+    if (errors.length > 0) {
+      onError(errors);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-
     try {
       const result = await authAPI.signup(
         formData.name,
