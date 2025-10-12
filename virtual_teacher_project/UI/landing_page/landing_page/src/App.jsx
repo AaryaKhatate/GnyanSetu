@@ -24,7 +24,7 @@ const apiCall = async (endpoint, options = {}) => {
     };
 
     const response = await fetch(url, { ...defaultOptions, ...options });
-    
+
     let data;
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
@@ -120,9 +120,9 @@ const handleGoogleSuccess = async (credentialResponse) => {
   try {
     console.log("🔐 Google Login - Credential received");
     console.log("📤 Sending to backend:", {
-      token: credentialResponse.credential ? "✓ Present" : "✗ Missing"
+      token: credentialResponse.credential ? "✓ Present" : "✗ Missing",
     });
-    
+
     const response = await fetch(`${API_BASE_URL}/api/v1/auth/google/`, {
       method: "POST",
       headers: {
@@ -141,43 +141,48 @@ const handleGoogleSuccess = async (credentialResponse) => {
       // Save tokens
       const accessToken = data.tokens.access;
       const refreshToken = data.tokens.refresh;
-      
+
       localStorage.setItem("access_token", accessToken);
       localStorage.setItem("refresh_token", refreshToken);
       localStorage.setItem("gnyansetu_auth_token", accessToken);
       localStorage.setItem("user", JSON.stringify(data.user));
-      
+
       // Save user data for dashboard
       const userId = data.user?.id || data.user?._id;
       const userEmail = data.user?.email;
       const userName = data.user?.full_name || data.user?.name;
-      
+
       if (userId) {
         sessionStorage.setItem("userId", userId);
         localStorage.setItem("userId", userId);
       }
-      
+
       if (userEmail) {
         sessionStorage.setItem("userEmail", userEmail);
         localStorage.setItem("userEmail", userEmail);
       }
-      
+
       if (userName) {
         sessionStorage.setItem("userName", userName);
         localStorage.setItem("userName", userName);
       }
-      
-      console.log("✅ Google login - User data stored:", { userId, userEmail, userName });
+
+      console.log("✅ Google login - User data stored:", {
+        userId,
+        userEmail,
+        userName,
+      });
 
       // Redirect to dashboard with data in URL hash
-      const dashboardUrl = `http://localhost:3001/#login?` +
+      const dashboardUrl =
+        `http://localhost:3001/#login?` +
         `userId=${encodeURIComponent(userId)}&` +
         `userEmail=${encodeURIComponent(userEmail)}&` +
         `userName=${encodeURIComponent(userName)}&` +
         `accessToken=${encodeURIComponent(accessToken)}&` +
         `refreshToken=${encodeURIComponent(refreshToken)}&` +
         `user=${encodeURIComponent(JSON.stringify(data.user))}`;
-      
+
       window.location.href = dashboardUrl;
     } else {
       console.error("Google login failed:", data);
@@ -240,7 +245,7 @@ const NavBar = ({ onLogin, onSignup }) => {
             href="#hero"
             className="flex items-center text-xl font-semibold tracking-tight"
           >
-            <div className="w-12 h-12 mr-3">
+            <div className="w-28 h-28 mr-7 mt-4">
               <img
                 src="/GnyanSetu.png"
                 alt="GyanSetu Logo"
@@ -384,31 +389,31 @@ const Hero = ({ onPrimary }) => (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
       <div className="grid lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-7">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-white">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white">
             Bridge knowledge with{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-accentBlue to-accentPurple">
               GyanSetu
             </span>
           </h1>
-          <p className="mt-5 text-lg text-slate-300 max-w-2xl">
+          <p className="mt-7 text-2xl text-slate-200 max-w-2xl">
             Your AI-powered companion for learning: convert PDFs to voice,
             collaborate on a live whiteboard, and generate quizzes instantly.
             Experience the future of education with cutting-edge technology.
           </p>
-          <div className="mt-6 text-slate-400 text-sm max-w-2xl">
+          <div className="mt-8 text-slate-300 text-lg max-w-2xl">
             ✨ AI-Powered Learning • 🎯 Personalized Experience • 🌐
             Collaborative Tools
           </div>
-          <div className="mt-8 flex flex-wrap gap-4">
+          <div className="mt-10 flex flex-wrap gap-6">
             <button
               onClick={onPrimary}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-accentBlue to-accentPurple text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+              className="px-8 py-4 rounded-2xl bg-gradient-to-r from-accentBlue to-accentPurple text-white text-lg shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
             >
               Get Started
             </button>
             <a
               href="#features"
-              className="px-6 py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+              className="px-8 py-4 rounded-2xl border border-slate-700 text-slate-200 text-lg hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
             >
               Explore Features
             </a>
@@ -435,41 +440,39 @@ const Hero = ({ onPrimary }) => (
 const About = () => (
   <Section id="about">
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 className="text-3xl sm:text-4xl font-semibold text-white">
+      <h2 className="text-4xl sm:text-5xl font-bold text-white">
         About GyanSetu
       </h2>
-      <p className="mt-5 text-slate-300 text-lg leading-relaxed">
+      <p className="mt-7 text-slate-200 text-2xl leading-relaxed">
         GyanSetu is a modern, AI-augmented learning platform that makes studying
         effortless. Turn dense PDFs into natural voice narration, collaborate in
         real-time using an intuitive whiteboard, and generate tailored quizzes
         to test your understanding— all in one place.
       </p>
-      <div className="mt-8 grid md:grid-cols-3 gap-6 text-center">
-        <div className="p-4">
-          <div className="text-3xl mb-2">🚀</div>
-          <h3 className="text-lg font-semibold text-white mb-2">
+      <div className="mt-10 grid md:grid-cols-3 gap-8 text-center">
+        <div className="p-6">
+          <div className="text-4xl mb-3">🚀</div>
+          <h3 className="text-xl font-bold text-white mb-3">
             Innovation First
           </h3>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-300 text-lg">
             Cutting-edge AI technology that adapts to your learning style
           </p>
         </div>
-        <div className="p-4">
-          <div className="text-3xl mb-2">🎓</div>
-          <h3 className="text-lg font-semibold text-white mb-2">
+        <div className="p-6">
+          <div className="text-4xl mb-3">🎓</div>
+          <h3 className="text-xl font-bold text-white mb-3">
             Academic Excellence
           </h3>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-300 text-lg">
             Designed by educators for students, ensuring quality learning
             outcomes
           </p>
         </div>
-        <div className="p-4">
-          <div className="text-3xl mb-2">🌍</div>
-          <h3 className="text-lg font-semibold text-white mb-2">
-            Global Access
-          </h3>
-          <p className="text-slate-400 text-sm">
+        <div className="p-6">
+          <div className="text-4xl mb-3">🌍</div>
+          <h3 className="text-xl font-bold text-white mb-3">Global Access</h3>
+          <p className="text-slate-300 text-lg">
             Break down language barriers and make education accessible to all
           </p>
         </div>
@@ -1259,44 +1262,47 @@ export default function App() {
     console.log("result.refresh:", result.refresh);
     console.log("result.user:", result.user);
     console.log("====================================");
-    
+
     // Clear any old data first
     localStorage.removeItem("user");
     localStorage.removeItem("gnyansetu_user");
     sessionStorage.clear();
-    
+
     if (result.access || result.user || result.token) {
       // Authentication successful, store tokens and user data
       console.log("✅ Authentication successful:", result);
-      
+
       // Store JWT tokens (Django returns 'access' and 'refresh')
       const accessToken = result.access || result.token;
       const refreshToken = result.refresh;
-      
+
       if (accessToken) {
         localStorage.setItem("access_token", accessToken);
         localStorage.setItem("gnyansetu_auth_token", accessToken);
-        console.log("✅ Access token stored:", accessToken.substring(0, 20) + "...");
+        console.log(
+          "✅ Access token stored:",
+          accessToken.substring(0, 20) + "..."
+        );
       } else {
         console.error("❌ No access token in response!");
       }
-      
+
       if (refreshToken) {
         localStorage.setItem("refresh_token", refreshToken);
         console.log("✅ Refresh token stored");
       }
-      
+
       // Store user data
       if (result.user) {
         localStorage.setItem("user", JSON.stringify(result.user));
         localStorage.setItem("gnyansetu_user", JSON.stringify(result.user));
         console.log("✅ User object stored:", result.user);
-        
+
         // Extract and store user details
         const userId = result.user.id || result.user._id;
         const userEmail = result.user.email;
         const userName = result.user.full_name || result.user.name;
-        
+
         if (userId) {
           sessionStorage.setItem("userId", userId);
           localStorage.setItem("userId", userId);
@@ -1304,30 +1310,42 @@ export default function App() {
         } else {
           console.error("❌ No userId found in user object!");
         }
-        
+
         if (userEmail) {
           sessionStorage.setItem("userEmail", userEmail);
           localStorage.setItem("userEmail", userEmail);
           console.log("✅ User email stored:", userEmail);
         }
-        
+
         if (userName) {
           sessionStorage.setItem("userName", userName);
           localStorage.setItem("userName", userName);
           console.log("✅ User name stored:", userName);
         }
-        
+
         console.log("\n📦 Storage Summary:");
-        console.log("- access_token:", localStorage.getItem("access_token") ? "✅ Stored" : "❌ Missing");
-        console.log("- userId:", localStorage.getItem("userId") || "❌ Missing");
-        console.log("- userEmail:", localStorage.getItem("userEmail") || "❌ Missing");
-        console.log("- userName:", localStorage.getItem("userName") || "❌ Missing");
+        console.log(
+          "- access_token:",
+          localStorage.getItem("access_token") ? "✅ Stored" : "❌ Missing"
+        );
+        console.log(
+          "- userId:",
+          localStorage.getItem("userId") || "❌ Missing"
+        );
+        console.log(
+          "- userEmail:",
+          localStorage.getItem("userEmail") || "❌ Missing"
+        );
+        console.log(
+          "- userName:",
+          localStorage.getItem("userName") || "❌ Missing"
+        );
       } else {
         console.error("❌ No user object in response!");
       }
-      
+
       console.log("\n🚀 Redirecting to dashboard with user data...");
-      
+
       // Small delay to ensure storage is written
       setTimeout(() => {
         // Since localhost:3000 and localhost:3001 have separate localStorage,
@@ -1337,16 +1355,17 @@ export default function App() {
         const userName = result.user.full_name || result.user.name;
         const accessToken = result.access || result.token;
         const refreshToken = result.refresh;
-        
+
         // Create a URL with all the data as hash (not query params to avoid server logs)
-        const dashboardUrl = `http://localhost:3001/#login?` +
+        const dashboardUrl =
+          `http://localhost:3001/#login?` +
           `userId=${encodeURIComponent(userId)}&` +
           `userEmail=${encodeURIComponent(userEmail)}&` +
           `userName=${encodeURIComponent(userName)}&` +
           `accessToken=${encodeURIComponent(accessToken)}&` +
           `refreshToken=${encodeURIComponent(refreshToken)}&` +
           `user=${encodeURIComponent(JSON.stringify(result.user))}`;
-        
+
         console.log("📡 Redirecting with user data in URL hash");
         window.location.href = dashboardUrl;
       }, 100);

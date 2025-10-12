@@ -40,14 +40,19 @@ export default function Sidebar({
 
   // Helper function to validate item ID
   const isValidId = (itemId) => {
-    return itemId && itemId !== 'undefined' && itemId !== 'null' && typeof itemId === 'string';
+    return (
+      itemId &&
+      itemId !== "undefined" &&
+      itemId !== "null" &&
+      typeof itemId === "string"
+    );
   };
 
   const handleRename = (item) => {
     const itemId = getItemId(item);
-    
+
     if (!isValidId(itemId)) {
-      console.error('Invalid conversation ID for rename:', itemId);
+      console.error("Invalid conversation ID for rename:", itemId);
       return;
     }
 
@@ -58,21 +63,21 @@ export default function Sidebar({
 
   const handleDelete = async (item) => {
     const itemId = getItemId(item);
-    
+
     // Validate ID
     if (!isValidId(itemId)) {
-      console.error('Invalid conversation ID for deletion:', itemId);
+      console.error("Invalid conversation ID for deletion:", itemId);
       return;
     }
 
     // Prevent duplicate delete requests
     if (deletingIds.has(itemId)) {
-      console.log('Delete already in progress for:', itemId);
+      console.log("Delete already in progress for:", itemId);
       return;
     }
 
     // Add to deleting set to prevent duplicates
-    setDeletingIds(prev => new Set(prev).add(itemId));
+    setDeletingIds((prev) => new Set(prev).add(itemId));
     setOpenMenuId(null);
 
     try {
@@ -80,13 +85,15 @@ export default function Sidebar({
         await onDeleteConversation(itemId);
       } else if (onHistoryUpdate) {
         // Fallback to local handling
-        onHistoryUpdate(history.filter((historyItem) => getItemId(historyItem) !== itemId));
+        onHistoryUpdate(
+          history.filter((historyItem) => getItemId(historyItem) !== itemId)
+        );
       }
     } catch (error) {
-      console.error('Error deleting conversation:', error);
+      console.error("Error deleting conversation:", error);
     } finally {
       // Remove from deleting set
-      setDeletingIds(prev => {
+      setDeletingIds((prev) => {
         const newSet = new Set(prev);
         newSet.delete(itemId);
         return newSet;
@@ -96,24 +103,24 @@ export default function Sidebar({
 
   const handleSaveRename = async (item) => {
     const itemId = getItemId(item);
-    
+
     if (!isValidId(itemId)) {
-      console.error('Invalid conversation ID for rename:', itemId);
+      console.error("Invalid conversation ID for rename:", itemId);
       return;
     }
 
     if (!editTitle.trim()) {
-      console.error('Title cannot be empty');
+      console.error("Title cannot be empty");
       return;
     }
 
     // Prevent duplicate rename requests
     if (renamingIds.has(itemId)) {
-      console.log('Rename already in progress for:', itemId);
+      console.log("Rename already in progress for:", itemId);
       return;
     }
 
-    setRenamingIds(prev => new Set(prev).add(itemId));
+    setRenamingIds((prev) => new Set(prev).add(itemId));
 
     try {
       if (onRenameConversation) {
@@ -121,16 +128,16 @@ export default function Sidebar({
       } else if (onHistoryUpdate) {
         // Fallback to local handling
         const updatedHistory = history.map((historyItem) =>
-          getItemId(historyItem) === itemId 
-            ? { ...historyItem, title: editTitle.trim() } 
+          getItemId(historyItem) === itemId
+            ? { ...historyItem, title: editTitle.trim() }
             : historyItem
         );
         onHistoryUpdate(updatedHistory);
       }
     } catch (error) {
-      console.error('Error renaming conversation:', error);
+      console.error("Error renaming conversation:", error);
     } finally {
-      setRenamingIds(prev => {
+      setRenamingIds((prev) => {
         const newSet = new Set(prev);
         newSet.delete(itemId);
         return newSet;
@@ -161,14 +168,14 @@ export default function Sidebar({
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (!e.target.closest('.menu-container')) {
+      if (!e.target.closest(".menu-container")) {
         setOpenMenuId(null);
       }
     };
 
     if (openMenuId) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
     }
   }, [openMenuId]);
 
@@ -211,14 +218,19 @@ export default function Sidebar({
       >
         <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800/60">
           <div className="flex items-center gap-2">
-            <img
-              src="/GnyanSetu.png"
-              alt="GyanSetu Logo"
-              className="h-8 w-8 rounded-md"
-            />
-            <span className="text-white font-semibold tracking-wide">
-              GyanSetu
-            </span>
+            <div className="flex items-center gap-6 mt-4">
+              <img
+                src="/GnyanSetu.png"
+                alt="GyanSetu Logo"
+                className="h-24 w-24 rounded-2xl"
+              />
+              <span
+                className="text-white font-bold tracking-wide text-xl select-none align-middle"
+                style={{ lineHeight: "1" }}
+              >
+                Gyan<span className="text-blue-500">सेतु</span>
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -286,10 +298,10 @@ export default function Sidebar({
                 const itemId = getItemId(item);
                 const isDeleting = deletingIds.has(itemId);
                 const isRenaming = renamingIds.has(itemId);
-                
+
                 // Skip items with invalid IDs
                 if (!isValidId(itemId)) {
-                  console.warn('Skipping item with invalid ID:', item);
+                  console.warn("Skipping item with invalid ID:", item);
                   return null;
                 }
 
