@@ -683,15 +683,54 @@ const Modal = ({ isOpen, title, children, onClose }) => {
   );
 };
 
-const Input = (props) => (
-  <input
-    {...props}
-    className={classNames(
-      "w-full rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-slate-200 placeholder-slate-400 outline-none focus:border-accentBlue/60 focus:ring-2 focus:ring-accentBlue/30 transition",
-      props.className
-    )}
-  />
-);
+
+const Input = (props) => {
+  const [show, setShow] = useState(false);
+  const isPassword = props.type === "password";
+  const inputType = isPassword && show ? "text" : props.type;
+
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        type={inputType}
+        className={classNames(
+          "w-full rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-slate-200 placeholder-slate-400 outline-none focus:border-accentBlue/60 focus:ring-2 focus:ring-accentBlue/30 transition",
+          props.className
+        )}
+      />
+      {isPassword && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setShow((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none flex items-center justify-center"
+          aria-label={show ? "Hide password" : "Show password"}
+          style={{height: '20px'}}
+        >
+          {show ? (
+            // Eye open icon (full eye)
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
+              <path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="currentColor" strokeWidth="2"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+            </svg>
+          ) : (
+            // Eye open icon with a diagonal slash overlay, perfectly centered
+            <span style={{position:'relative',display:'inline-flex',width:'20px',height:'20px',verticalAlign:'middle',alignItems:'center',justifyContent:'center'}}>
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" style={{position:'absolute',top:0,left:0}}>
+                <path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="currentColor" strokeWidth="2"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" style={{position:'absolute',top:0,left:0}}>
+                <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </span>
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const Checkbox = ({ label, ...props }) => (
   <label className="flex items-center gap-2 text-sm text-slate-300 select-none">
