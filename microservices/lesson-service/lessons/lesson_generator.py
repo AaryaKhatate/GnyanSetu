@@ -18,16 +18,15 @@ class LessonGenerator:
         if self.api_key:
             genai.configure(api_key=self.api_key)
             
-            # Use Gemini 2.5 Flash - Fast, efficient, and supports vision
-            # FIXED: Use 'models/gemini-2.5-flash' (correct model name for v1beta API)
-            self.model_name = 'models/gemini-2.5-flash'
+            # Use Gemini 2.0 Flash Experimental - FASTEST model with vision support
+            self.model_name = 'gemini-2.0-flash-exp'
             self.max_tokens = settings.AI_SETTINGS.get('MAX_TOKENS', 16000)  # Increased for detailed lessons
             self.temperature = settings.AI_SETTINGS.get('TEMPERATURE', 0.3)  # Lower for more focused, educational content
             
             self.model = genai.GenerativeModel(self.model_name)
             self.text_model = self.model  # Use same model for both (supports both vision and text)
-            logger.info(f"✅ Initialized Gemini AI with model: {self.model_name}")
-            logger.info(f"✅ Model supports: Vision (multimodal) + Text generation")
+            logger.info(f"✅ Initialized Gemini AI with FASTEST model: {self.model_name}")
+            logger.info(f"✅ Model supports: Vision (multimodal) + Text generation + ULTRA FAST")
         else:
             self.model = None
             self.text_model = None
@@ -192,6 +191,26 @@ class LessonGenerator:
         except Exception as e:
             logger.error(f"Error generating lesson title: {e}")
             return "Educational Lesson"
+    
+    def _detect_subject_simple(self, title, content):
+        """Fast subject detection without AI call"""
+        title_lower = title.lower()
+        content_lower = content[:500].lower()
+        combined = title_lower + " " + content_lower
+        
+        # Detect subject using keywords
+        if any(word in combined for word in ['photosynthesis', 'cell', 'dna', 'plant', 'chlorophyll', 'organ', 'biology', 'animal', 'protein', 'enzyme']):
+            return 'biology'
+        elif any(word in combined for word in ['circuit', 'resistor', 'voltage', 'current', 'ohm', 'physics', 'electric', 'force', 'energy', 'motion']):
+            return 'physics'
+        elif any(word in combined for word in ['molecule', 'atom', 'chemical', 'reaction', 'chemistry', 'compound', 'element', 'bond']):
+            return 'chemistry'
+        elif any(word in combined for word in ['algorithm', 'code', 'programming', 'computer', 'cpu', 'software', 'data structure']):
+            return 'computer_science'
+        elif any(word in combined for word in ['equation', 'graph', 'theorem', 'math', 'calculus', 'algebra', 'geometry']):
+            return 'mathematics'
+        else:
+            return 'general'
     
     def _analyze_topic_with_ai(self, title, content):
         """Use Gemini to intelligently analyze ANY topic and extract visualization requirements"""
@@ -561,19 +580,11 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
     def _try_generate_with_images(self, content, title, pdf_images=None, max_images=1, max_image_size=300):
         """Try to generate lesson with specified image constraints (or without images if none available)"""
         
-        # 🤖 USE AI TO ANALYZE TOPIC (works for ANY subject, not just hardcoded ones)
-        topic_analysis = self._analyze_topic_with_ai(title, content)
-        subject_category = topic_analysis.get('subject_category', 'general')
-        visual_elements = topic_analysis.get('visual_elements', [])
-        relationships = topic_analysis.get('relationships', [])
-        color_palette = topic_analysis.get('color_palette', {})
-        diagram_type = topic_analysis.get('diagram_type', 'concept_map')
-        image_search_terms = topic_analysis.get('image_search_terms', [])
-        icon_suggestions = topic_analysis.get('icon_suggestions', [])
+        # 🚀 SPEED OPTIMIZATION: Skip AI pre-analysis, let main prompt handle everything
+        # Use simple subject detection instead of extra AI call
+        subject_category = self._detect_subject_simple(title, content)
         
-        logger.info(f"🎨 AI Analysis: {subject_category} | {len(visual_elements)} elements | {diagram_type}")
-        logger.info(f"🖼️ Suggested images: {', '.join(image_search_terms[:3])}")
-        logger.info(f"� Suggested icons: {', '.join(icon_suggestions[:3])}")
+        logger.info(f"🎨 Subject detected: {subject_category} (fast detection)")
         
         # Get subject-specific guidelines (fallback if needed)
         subject_guidelines = self._get_subject_specific_prompt_additions(subject_category)
@@ -594,19 +605,6 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
 Think of how a great teacher uses diagrams, arrows, labeled parts, and step-by-step drawings to make complex topics crystal clear.
 
 {subject_guidelines}
-
-🎨 AI-DETECTED VISUAL ELEMENTS FOR THIS TOPIC:
-{chr(10).join([f"- {elem['name']}: {elem['description']} (use {elem['type']})" for elem in visual_elements[:5]]) if visual_elements else "- Analyze content to determine visual elements"}
-
-💡 SUGGESTED ICONS/IMAGES TO USE:
-{chr(10).join([f"- {term}" for term in (icon_suggestions + image_search_terms)[:8]]) if (icon_suggestions or image_search_terms) else "- Determine from content"}
-
-🎨 COLOR PALETTE FOR THIS TOPIC:
-- Primary: {color_palette.get('primary', '#2196F3')}
-- Secondary: {color_palette.get('secondary', '#4CAF50')}  
-- Accent: {color_palette.get('accent', '#FF9800')}
-
-📊 RECOMMENDED DIAGRAM TYPE: {diagram_type.upper()}
 
 🖼️ USING IMAGES AND ICONS (CRITICAL - Use for complex shapes):
 **For complex shapes that are hard to draw with basic shapes:**
