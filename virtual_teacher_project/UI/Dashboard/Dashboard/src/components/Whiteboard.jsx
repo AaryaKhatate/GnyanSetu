@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import TeachingCanvas from "./TeachingCanvas";
 import TeachingCanvasFixed from "./TeachingCanvasFixed";
+import KonvaTeachingBoard from "./KonvaTeachingBoard";
 import { useTeachingWebSocket } from "./useTeachingWebSocket";
 
 // Text-to-Speech Hook
@@ -117,6 +118,11 @@ const Whiteboard = ({
   const [notesData, setNotesData] = useState(null);
   const [autoPlay, setAutoPlay] = useState(true);
   
+  // ✨ Visualization state - NEW!
+  const [hasVisualization, setHasVisualization] = useState(false);
+  const [visualizationScenes, setVisualizationScenes] = useState([]);
+  const [currentVisualizationScene, setCurrentVisualizationScene] = useState(0);
+  
   // Refs for managing state in callbacks
   const teachingStepsRef = useRef([]);
   const pdfSentRef = useRef(false); // Track if PDF has been sent
@@ -207,6 +213,31 @@ const Whiteboard = ({
         if (lessonDataStr) {
           const lessonData = JSON.parse(lessonDataStr);
           console.log('🔥 Parsed lesson data:', lessonData);
+          
+          // ✨ PRIORITY 1: Check for visualization data FIRST!
+          if (lessonData.visualization_data && lessonData.visualization_data.scenes) {
+            console.log('✨✨✨ VISUALIZATION DATA FOUND! ✨✨✨');
+            console.log('✨ Topic:', lessonData.visualization_data.topic);
+            console.log('✨ Scenes:', lessonData.visualization_data.scenes.length);
+            console.log('✨ First scene:', lessonData.visualization_data.scenes[0]);
+            
+            setHasVisualization(true);
+            setVisualizationScenes(lessonData.visualization_data.scenes);
+            setTeachingMode(true);
+            setStatus(`✨ Interactive visualization ready! ${lessonData.visualization_data.scenes.length} scenes`);
+            
+            // Also load quiz/notes if available
+            if (lessonData.quiz_data) {
+              setQuizData(lessonData.quiz_data);
+            }
+            if (lessonData.notes_data) {
+              setNotesData(lessonData.notes_data);
+            }
+            
+            console.log('✨ Visualization mode activated!');
+            return true;
+          }
+          
           console.log('🔥 Has teaching_steps:', !!lessonData.teaching_steps);
           console.log('🔥 Teaching steps count:', lessonData.teaching_steps?.length);
           
@@ -1064,7 +1095,14 @@ const Whiteboard = ({
                 {teachingMode ? "Teaching" : "Slides"}
               </button>
 
-              {teachingSteps.length > 0 && (
+              {/* ✨ Visualization Progress Indicator */}
+              {hasVisualization && (
+                <span className="text-xs text-purple-300 font-medium">
+                  ✨ Scene {currentVisualizationScene + 1} / {visualizationScenes.length}
+                </span>
+              )}
+
+              {teachingSteps.length > 0 && !hasVisualization && (
                 <span className="text-xs text-slate-400">
                   {teachingSteps.length} steps
                 </span>
@@ -1176,21 +1214,54 @@ const Whiteboard = ({
             <>
               {console.log('🎨 === RENDERING TEACHING CANVAS ===')}
               {console.log('🎨 teachingMode:', teachingMode)}
+              {console.log('🎨 hasVisualization:', hasVisualization)}
+              {console.log('🎨 visualizationScenes:', visualizationScenes.length)}
               {console.log('🎨 currentTeachingStep:', currentTeachingStep)}
-              {console.log('🎨 isTeaching:', isTeaching)}
-              {console.log('🎨 isPlaying:', isPlaying)}
-              {console.log('🎨 isTeaching || isPlaying:', isTeaching || isPlaying)}
               {console.log('🎨 === END RENDERING DEBUG ===')}
-              <TeachingCanvasFixed
-                ref={canvasRef}
-                teachingStep={currentTeachingStep}
-                isPlaying={isTeaching || isPlaying}
-                onStepComplete={handleTeachingStepComplete}
-                canvasWidth={isFullscreen ? window.innerWidth * 0.9 : 800}
-                canvasHeight={isFullscreen ? window.innerHeight * 0.7 : 600}
-                lessonCommands={lessonCommands}
-                onCommandExecuted={handleCommandExecuted}
-              />
+              
+              {hasVisualization ? (
+                /* ✨ NEW: Konva Visualization Mode with Images & Animations */
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+                  {console.log('✨ Rendering KonvaTeachingBoard with', visualizationScenes.length, 'scenes')}
+                  <KonvaTeachingBoard
+                    scenes={visualizationScenes}
+                    autoPlay={autoPlay}
+                    onSceneComplete={(sceneIndex) => {
+                      console.log('✨ Scene completed:', sceneIndex);
+                      setCurrentVisualizationScene(sceneIndex + 1);
+                      
+                      // Speak scene completion
+                      if (autoPlay) {
+                        speak(`Scene ${sceneIndex + 1} completed.`);
+                      }
+                      
+                      // If all scenes completed, offer quiz
+                      if (sceneIndex >= visualizationScenes.length - 1) {
+                        console.log('✨ All visualization scenes completed!');
+                        setStatus('Visualization complete! Ready for quiz.');
+                        
+                        if (quizData && onQuizDataReceived) {
+                          setTimeout(() => {
+                            onQuizDataReceived(quizData, notesData);
+                          }, 2000);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                /* Fallback: Original Teaching Canvas */
+                <TeachingCanvasFixed
+                  ref={canvasRef}
+                  teachingStep={currentTeachingStep}
+                  isPlaying={isTeaching || isPlaying}
+                  onStepComplete={handleTeachingStepComplete}
+                  canvasWidth={isFullscreen ? window.innerWidth * 0.9 : 800}
+                  canvasHeight={isFullscreen ? window.innerHeight * 0.7 : 600}
+                  lessonCommands={lessonCommands}
+                  onCommandExecuted={handleCommandExecuted}
+                />
+              )}
             </>
           ) : connected && lessonCommands.length > 0 ? (
             /* WebSocket AI Teaching Mode */

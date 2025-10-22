@@ -4,7 +4,8 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from .models import User, UserProfile, UserSession
+from .models import User, UserProfile
+# UserSession moved to MongoDB - see mongodb_manager.py
 import re
 import logging
 
@@ -240,23 +241,8 @@ class PasswordChangeSerializer(serializers.Serializer):
         return user
 
 
-class UserSessionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for user session information
-    """
-    user_email = serializers.EmailField(source='user.email', read_only=True)
-    
-    class Meta:
-        model = UserSession
-        fields = [
-            'id', 'user_email', 'ip_address', 'user_agent', 'device_info',
-            'is_active', 'login_time', 'logout_time', 'last_activity',
-            'is_suspicious', 'failed_attempts'
-        ]
-        read_only_fields = [
-            'id', 'user_email', 'login_time', 'logout_time', 'last_activity',
-            'failed_attempts'
-        ]
+# UserSessionSerializer removed - sessions now in MongoDB
+# Use mongodb_manager.get_session_manager() to query sessions directly
 
 
 class EmailVerificationSerializer(serializers.Serializer):

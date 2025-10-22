@@ -129,31 +129,10 @@ class UserProfile(models.Model):
         return f"Profile for {self.user.email}"
 
 
-class UserSession(models.Model):
-    """
-    Track user sessions for security and analytics
-    """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
-    session_token = models.CharField(max_length=255, unique=True)
-    ip_address = models.GenericIPAddressField()
-    user_agent = models.TextField()
-    device_info = models.JSONField(default=dict, blank=True)
-    
-    # Session status
-    is_active = models.BooleanField(default=True)
-    login_time = models.DateTimeField(auto_now_add=True)
-    logout_time = models.DateTimeField(blank=True, null=True)
-    last_activity = models.DateTimeField(auto_now=True)
-    
-    # Security flags
-    is_suspicious = models.BooleanField(default=False)
-    failed_attempts = models.PositiveIntegerField(default=0)
-    
-    class Meta:
-        db_table = 'user_sessions'
-        verbose_name = 'User Session'
-        verbose_name_plural = 'User Sessions'
-        ordering = ['-login_time']
-    
-    def __str__(self):
-        return f"Session for {self.user.email} at {self.login_time}"
+
+
+# UserSession model moved to MongoDB - see mongodb_manager.py
+# Sessions are now stored in MongoDB collection 'user_sessions'
+# in database 'gnyansetu_users_django'
+# This eliminates UNIQUE constraint issues with SQLite
+

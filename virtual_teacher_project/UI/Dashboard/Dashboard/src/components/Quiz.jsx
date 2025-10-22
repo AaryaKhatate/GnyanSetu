@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, RotateCcw, ArrowRight } from "lucide-react";
+import { Check, X, RotateCcw, ArrowRight, Loader2 } from "lucide-react";
 
 const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -8,76 +8,133 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userAnswers, setUserAnswers] = useState([]);
 
-  // Use provided quiz data or fallback to mock data
-  const questions = quizData || [
-    {
-      question: "What is the main concept discussed in this lesson?",
-      options: [
-        "Advanced mathematics",
-        "Fundamental principles",
-        "Historical events",
-        "Scientific theories",
-      ],
-      correct: 1,
-      feedback:
-        "The lesson focuses on understanding fundamental principles as the foundation for advanced learning.",
-    },
-    {
-      question: "Which of the following best describes the key takeaway?",
-      options: [
-        "Memorization is key",
-        "Understanding fundamentals",
-        "Practice makes perfect",
-        "Theory over practice",
-      ],
-      correct: 1,
-      feedback:
-        "Understanding fundamentals is crucial because it provides the building blocks for more complex concepts.",
-    },
-    {
-      question: "How should you apply this knowledge?",
-      options: [
-        "Only in exams",
-        "In real-world scenarios",
-        "Never use it",
-        "Share with friends only",
-      ],
-      correct: 1,
-      feedback:
-        "Applying knowledge in real-world scenarios helps reinforce learning and demonstrates practical understanding.",
-    },
-  ];
+  // Fetch quiz from quiz-notes-service
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      try {
+        const lessonId = sessionStorage.getItem("lessonId");
+        const userId =
+          sessionStorage.getItem("studentId") ||
+          sessionStorage.getItem("userId") ||
+          "default_student";
 
-  // Save quiz results to backend
+        if (!lessonId) {
+          throw new Error(
+            "No lesson ID found. Please complete a lesson first."
+          );
+        }
+
+        setLoading(true);
+        const response = await fetch(
+          `http://localhost:8005/api/quiz/get/${lessonId}?user_id=${userId}`
+        );
+
+        if (response.status === 202) {
+          // Quiz still generating
+          const data = await response.json();
+          setError(
+            "Quiz is still being generated. Please wait a moment and try again."
+          );
+          setTimeout(fetchQuiz, 3000); // Retry after 3 seconds
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch quiz from database");
+        }
+
+        const data = await response.json();
+
+        // Transform quiz data to component format
+        if (data.questions && data.questions.length > 0) {
+          const transformedQuestions = data.questions.map((q, index) => {
+            // Extract options - handle both string array and object array formats
+            let options = [];
+            let correctIndex = 0;
+
+            if (Array.isArray(q.options)) {
+              if (q.options.length > 0 && typeof q.options[0] === "object") {
+                // Options are objects like {key: "A", text: "..."}
+                options = q.options.map(
+                  (opt) => opt.text || opt.key || String(opt)
+                );
+                // Find correct answer index
+                correctIndex = q.options.findIndex(
+                  (opt) =>
+                    opt.text === q.correct_answer ||
+                    opt.key === q.correct_answer
+                );
+                if (correctIndex === -1) correctIndex = 0;
+              } else {
+                // Options are already strings
+                options = q.options;
+                correctIndex = q.options.indexOf(q.correct_answer);
+                if (correctIndex === -1) correctIndex = 0;
+              }
+            }
+
+            return {
+              question: q.question,
+              options: options,
+              correct: correctIndex,
+              correct_answer: q.correct_answer,
+              feedback: q.explanation || "No explanation available",
+              explanation: q.explanation || "No explanation available",
+              difficulty: q.difficulty || "medium",
+            };
+          });
+          setQuestions(transformedQuestions);
+          setLoading(false);
+        } else {
+          throw new Error("No quiz questions found");
+        }
+      } catch (err) {
+        console.error("Error fetching quiz:", err);
+        setError(err.message);
+        setLoading(false);
+        // Fallback to mock data if provided
+        if (quizData && quizData.length > 0) {
+          setQuestions(quizData);
+        }
+      }
+    };
+
+    fetchQuiz();
+  }, [quizData]);
+
+  // Submit quiz results to backend
   useEffect(() => {
     if (showResult) {
-      saveQuizResults();
+      submitQuizResults();
       onQuizComplete(score, questions.length);
     }
   }, [showResult, score, questions.length]);
 
-  const saveQuizResults = async () => {
+  const submitQuizResults = async () => {
     try {
-      const quizResults = {
-        student_id: sessionStorage.getItem("studentId") || "default_student",
-        lesson_id: sessionStorage.getItem("lessonId") || "default_lesson",
-        questions: questions.map((q, index) => ({
-          question: q.question,
-          options: q.options,
-          correct_answer: q.correct,
-          user_answer: index <= currentQuestion ? selectedAnswer : null,
-        })),
-        score: score,
-        time_taken: "5 minutes", // You could track actual time
+      const lessonId = sessionStorage.getItem("lessonId");
+      const userId =
+        sessionStorage.getItem("studentId") ||
+        sessionStorage.getItem("userId") ||
+        "default_student";
+
+      const submissionData = {
+        lesson_id: lessonId,
+        user_id: userId,
+        answers: userAnswers,
       };
 
-      const response = await fetch("http://localhost:8000/api/quizzes/", {
+      const response = await fetch("http://localhost:8005/api/quiz/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(quizResults),
+        body: JSON.stringify(submissionData),
       });
 
       if (response.ok) {
@@ -96,6 +153,13 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
 
     setSelectedAnswer(answerIndex);
     setAnswered(true);
+
+    // Track user answer
+    const answerData = {
+      question_index: currentQuestion,
+      selected_option: questions[currentQuestion].options[answerIndex],
+    };
+    setUserAnswers((prev) => [...prev, answerData]);
 
     if (answerIndex === questions[currentQuestion].correct) {
       setScore((prev) => prev + 1);
@@ -118,7 +182,55 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
     setAnswered(false);
     setScore(0);
     setShowResult(false);
+    setUserAnswers([]);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Loading quiz questions...</p>
+          <p className="text-slate-400 text-sm mt-2">Please wait a moment</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-800 rounded-2xl p-8 text-center border border-slate-700/40">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <X size={32} className="text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-4">
+            Quiz Not Available
+          </h2>
+          <p className="text-slate-300 mb-6">{error}</p>
+          <button
+            onClick={onRetakeLesson}
+            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No questions
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-800 rounded-2xl p-8 text-center border border-slate-700/40">
+          <p className="text-slate-300">No quiz questions available</p>
+        </div>
+      </div>
+    );
+  }
 
   const getFeedback = () => {
     const percentage = (score / questions.length) * 100;

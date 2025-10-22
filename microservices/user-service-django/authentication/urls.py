@@ -48,11 +48,3 @@ urlpatterns = [
     # Google OAuth
     path('auth/google/', views.google_oauth_callback, name='google_oauth_callback'),
 ]
-
-# Additional compatibility URLs for frontend
-compatibility_urlpatterns = [
-    # Google OAuth compatibility (placeholder)
-    path('accounts/google/login/', views.google_oauth_placeholder, name='google_oauth'),
-]
-
-urlpatterns += compatibility_urlpatterns

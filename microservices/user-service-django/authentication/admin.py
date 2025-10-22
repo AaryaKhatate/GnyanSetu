@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
-from .models import User, UserProfile, UserSession
+from .models import User, UserProfile
+# UserSession moved to MongoDB - see mongodb_manager.py
 
 
 @admin.register(User)
@@ -131,50 +132,8 @@ class UserProfileAdmin(admin.ModelAdmin):
     user_email.admin_order_field = 'user__email'
 
 
-@admin.register(UserSession)
-class UserSessionAdmin(admin.ModelAdmin):
-    """
-    Admin for UserSession model
-    """
-    list_display = [
-        'user_email', 'ip_address', 'is_active',
-        'login_time', 'last_activity', 'is_suspicious'
-    ]
-    list_filter = [
-        'is_active', 'is_suspicious', 'login_time', 'last_activity'
-    ]
-    search_fields = ['user__email', 'ip_address', 'user_agent']
-    ordering = ['-login_time']
-    
-    fieldsets = (
-        ('User', {
-            'fields': ('user',)
-        }),
-        ('Session Info', {
-            'fields': (
-                'session_token', 'ip_address', 'user_agent', 'device_info'
-            )
-        }),
-        ('Status', {
-            'fields': (
-                'is_active', 'login_time', 'logout_time', 'last_activity'
-            )
-        }),
-        ('Security', {
-            'fields': ('is_suspicious', 'failed_attempts')
-        }),
-    )
-    
-    readonly_fields = ['login_time', 'logout_time', 'last_activity']
-    
-    def user_email(self, obj):
-        return obj.user.email
-    user_email.short_description = 'Email'
-    user_email.admin_order_field = 'user__email'
-    
-    def has_add_permission(self, request):
-        # Don't allow manual session creation
-        return False
+# UserSession Admin removed - sessions now stored in MongoDB
+# To view sessions, query MongoDB directly or use the API endpoint /api/auth/sessions/
 
 
 # Customize admin site

@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "framer-motion": "^10.16.4",
+    "gsap": "^3.13.0",
     "jspdf": "^3.0.1",
     "konva": "^9.3.22",
     "lucide-react": "^0.263.1",

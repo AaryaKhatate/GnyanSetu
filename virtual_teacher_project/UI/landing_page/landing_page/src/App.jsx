@@ -8,6 +8,8 @@ import {
 import classNames from "classnames";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
+// Import logo for watermark
+
 // API Configuration - Use API Gateway instead of direct service calls
 const API_BASE_URL = "http://localhost:8000";
 
@@ -24,7 +26,7 @@ const apiCall = async (endpoint, options = {}) => {
     };
 
     const response = await fetch(url, { ...defaultOptions, ...options });
-    
+
     let data;
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
@@ -118,26 +120,72 @@ const authAPI = {
 // Google OAuth handler
 const handleGoogleSuccess = async (credentialResponse) => {
   try {
+    console.log("🔐 Google Login - Credential received");
+    console.log("📤 Sending to backend:", {
+      token: credentialResponse.credential ? "✓ Present" : "✗ Missing",
+    });
+
     const response = await fetch(`${API_BASE_URL}/api/v1/auth/google/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        access_token: credentialResponse.credential,
+        token: credentialResponse.credential, // Backend expects 'token', not 'access_token'
       }),
     });
 
+    console.log("📥 Backend response status:", response.status);
     const data = await response.json();
+    console.log("📥 Backend response data:", data);
 
     if (response.ok) {
       // Save tokens
-      localStorage.setItem("access_token", data.tokens.access);
-      localStorage.setItem("refresh_token", data.tokens.refresh);
+      const accessToken = data.tokens.access;
+      const refreshToken = data.tokens.refresh;
+
+      localStorage.setItem("access_token", accessToken);
+      localStorage.setItem("refresh_token", refreshToken);
+      localStorage.setItem("gnyansetu_auth_token", accessToken);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Redirect to dashboard
-      window.location.href = "http://localhost:3001/dashboard";
+      // Save user data for dashboard
+      const userId = data.user?.id || data.user?._id;
+      const userEmail = data.user?.email;
+      const userName = data.user?.full_name || data.user?.name;
+
+      if (userId) {
+        sessionStorage.setItem("userId", userId);
+        localStorage.setItem("userId", userId);
+      }
+
+      if (userEmail) {
+        sessionStorage.setItem("userEmail", userEmail);
+        localStorage.setItem("userEmail", userEmail);
+      }
+
+      if (userName) {
+        sessionStorage.setItem("userName", userName);
+        localStorage.setItem("userName", userName);
+      }
+
+      console.log("✅ Google login - User data stored:", {
+        userId,
+        userEmail,
+        userName,
+      });
+
+      // Redirect to dashboard with data in URL hash
+      const dashboardUrl =
+        `http://localhost:3001/#login?` +
+        `userId=${encodeURIComponent(userId)}&` +
+        `userEmail=${encodeURIComponent(userEmail)}&` +
+        `userName=${encodeURIComponent(userName)}&` +
+        `accessToken=${encodeURIComponent(accessToken)}&` +
+        `refreshToken=${encodeURIComponent(refreshToken)}&` +
+        `user=${encodeURIComponent(JSON.stringify(data.user))}`;
+
+      window.location.href = dashboardUrl;
     } else {
       console.error("Google login failed:", data);
       alert(data.error || "Google login failed. Please try again.");
@@ -199,13 +247,6 @@ const NavBar = ({ onLogin, onSignup }) => {
             href="#hero"
             className="flex items-center text-xl font-semibold tracking-tight"
           >
-            <div className="w-12 h-12 mr-3">
-              <img
-                src="/GnyanSetu.png"
-                alt="GyanSetu Logo"
-                className="w-full h-full object-contain"
-              />
-            </div>
             <span className="text-slate-200">Gyan</span>
             <span className="text-accentBlue">सेतु</span>
           </a>
@@ -343,31 +384,31 @@ const Hero = ({ onPrimary }) => (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
       <div className="grid lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-7">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-white">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white">
             Bridge knowledge with{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-accentBlue to-accentPurple">
               GyanSetu
             </span>
           </h1>
-          <p className="mt-5 text-lg text-slate-300 max-w-2xl">
+          <p className="mt-7 text-2xl text-slate-200 max-w-2xl">
             Your AI-powered companion for learning: convert PDFs to voice,
             collaborate on a live whiteboard, and generate quizzes instantly.
             Experience the future of education with cutting-edge technology.
           </p>
-          <div className="mt-6 text-slate-400 text-sm max-w-2xl">
+          <div className="mt-8 text-slate-300 text-lg max-w-2xl">
             ✨ AI-Powered Learning • 🎯 Personalized Experience • 🌐
             Collaborative Tools
           </div>
-          <div className="mt-8 flex flex-wrap gap-4">
+          <div className="mt-10 flex flex-wrap gap-6">
             <button
               onClick={onPrimary}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-accentBlue to-accentPurple text-white shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+              className="px-8 py-4 rounded-2xl bg-gradient-to-r from-accentBlue to-accentPurple text-white text-lg shadow-lg hover:shadow-xl hover:shadow-accentBlue/25 transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
             >
               Get Started
             </button>
             <a
               href="#features"
-              className="px-6 py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+              className="px-8 py-4 rounded-2xl border border-slate-700 text-slate-200 text-lg hover:bg-slate-800 hover:border-slate-600 hover:text-white transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
             >
               Explore Features
             </a>
@@ -394,41 +435,39 @@ const Hero = ({ onPrimary }) => (
 const About = () => (
   <Section id="about">
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 className="text-3xl sm:text-4xl font-semibold text-white">
+      <h2 className="text-4xl sm:text-5xl font-bold text-white">
         About GyanSetu
       </h2>
-      <p className="mt-5 text-slate-300 text-lg leading-relaxed">
+      <p className="mt-7 text-slate-200 text-2xl leading-relaxed">
         GyanSetu is a modern, AI-augmented learning platform that makes studying
         effortless. Turn dense PDFs into natural voice narration, collaborate in
         real-time using an intuitive whiteboard, and generate tailored quizzes
         to test your understanding— all in one place.
       </p>
-      <div className="mt-8 grid md:grid-cols-3 gap-6 text-center">
-        <div className="p-4">
-          <div className="text-3xl mb-2">🚀</div>
-          <h3 className="text-lg font-semibold text-white mb-2">
+      <div className="mt-10 grid md:grid-cols-3 gap-8 text-center">
+        <div className="p-6">
+          <div className="text-4xl mb-3">🚀</div>
+          <h3 className="text-xl font-bold text-white mb-3">
             Innovation First
           </h3>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-300 text-lg">
             Cutting-edge AI technology that adapts to your learning style
           </p>
         </div>
-        <div className="p-4">
-          <div className="text-3xl mb-2">🎓</div>
-          <h3 className="text-lg font-semibold text-white mb-2">
+        <div className="p-6">
+          <div className="text-4xl mb-3">🎓</div>
+          <h3 className="text-xl font-bold text-white mb-3">
             Academic Excellence
           </h3>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-300 text-lg">
             Designed by educators for students, ensuring quality learning
             outcomes
           </p>
         </div>
-        <div className="p-4">
-          <div className="text-3xl mb-2">🌍</div>
-          <h3 className="text-lg font-semibold text-white mb-2">
-            Global Access
-          </h3>
-          <p className="text-slate-400 text-sm">
+        <div className="p-6">
+          <div className="text-4xl mb-3">🌍</div>
+          <h3 className="text-xl font-bold text-white mb-3">Global Access</h3>
+          <p className="text-slate-300 text-lg">
             Break down language barriers and make education accessible to all
           </p>
         </div>
@@ -456,10 +495,10 @@ const Features = () => (
   <Section id="features">
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
       <div className="text-center">
-        <h2 className="text-3xl sm:text-4xl font-semibold text-white">
+        <h2 className="text-5xl sm:text-6xl font-bold text-white">
           Powerful features
         </h2>
-        <p className="mt-3 text-slate-300">
+        <p className="mt-7 text-slate-200 text-2xl">
           Everything you need to learn effectively
         </p>
       </div>
@@ -487,10 +526,10 @@ const Features = () => (
 const CTA = ({ onClick }) => (
   <Section id="cta">
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 className="text-3xl sm:text-4xl font-semibold text-white">
+      <h2 className="text-5xl sm:text-6xl font-bold text-white">
         Ready to build your bridge to knowledge?
       </h2>
-      <p className="mt-4 text-slate-300">
+      <p className="mt-7 text-slate-200 text-2xl">
         Join GyanSetu today and transform how you learn.
       </p>
       <button
@@ -639,15 +678,103 @@ const Modal = ({ isOpen, title, children, onClose }) => {
   );
 };
 
-const Input = (props) => (
-  <input
-    {...props}
-    className={classNames(
-      "w-full rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-slate-200 placeholder-slate-400 outline-none focus:border-accentBlue/60 focus:ring-2 focus:ring-accentBlue/30 transition",
-      props.className
-    )}
-  />
-);
+const Input = (props) => {
+  const [show, setShow] = useState(false);
+  const isPassword = props.type === "password";
+  const inputType = isPassword && show ? "text" : props.type;
+
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        type={inputType}
+        className={classNames(
+          "w-full rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-slate-200 placeholder-slate-400 outline-none focus:border-accentBlue/60 focus:ring-2 focus:ring-accentBlue/30 transition",
+          props.className
+        )}
+      />
+      {isPassword && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setShow((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none flex items-center justify-center"
+          aria-label={show ? "Hide password" : "Show password"}
+          style={{ height: "20px" }}
+        >
+          {show ? (
+            // Eye open icon (full eye)
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
+              <path
+                d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="3"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ) : (
+            // Eye open icon with a diagonal slash overlay, perfectly centered
+            <span
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                width: "20px",
+                height: "20px",
+                verticalAlign: "middle",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                viewBox="0 0 24 24"
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <path
+                  d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+              </svg>
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                viewBox="0 0 24 24"
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <line
+                  x1="4"
+                  y1="20"
+                  x2="20"
+                  y2="4"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const Checkbox = ({ label, ...props }) => (
   <label className="flex items-center gap-2 text-sm text-slate-300 select-none">
@@ -768,8 +895,36 @@ const SignupForm = ({ onLogin, onSuccess, onError }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Check if password contains any part of name or email username (case-insensitive)
+    const password = formData.password.toLowerCase();
+    const nameParts = formData.name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.toLowerCase());
+    const emailUser = formData.email
+      .split("@")[0]
+      .replace(/\s+/g, "")
+      .toLowerCase();
+    const errors = [];
+    for (const part of nameParts) {
+      if (part && password.includes(part)) {
+        errors.push(
+          "Password should not contain part of your name or email username."
+        );
+        break;
+      }
+    }
+    if (emailUser && password.includes(emailUser)) {
+      errors.push(
+        "Password should not contain part of your name or email username."
+      );
+    }
+    if (errors.length > 0) {
+      onError(errors);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-
     try {
       const result = await authAPI.signup(
         formData.name,
@@ -1209,15 +1364,125 @@ export default function App() {
   };
 
   const handleAuthSuccess = (result) => {
-    if (result.user) {
-      // Authentication successful, open dashboard in new tab
-      console.log("Authentication successful:", result);
-      // Store user data for dashboard
-      localStorage.setItem("gnyansetu_user", JSON.stringify(result.user));
-      // Open dashboard in new tab instead of redirecting
-      window.open("http://localhost:3001", "_blank");
-      // Close modal
-      closeModal();
+    console.log("====================================");
+    console.log("🔍 RAW Login API Response:");
+    console.log("====================================");
+    console.log("Full result object:", JSON.stringify(result, null, 2));
+    console.log("result.access:", result.access);
+    console.log("result.token:", result.token);
+    console.log("result.refresh:", result.refresh);
+    console.log("result.user:", result.user);
+    console.log("====================================");
+
+    // Clear any old data first
+    localStorage.removeItem("user");
+    localStorage.removeItem("gnyansetu_user");
+    sessionStorage.clear();
+
+    if (result.access || result.user || result.token) {
+      // Authentication successful, store tokens and user data
+      console.log("✅ Authentication successful:", result);
+
+      // Store JWT tokens (Django returns 'access' and 'refresh')
+      const accessToken = result.access || result.token;
+      const refreshToken = result.refresh;
+
+      if (accessToken) {
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("gnyansetu_auth_token", accessToken);
+        console.log(
+          "✅ Access token stored:",
+          accessToken.substring(0, 20) + "..."
+        );
+      } else {
+        console.error("❌ No access token in response!");
+      }
+
+      if (refreshToken) {
+        localStorage.setItem("refresh_token", refreshToken);
+        console.log("✅ Refresh token stored");
+      }
+
+      // Store user data
+      if (result.user) {
+        localStorage.setItem("user", JSON.stringify(result.user));
+        localStorage.setItem("gnyansetu_user", JSON.stringify(result.user));
+        console.log("✅ User object stored:", result.user);
+
+        // Extract and store user details
+        const userId = result.user.id || result.user._id;
+        const userEmail = result.user.email;
+        const userName = result.user.full_name || result.user.name;
+
+        if (userId) {
+          sessionStorage.setItem("userId", userId);
+          localStorage.setItem("userId", userId);
+          console.log("✅ User ID stored:", userId);
+        } else {
+          console.error("❌ No userId found in user object!");
+        }
+
+        if (userEmail) {
+          sessionStorage.setItem("userEmail", userEmail);
+          localStorage.setItem("userEmail", userEmail);
+          console.log("✅ User email stored:", userEmail);
+        }
+
+        if (userName) {
+          sessionStorage.setItem("userName", userName);
+          localStorage.setItem("userName", userName);
+          console.log("✅ User name stored:", userName);
+        }
+
+        console.log("\n📦 Storage Summary:");
+        console.log(
+          "- access_token:",
+          localStorage.getItem("access_token") ? "✅ Stored" : "❌ Missing"
+        );
+        console.log(
+          "- userId:",
+          localStorage.getItem("userId") || "❌ Missing"
+        );
+        console.log(
+          "- userEmail:",
+          localStorage.getItem("userEmail") || "❌ Missing"
+        );
+        console.log(
+          "- userName:",
+          localStorage.getItem("userName") || "❌ Missing"
+        );
+      } else {
+        console.error("❌ No user object in response!");
+      }
+
+      console.log("\n🚀 Redirecting to dashboard with user data...");
+
+      // Small delay to ensure storage is written
+      setTimeout(() => {
+        // Since localhost:3000 and localhost:3001 have separate localStorage,
+        // we need to pass the data via URL or store it on the dashboard side
+        const userId = result.user.id || result.user._id;
+        const userEmail = result.user.email;
+        const userName = result.user.full_name || result.user.name;
+        const accessToken = result.access || result.token;
+        const refreshToken = result.refresh;
+
+        // Create a URL with all the data as hash (not query params to avoid server logs)
+        const dashboardUrl =
+          `http://localhost:3001/#login?` +
+          `userId=${encodeURIComponent(userId)}&` +
+          `userEmail=${encodeURIComponent(userEmail)}&` +
+          `userName=${encodeURIComponent(userName)}&` +
+          `accessToken=${encodeURIComponent(accessToken)}&` +
+          `refreshToken=${encodeURIComponent(refreshToken)}&` +
+          `user=${encodeURIComponent(JSON.stringify(result.user))}`;
+
+        console.log("📡 Redirecting with user data in URL hash");
+        window.location.href = dashboardUrl;
+      }, 100);
+    } else {
+      console.error("❌ Invalid response format:", result);
+      setError("Login failed: Invalid response from server");
     }
   };
 
@@ -1238,8 +1503,24 @@ export default function App() {
 
   return (
     <GoogleOAuthProvider clientId="334410826401-5dc8sdfntd1unbfnjamd6k4dvd7c3g1r.apps.googleusercontent.com">
-      <div className="relative min-h-screen">
+      <div className="relative min-h-screen overflow-hidden">
         <BackgroundBlobs />
+        {/* Watermark Logo */}
+        <img
+          src="/GnyanSetu.png"
+          alt="GnyanSetu Watermark"
+          style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "600px",
+            opacity: 0.08,
+            zIndex: 0,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        />
         <NavBar onLogin={openLogin} onSignup={openSignup} />
         <main>
           <Hero onPrimary={openSignup} />

@@ -3,6 +3,7 @@ import React, { useCallback, useRef, useState } from "react";
 export default function UploadBox({ onStartSession }) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
 
   const onDragOver = useCallback((e) => {
@@ -53,30 +54,63 @@ export default function UploadBox({ onStartSession }) {
 
   const handleUpload = async () => {
     if (selectedFile) {
+      setIsLoading(true);
       try {
-        console.log("Starting PDF upload...", selectedFile);
+        console.log("📤 Starting PDF upload...", selectedFile);
+
+        // Get user ID from session storage (set during login)
+        const userId =
+          sessionStorage.getItem("userId") ||
+          sessionStorage.getItem("studentId") ||
+          localStorage.getItem("userId") ||
+          localStorage.getItem("studentId");
+
+        console.log("🔍 Checking for userId in storage...");
+        console.log(
+          "- sessionStorage.userId:",
+          sessionStorage.getItem("userId")
+        );
+        console.log("- localStorage.userId:", localStorage.getItem("userId"));
+
+        if (!userId) {
+          console.error("❌ No user ID found in storage!");
+          console.log("📦 All localStorage keys:", Object.keys(localStorage));
+          console.log(
+            "📦 All sessionStorage keys:",
+            Object.keys(sessionStorage)
+          );
+          alert(
+            "Please login first to upload a PDF.\n\nDebug info:\n- localStorage.userId: " +
+              localStorage.getItem("userId") +
+              "\n- sessionStorage.userId: " +
+              sessionStorage.getItem("userId")
+          );
+          return;
+        }
+
+        console.log("✅ User ID found:", userId);
 
         // Upload PDF to Django backend
         const formData = new FormData();
         formData.append("pdf_file", selectedFile);
-        
-        // Add user ID - for now use a default value since authentication might not be fully implemented
-        // TODO: Get actual user ID from authentication context
-        formData.append("user_id", "anonymous_user");
+        formData.append("user_id", userId); // Use actual user ID
         formData.append("lesson_type", "interactive");
 
         console.log("Sending request to backend...");
         console.log("URL:", "http://localhost:8000/api/generate-lesson/");
-        console.log("FormData:", formData);
-        console.log("File:", selectedFile);
+        console.log("User ID:", userId);
+        console.log("File:", selectedFile.name);
 
-        const response = await fetch("http://localhost:8000/api/generate-lesson/", {
-          method: "POST",
-          body: formData,
-          headers: {
-            // Don't set Content-Type, let browser set it for FormData
-          },
-        });
+        const response = await fetch(
+          "http://localhost:8000/api/generate-lesson/",
+          {
+            method: "POST",
+            body: formData,
+            headers: {
+              // Don't set Content-Type, let browser set it for FormData
+            },
+          }
+        );
 
         console.log("Response received:", response.status, response.statusText);
         console.log("Response headers:", response.headers);
@@ -99,8 +133,21 @@ export default function UploadBox({ onStartSession }) {
 
         console.log("PDF uploaded successfully:", result);
         console.log("PDF text length:", result.text?.length);
-        console.log("PDF text preview:", result.text?.substring(0, 200) + "...");
+        console.log(
+          "PDF text preview:",
+          result.text?.substring(0, 200) + "..."
+        );
         console.log("Lesson data:", result.lesson);
+        console.log("Lesson ID:", result.lesson_id);
+
+        // ✅ CRITICAL FIX: Store lesson_id for Quiz and Notes components
+        if (result.lesson_id) {
+          sessionStorage.setItem("lessonId", result.lesson_id);
+          sessionStorage.setItem("conversationId", result.lesson_id); // Also set as conversationId for compatibility
+          console.log("✅ Lesson ID stored:", result.lesson_id);
+        } else {
+          console.warn("⚠️ No lesson_id in response!");
+        }
 
         // Store PDF text, filename AND lesson data for WebSocket communication
         sessionStorage.setItem("pdfText", result.text || "");
@@ -108,25 +155,44 @@ export default function UploadBox({ onStartSession }) {
           "pdfFilename",
           result.filename || selectedFile.name
         );
-        
-        // ✅ CRITICAL: Store the complete lesson data from Lesson Service
+
+        // Store the complete lesson data from Lesson Service
         if (result.lesson) {
           sessionStorage.setItem("lessonData", JSON.stringify(result.lesson));
-          console.log("✅ Lesson data stored:", result.lesson.teaching_steps?.length, "steps");
+          console.log(
+            "✅ Lesson data stored:",
+            result.lesson.teaching_steps?.length,
+            "steps"
+          );
         } else {
           console.warn("⚠️ No lesson data in response!");
         }
-        
+
         // Verify storage
-        console.log("Stored in sessionStorage - pdfText length:", sessionStorage.getItem("pdfText")?.length);
-        console.log("Stored in sessionStorage - pdfFilename:", sessionStorage.getItem("pdfFilename"));
-        console.log("Stored in sessionStorage - lessonData:", !!sessionStorage.getItem("lessonData"));
+        console.log(
+          "Stored in sessionStorage - lessonId:",
+          sessionStorage.getItem("lessonId")
+        );
+        console.log(
+          "Stored in sessionStorage - pdfText length:",
+          sessionStorage.getItem("pdfText")?.length
+        );
+        console.log(
+          "Stored in sessionStorage - pdfFilename:",
+          sessionStorage.getItem("pdfFilename")
+        );
+        console.log(
+          "Stored in sessionStorage - lessonData:",
+          !!sessionStorage.getItem("lessonData")
+        );
 
         // Start the session flow
         onStartSession(result.filename || selectedFile.name);
       } catch (error) {
         console.error("Error uploading PDF:", error);
         alert(`Failed to upload PDF: ${error.message}`);
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -141,6 +207,14 @@ export default function UploadBox({ onStartSession }) {
 
   return (
     <div className="relative">
+      {isLoading && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-60 rounded-2xl">
+          <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <span className="text-white text-lg font-semibold">
+            Processing PDF and preparing lesson...
+          </span>
+        </div>
+      )}
       {!selectedFile ? (
         <div
           className={`spotlight relative mx-auto max-w-3xl rounded-2xl border-2 border-dashed px-6 py-14 sm:py-16 md:py-20 transition-all duration-300 ${

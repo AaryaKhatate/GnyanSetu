@@ -272,6 +272,19 @@ class TeachingSessionModel:
             return False
     
     @classmethod
+    def delete_session(cls, session_id: str) -> bool:
+        """Delete a teaching session"""
+        try:
+            collection = cls.get_collection()
+            if collection is not None:
+                result = collection.delete_one({"_id": session_id})
+                return result.deleted_count > 0
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting teaching session {session_id}: {e}")
+            return False
+    
+    @classmethod
     def get_user_sessions(cls, user_id: str, status: Optional[str] = None) -> List[Dict]:
         """Get all teaching sessions for a user"""
         try:

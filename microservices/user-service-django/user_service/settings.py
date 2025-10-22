@@ -78,7 +78,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'user_service.wsgi.application'
 
-# Database - Using MongoDB for user data
+# Database - Using SQLite for Django auth (stable and reliable)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -86,11 +86,12 @@ DATABASES = {
     }
 }
 
-# MongoDB Configuration for user profiles and extended data
+# MongoDB Configuration - For UserSessions and extended user data
 MONGODB_SETTINGS = {
     'HOST': config('MONGODB_HOST', default='localhost'),
     'PORT': config('MONGODB_PORT', default=27017, cast=int),
-    'DATABASE': config('MONGODB_NAME', default='Gnyansetu_Users'),
+    'DATABASE': 'gnyansetu_users_django',  # New dedicated database for sessions
+    'USER_PROFILES_DATABASE': config('MONGODB_NAME', default='Gnyansetu_Users'),  # For extended profiles
 }
 
 

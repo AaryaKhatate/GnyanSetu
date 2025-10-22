@@ -31,6 +31,9 @@ echo Cleaning up existing processes...
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8002 "') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8003 "') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8004 "') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8005 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001 "') do taskkill /f /pid %%a >nul 2>&1
 
@@ -59,6 +62,12 @@ REM Start Teaching Service (Port 8004) - Real-Time Interactive Teaching
 echo Starting Teaching Service on port 8004...
 cd /d "%BASE_DIR%\teaching-service"
 start "Teaching Service - Real-Time AI Teacher" cmd /k "cd /d "%BASE_DIR%\teaching-service" && echo TEACHING SERVICE - REAL-TIME AI TEACHER && echo Django Channels + WebSockets + Natural Voice && echo Interactive Teaching with Konva.js Integration && echo. && python start_teaching_service.py"
+timeout /t 3 /nobreak >nul
+
+REM Start Quiz & Notes Service (Port 8005) - Quiz and Notes Retrieval
+echo Starting Quiz ^& Notes Service on port 8005...
+cd /d "%BASE_DIR%\quiz-notes-service"
+start "Quiz & Notes Service" cmd /k "cd /d "%BASE_DIR%\quiz-notes-service" && echo QUIZ ^& NOTES SERVICE - LIGHTWEIGHT RETRIEVAL && echo Retrieve quiz and notes from Lesson Service && echo Quiz submission and scoring && echo. && python main.py"
 timeout /t 3 /nobreak >nul
 
 REM Start Landing Page (Port 3000) - OPENS IN BROWSER
@@ -118,6 +127,7 @@ echo    API Gateway:      http://localhost:8000/health
 echo    Django User Service: http://localhost:8002/api/v1/health/
 echo    Lesson Service:   http://localhost:8003/health
 echo    Teaching Service: http://localhost:8004/health
+echo    Quiz ^& Notes Service: http://localhost:8005/health
 echo    Landing Page:     http://localhost:3000 (opens in browser)
 echo    Dashboard:        http://localhost:3001 (opens after login)
 echo.
@@ -126,6 +136,7 @@ echo    API Gateway:      http://localhost:8000/health
 echo    Django User Service: http://localhost:8002/api/v1/health/
 echo    Lesson Service:   http://localhost:8003/health
 echo    Teaching Service: http://localhost:8004/health
+echo    Quiz ^& Notes Service: http://localhost:8005/health
 echo.
 echo Test Services:
 echo    Django User Service:  http://localhost:8002/api/v1/auth/

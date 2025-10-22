@@ -91,22 +91,51 @@ class PDFProcessor:
                 if page_text.strip():  # Only add if there's actual text
                     text_content += f"\n--- Page {page_num + 1} ---\n{page_text}\n"
                 
-                # Count images (but don't extract for now)
+                # Extract images from page
                 image_list = page.get_images()
                 if image_list:
-                    images_data.append({
-                        'page': page_num + 1,
-                        'count': len(image_list),
-                        'ocr_text': ""  # No OCR for now
-                    })
+                    for img_index, img in enumerate(image_list):
+                        try:
+                            xref = img[0]
+                            base_image = pdf_document.extract_image(xref)
+                            image_bytes = base_image["image"]
+                            image_ext = base_image["ext"]
+                            
+                            # Convert to PIL Image
+                            pil_image = Image.open(io.BytesIO(image_bytes))
+                            
+                            # Resize if too large (max 1024px for LLM efficiency)
+                            max_size = 1024
+                            if pil_image.width > max_size or pil_image.height > max_size:
+                                pil_image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                            
+                            # Convert to base64 for storage and LLM
+                            buffered = io.BytesIO()
+                            pil_image.save(buffered, format="PNG")
+                            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                            
+                            images_data.append({
+                                'page': page_num + 1,
+                                'image_index': img_index,
+                                'width': pil_image.width,
+                                'height': pil_image.height,
+                                'format': image_ext,
+                                'base64': f"data:image/png;base64,{img_base64}",
+                                'ocr_text': ""  # Can add OCR later if needed
+                            })
+                            
+                            logger.info(f"✅ Extracted image {img_index} from page {page_num + 1}: {pil_image.width}x{pil_image.height}")
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to extract image {img_index} from page {page_num + 1}: {e}")
             
             # Prepare metadata while document is still open
             metadata = {
                 'total_pages': total_pages,
-                'total_images': sum(img.get('count', 0) for img in images_data),
+                'total_images': len(images_data),  # Now actual extracted images
                 'text_length': len(text_content),
                 'has_text': len(text_content.strip()) > 0,
-                'processing_method': 'text_extraction_only'  # No OCR
+                'processing_method': 'text_and_image_extraction'  # Updated
             }
             
             # Check if we got any content
