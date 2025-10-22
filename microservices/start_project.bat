@@ -30,10 +30,11 @@ if not exist "logs" mkdir logs
 REM Kill any existing processes on our ports
 echo Cleaning up existing processes...
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 "') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8002 "') do taskkill /f /pid %%a >nul 2>&1
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8003 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8004 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8005 "') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8006 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000 "') do taskkill /f /pid %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001 "') do taskkill /f /pid %%a >nul 2>&1
 
@@ -70,11 +71,18 @@ timeout /t 3 /nobreak >nul
 echo ✓ Teaching Service started
 
 REM Start Quiz & Notes Service (Port 8005) - AI Quiz & Notes Generation
-echo [5/5] Starting Quiz ^& Notes Service on port 8005...
+echo [5/6] Starting Quiz ^& Notes Service on port 8005...
 cd /d "%BASE_DIR%\quiz-notes-service"
 start "Quiz & Notes Service - AI Content Generator" cmd /k "cd /d "e:\Project" && venv\Scripts\activate && cd /d "%BASE_DIR%\quiz-notes-service" && echo QUIZ ^& NOTES SERVICE - AI CONTENT GENERATION && echo FastAPI + Google Gemini AI && echo Quiz Generation + Notes Generation + Results Tracking && echo. && python -m uvicorn main:app --host 0.0.0.0 --port 8005 --reload"
 timeout /t 3 /nobreak >nul
 echo ✓ Quiz ^& Notes Service started
+
+REM Start Visualization Service (Port 8006) - Dynamic Teaching Visuals
+echo [6/6] Starting Visualization Service on port 8006...
+cd /d "%BASE_DIR%\visualization-service"
+start "Visualization Service - Dynamic Teaching Visuals" cmd /k "cd /d "e:\Project" && venv\Scripts\activate && cd /d "%BASE_DIR%\visualization-service" && echo VISUALIZATION SERVICE - DYNAMIC TEACHING VISUALS && echo FastAPI + Gemini LLM + Subject-Specific Graphics && echo 9-Zone Coordinate System + Overlap Prevention && echo. && python -m uvicorn app:app --host 0.0.0.0 --port 8006 --reload"
+timeout /t 3 /nobreak >nul
+echo ✓ Visualization Service started
 
 echo.
 echo ========================================
@@ -85,6 +93,7 @@ echo User Service:     http://localhost:8002 (Django)
 echo Lesson Service:   http://localhost:8003 (AI Lesson Gen)
 echo Teaching Service: http://localhost:8004 (Django + WebSocket)
 echo Quiz Notes Service: http://localhost:8005 (FastAPI + AI)
+echo Visualization Service: http://localhost:8006 (Dynamic Visuals)
 echo ========================================
 echo.
 
@@ -99,6 +108,7 @@ curl -f http://localhost:8002/api/v1/health/ >nul 2>&1 && echo ✓ User Service 
 curl -f http://localhost:8003/health >nul 2>&1 && echo ✓ Lesson Service healthy || echo ❌ Lesson Service not responding
 curl -f http://localhost:8004/health >nul 2>&1 && echo ✓ Teaching Service healthy || echo ❌ Teaching Service not responding
 curl -f http://localhost:8005/health >nul 2>&1 && echo ✓ Quiz Notes Service healthy || echo ❌ Quiz Notes Service not responding
+curl -f http://localhost:8006/health >nul 2>&1 && echo ✓ Visualization Service healthy || echo ❌ Visualization Service not responding
 
 echo.
 echo Starting Frontend Services...
