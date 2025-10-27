@@ -37,10 +37,10 @@ PORT = 8006
 
 # Gemini AI Configuration for Visualization Generation
 # Use the SAME API key as lesson service
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
-if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY_HERE":
-    # Prefer environment variable over hardcoded
-    pass
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    logger.error("❌ GEMINI_API_KEY environment variable is not set!")
+    logger.error("Please set GEMINI_API_KEY in your .env file or environment variables")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     # Use gemini-2.0-flash-exp for fast, efficient generation
