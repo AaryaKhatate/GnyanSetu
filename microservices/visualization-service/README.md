@@ -1,4 +1,4 @@
-# 🎨 Visualization Orchestrator Service
+#  Visualization Orchestrator Service
 
 ## Overview
 
@@ -6,24 +6,24 @@ The **Visualization Orchestrator Service** is a microservice that validates, opt
 
 ### Key Features
 
-✅ **Smart Coordinate Management**
+ **Smart Coordinate Management**
 - 9-zone layout system (1920x1080 canvas)
 - Automatic space allocation
 - Overlap prevention
 - Perfect positioning
 
-✅ **Validation & Optimization**
+ **Validation & Optimization**
 - JSON structure validation
 - Animation sequencing
 - Scene timing optimization
 - Error handling & warnings
 
-✅ **Multi-Format Support**
+ **Multi-Format Support**
 - Shapes: circle, rectangle, line, arrow, text, image, polygon
 - Animations: fadeIn, fadeOut, scale, move, rotate, pulse, glow, draw, write, orbit
 - Effects: background, particles, glow, filters
 
-✅ **Real-Time Streaming**
+ **Real-Time Streaming**
 - WebSocket support
 - Scene-by-scene delivery
 - Audio-visual synchronization
@@ -243,7 +243,7 @@ Zone Spacing: 20px
 ```json
 {
   "type": "circle",
-  "zone": "center",  // ✅ Smart positioning
+  "zone": "center",  //  Smart positioning
   "radius": 50
 }
 ```
@@ -356,12 +356,12 @@ FastAPI automatically generates interactive API documentation.
 The service logs all operations:
 
 ```
-INFO:     ✅ Connected to MongoDB: visualization_db
+INFO:      Connected to MongoDB: visualization_db
 INFO:     Received visualization request for lesson: 12345
 INFO:     Initialized CoordinateManager: Canvas 1920x1080, Zones 580x310
 WARNING:  Could not find non-overlapping space in center, using fallback position
-INFO:     ✅ Stored visualization: viz_12345_20251011120000
-ERROR:    ❌ Error processing visualization: Invalid scene structure
+INFO:      Stored visualization: viz_12345_20251011120000
+ERROR:     Error processing visualization: Invalid scene structure
 ```
 
 ---

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Visualization Orchestrator Service
 ====================================
 TWO-STAGE ARCHITECTURE:
@@ -25,6 +25,10 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 from collections import defaultdict
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,16 +43,16 @@ PORT = 8006
 # Use the SAME API key as lesson service
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    logger.error("❌ GEMINI_API_KEY environment variable is not set!")
+    logger.error(" GEMINI_API_KEY environment variable is not set!")
     logger.error("Please set GEMINI_API_KEY in your .env file or environment variables")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     # Use gemini-2.0-flash-exp for fast, efficient generation
     GEMINI_MODEL = genai.GenerativeModel('gemini-2.0-flash-exp')
-    logger.info("✅ Gemini AI configured for visualization generation")
+    logger.info(" Gemini AI configured for visualization generation")
 else:
     GEMINI_MODEL = None
-    logger.warning("⚠️ Gemini API key not found - visualization generation will use fallback")
+    logger.warning(" Gemini API key not found - visualization generation will use fallback")
 
 # Canvas Configuration
 CANVAS_WIDTH = 1920
@@ -501,10 +505,10 @@ async def startup_db_client():
         
         # Test connection
         await mongo_client.admin.command('ping')
-        logger.info(f"✅ Connected to MongoDB: {VISUALIZATION_DB_NAME}")
+        logger.info(f" Connected to MongoDB: {VISUALIZATION_DB_NAME}")
         
     except Exception as e:
-        logger.error(f"❌ Failed to connect to MongoDB: {e}")
+        logger.error(f" Failed to connect to MongoDB: {e}")
         raise
 
 @app.on_event("shutdown")
@@ -611,9 +615,9 @@ EXAMPLE OUTPUT FORMAT:
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
                 {{"action": "write_text", "text": "Three Key Ingredients", "x_percent": 50, "y_percent": 10, "font_size": 30, "color": "#16a34a", "align": "center"}},
-                {{"action": "draw_text_box", "text": "☀️ Sunlight", "x_percent": 20, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#fef3c7", "stroke": "#f59e0b"}},
-                {{"action": "draw_text_box", "text": "💧 Water", "x_percent": 50, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#dbeafe", "stroke": "#3b82f6"}},
-                {{"action": "draw_text_box", "text": "🌫️ CO₂", "x_percent": 80, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#e0e7ff", "stroke": "#6366f1"}}
+                {{"action": "draw_text_box", "text": " Sunlight", "x_percent": 20, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#fef3c7", "stroke": "#f59e0b"}},
+                {{"action": "draw_text_box", "text": "� Water", "x_percent": 50, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#dbeafe", "stroke": "#3b82f6"}},
+                {{"action": "draw_text_box", "text": " CO₂", "x_percent": 80, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#e0e7ff", "stroke": "#6366f1"}}
             ]
         }},
         {{
@@ -656,7 +660,7 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
         )
         
         # Generate with Gemini
-        logger.info(f"🎨 Generating Konva.js visualization for topic: {topic}")
+        logger.info(f" Generating Konva.js visualization for topic: {topic}")
         response = GEMINI_MODEL.generate_content(
             prompt,
             generation_config={
@@ -667,7 +671,7 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
         
         # Extract JSON
         response_text = response.candidates[0].content.parts[0].text
-        logger.info(f"📝 LLM Response length: {len(response_text)} chars")
+        logger.info(f"� LLM Response length: {len(response_text)} chars")
         
         # Parse JSON (handle markdown code blocks)
         json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
@@ -679,15 +683,15 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
             
             # Validate with Pydantic
             validated = VisualizationDataV2(**viz_data)
-            logger.info(f"✅ Generated {len(validated.teaching_sequence)} teaching steps")
+            logger.info(f" Generated {len(validated.teaching_sequence)} teaching steps")
             
             return validated.dict()
         else:
-            logger.error("❌ Could not extract JSON from response")
+            logger.error(" Could not extract JSON from response")
             return generate_fallback_visualization_v2(topic)
             
     except Exception as e:
-        logger.error(f"❌ Visualization generation failed: {e}")
+        logger.error(f" Visualization generation failed: {e}")
         return generate_fallback_visualization_v2(topic)
 
 def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
@@ -721,7 +725,7 @@ def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
 # ==================== DEDICATED VISUALIZATION LLM ====================
 async def generate_visualization_with_llm(topic: str, explanation: str, lesson_content: str) -> List[Dict[str, Any]]:
     """
-    🎨 DEDICATED LLM CALL FOR EXTRAORDINARY VISUALIZATIONS
+     DEDICATED LLM CALL FOR EXTRAORDINARY VISUALIZATIONS
     
     This function ONLY focuses on creating amazing, topic-specific visualizations.
     The lesson service handles educational content, this handles visual excellence.
@@ -729,11 +733,11 @@ async def generate_visualization_with_llm(topic: str, explanation: str, lesson_c
     Returns: List of visualization scenes with icons, images, subject-specific shapes
     """
     if not GEMINI_MODEL:
-        logger.warning("⚠️ Gemini not available, using fallback visualization")
+        logger.warning(" Gemini not available, using fallback visualization")
         return _generate_fallback_visualization(topic, explanation)
     
     try:
-        logger.info(f"🎨 Generating extraordinary visualization for: {topic}")
+        logger.info(f" Generating extraordinary visualization for: {topic}")
         
         # VISUALIZATION-FOCUSED PROMPT (No educational content generation)
         prompt = f"""You are an EXTRAORDINARY VISUALIZATION EXPERT. Create stunning, topic-specific visualizations that make learning intuitive and beautiful.
@@ -823,7 +827,7 @@ Generate 3-5 scenes with extraordinary, topic-specific visualizations."""
         
         # Extract JSON from response
         response_text = response.candidates[0].content.parts[0].text
-        logger.info(f"🎨 LLM Response length: {len(response_text)} chars")
+        logger.info(f" LLM Response length: {len(response_text)} chars")
         
         # Extract JSON array from markdown code blocks or raw text
         json_match = re.search(r'```json\s*(\[.*?\])\s*```', response_text, re.DOTALL)
@@ -832,19 +836,19 @@ Generate 3-5 scenes with extraordinary, topic-specific visualizations."""
         
         if json_match:
             scenes_data = json.loads(json_match.group(1))
-            logger.info(f"✅ Generated {len(scenes_data)} extraordinary visualization scenes")
+            logger.info(f" Generated {len(scenes_data)} extraordinary visualization scenes")
             return scenes_data
         else:
-            logger.error("❌ Could not extract JSON from LLM response")
+            logger.error(" Could not extract JSON from LLM response")
             return _generate_fallback_visualization(topic, explanation)
             
     except Exception as e:
-        logger.error(f"❌ LLM visualization generation failed: {e}")
+        logger.error(f" LLM visualization generation failed: {e}")
         return _generate_fallback_visualization(topic, explanation)
 
 def _generate_fallback_visualization(topic: str, explanation: str) -> List[Dict[str, Any]]:
     """Fallback visualization when LLM fails"""
-    logger.info(f"📦 Using fallback visualization for: {topic}")
+    logger.info(f"� Using fallback visualization for: {topic}")
     
     return [
         {
@@ -870,7 +874,7 @@ def _generate_fallback_visualization(topic: str, explanation: str) -> List[Dict[
 @app.post("/api/visualizations/process", response_model=VisualizationResponseModel)
 async def process_visualization(viz_request: VisualizationRequestModel):
     """
-    🎨 TWO-STAGE ARCHITECTURE: Visualization Service with Dedicated LLM
+     TWO-STAGE ARCHITECTURE: Visualization Service with Dedicated LLM
     
     1. Receives lesson content from Lesson Service (educational content already generated)
     2. Calls dedicated Gemini LLM to generate EXTRAORDINARY visualizations
@@ -878,11 +882,11 @@ async def process_visualization(viz_request: VisualizationRequestModel):
     4. Returns optimized visualization data to Teaching Service
     """
     try:
-        logger.info(f"📥 Received visualization request for lesson: {viz_request.lesson_id}")
-        logger.info(f"🎯 Topic: {viz_request.topic}")
+        logger.info(f"� Received visualization request for lesson: {viz_request.lesson_id}")
+        logger.info(f" Topic: {viz_request.topic}")
         
-        # 🎨 STAGE 1: Generate extraordinary visualizations with dedicated LLM
-        logger.info("🎨 Calling dedicated LLM for visualization generation...")
+        #  STAGE 1: Generate extraordinary visualizations with dedicated LLM
+        logger.info(" Calling dedicated LLM for visualization generation...")
         llm_generated_scenes = await generate_visualization_with_llm(
             topic=viz_request.topic,
             explanation=viz_request.explanation,
@@ -895,15 +899,15 @@ async def process_visualization(viz_request: VisualizationRequestModel):
             try:
                 viz_request.scenes.append(VisualizationSceneModel(**scene_data))
             except Exception as e:
-                logger.warning(f"⚠️ Scene validation failed: {e}, using raw data")
+                logger.warning(f" Scene validation failed: {e}, using raw data")
                 # If validation fails, keep raw data for processor to handle
         
         if not viz_request.scenes and llm_generated_scenes:
             # Fallback: use raw scene data
-            logger.info("📦 Using raw scene data from LLM")
+            logger.info("� Using raw scene data from LLM")
         
-        # 🎨 STAGE 2: Process and validate visualization (coordinate management, overlap prevention)
-        logger.info("🔧 Processing and optimizing visualization...")
+        #  STAGE 2: Process and validate visualization (coordinate management, overlap prevention)
+        logger.info("� Processing and optimizing visualization...")
         processed_data = processor.process_visualization(viz_request)
         
         # Generate visualization ID
@@ -927,7 +931,7 @@ async def process_visualization(viz_request: VisualizationRequestModel):
         }
         
         await visualization_db.visualizations.insert_one(viz_document)
-        logger.info(f"✅ Stored visualization: {viz_id}")
+        logger.info(f" Stored visualization: {viz_id}")
         
         # Notify Teaching Service via WebSocket if session_id provided
         if viz_request.session_id and viz_request.session_id in manager.active_connections:
@@ -949,7 +953,7 @@ async def process_visualization(viz_request: VisualizationRequestModel):
         )
         
     except Exception as e:
-        logger.error(f"❌ Error processing visualization: {e}")
+        logger.error(f" Error processing visualization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/visualizations/{visualization_id}")
@@ -1001,7 +1005,7 @@ async def get_visualization_v2(lesson_id: str):
         
         if viz:
             viz["_id"] = str(viz["_id"])
-            logger.info(f"✅ Found existing v2 visualization")
+            logger.info(f" Found existing v2 visualization")
             return viz
         
         # If not found, generate new one
@@ -1042,7 +1046,7 @@ async def get_visualization_v2(lesson_id: str):
         result = await visualization_db.visualizations_v2.insert_one(viz_doc)
         viz_doc["_id"] = str(result.inserted_id)
         
-        logger.info(f"✅ Generated and stored v2 visualization")
+        logger.info(f" Generated and stored v2 visualization")
         return viz_doc
         
     except HTTPException:

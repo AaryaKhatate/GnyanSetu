@@ -1,19 +1,19 @@
-# GnyanSetu User Authentication Service
+﻿# GnyanSetu User Authentication Service
 
-## 🚀 Django-Based Authentication Microservice
+## � Django-Based Authentication Microservice
 
 A comprehensive, production-ready Django authentication service for the GnyanSetu platform. Built with Django 4.2.16, Django REST Framework, JWT authentication, and modern Python practices.
 
-## 📋 Service Overview
+## � Service Overview
 
 **Port**: 8002  
 **Purpose**: Complete user authentication, registration, session management, and JWT token handling  
 **Architecture**: Django + DRF + JWT + MongoDB integration  
 **Server**: Daphne ASGI for production, Django dev server for development  
 
-## ✨ Key Features
+##  Key Features
 
-### 🔐 Authentication & Authorization
+### � Authentication & Authorization
 - **JWT Authentication** with access/refresh token system
 - **Custom User Model** with extended profile information
 - **Email Verification** system with token-based confirmation
@@ -21,7 +21,7 @@ A comprehensive, production-ready Django authentication service for the GnyanSet
 - **Session Management** with device tracking and security monitoring
 - **Admin Interface** for user management
 
-### 🏗️ Architecture & Technical Stack
+###  Architecture & Technical Stack
 - **Django 4.2.16** - Modern Python web framework
 - **Django REST Framework** - Powerful API development
 - **JWT Tokens** - Secure stateless authentication
@@ -31,14 +31,14 @@ A comprehensive, production-ready Django authentication service for the GnyanSet
 - **CORS Configuration** - Microservice communication
 - **Comprehensive Validation** - Input validation and security
 
-### 📊 User Management
+### � User Management
 - **User Registration** with email verification
 - **Profile Management** with educational preferences
 - **Learning Analytics** - Progress tracking and statistics
 - **Admin Dashboard** - Complete user administration
 - **Session Tracking** - Security and device management
 
-## 🛠️ Installation & Setup
+## � Installation & Setup
 
 ### Prerequisites
 - Python 3.10+
@@ -80,14 +80,14 @@ python manage.py runserver 8002
 daphne -b 0.0.0.0 -p 8002 user_service.asgi:application
 ```
 
-## 🌐 API Endpoints
+##  API Endpoints
 
-### 🏠 General Endpoints
+###  General Endpoints
 - `GET /` - API root with service information
 - `GET /api/v1/health/` - Health check endpoint
 - `GET /admin/` - Django admin interface
 
-### 🔑 Authentication Endpoints
+### � Authentication Endpoints
 - `POST /api/v1/auth/register/` - User registration
 - `POST /api/v1/auth/login/` - User login (JWT tokens)
 - `POST /api/v1/auth/refresh/` - Refresh JWT token
@@ -95,25 +95,25 @@ daphne -b 0.0.0.0 -p 8002 user_service.asgi:application
 - `POST /api/v1/auth/verify-email/` - Email verification
 - `POST /api/v1/auth/resend-verification/` - Resend verification email
 
-### 🔄 Password Management
+### � Password Management
 - `POST /api/v1/auth/password-reset/` - Request password reset
 - `POST /api/v1/auth/password-reset-confirm/` - Confirm password reset
 - `POST /api/v1/auth/change-password/` - Change password (authenticated)
 
-### 👤 User Management
+### � User Management
 - `GET /api/v1/profile/` - Get user profile
 - `PUT /api/v1/profile/` - Update user profile
 - `PATCH /api/v1/profile/` - Partial profile update
 - `GET /api/v1/profile/details/` - Detailed profile information
 - `GET /api/v1/sessions/` - List active user sessions
 
-### 👨‍💼 Admin Endpoints
+### �� Admin Endpoints
 - `GET /api/v1/admin/users/` - List all users (admin only)
 - `GET /api/v1/admin/users/{id}/` - Get user details (admin only)
 - `PUT /api/v1/admin/users/{id}/` - Update user (admin only)
 - `DELETE /api/v1/admin/users/{id}/` - Delete user (admin only)
 
-## 📋 API Request Examples
+## � API Request Examples
 
 ### User Registration
 ```json
@@ -155,7 +155,7 @@ POST /api/v1/auth/login/
 }
 ```
 
-## 🗄️ Database Models
+## � Database Models
 
 ### User Model
 - Custom Django user model extending AbstractUser
@@ -180,7 +180,7 @@ POST /api/v1/auth/login/
 - Suspicious activity detection
 - Failed attempt tracking
 
-## 🔧 Configuration
+## � Configuration
 
 ### Environment Variables
 - `SECRET_KEY` - Django secret key
@@ -195,7 +195,7 @@ POST /api/v1/auth/login/
 - **Password Validation**: Strong password requirements
 - **Logging**: Comprehensive logging configuration
 
-## 🛡️ Security Features
+## � Security Features
 
 ### Authentication Security
 - **JWT Tokens** with rotation and blacklisting
@@ -211,7 +211,7 @@ POST /api/v1/auth/login/
 - **Permission Classes** for role-based access
 - **Rate Limiting** ready for production
 
-## 📊 Monitoring & Logging
+## � Monitoring & Logging
 
 ### Health Monitoring
 - Health check endpoint for service monitoring
@@ -224,7 +224,7 @@ POST /api/v1/auth/login/
 - User activity logging
 - Security event logging
 
-## 🚀 Production Deployment
+## � Production Deployment
 
 ### ASGI Server (Recommended)
 ```bash
@@ -239,7 +239,7 @@ daphne -b 0.0.0.0 -p 8002 user_service.asgi:application
 - Static file collection (if needed)
 - Environment variable configuration
 
-## 🔄 Integration with GnyanSetu Services
+## � Integration with GnyanSetu Services
 
 ### Service Communication
 - **API Gateway**: Port 8000 (routes requests)
@@ -252,7 +252,7 @@ daphne -b 0.0.0.0 -p 8002 user_service.asgi:application
 ### CORS Configuration
 All GnyanSetu services are pre-configured for seamless communication.
 
-## 📝 Development Notes
+## � Development Notes
 
 ### Custom User Model
 - Extends Django's AbstractUser
@@ -272,7 +272,7 @@ All GnyanSetu services are pre-configured for seamless communication.
 - Consistent response format
 - Detailed API documentation ready
 
-## 🎯 Future Enhancements
+##  Future Enhancements
 
 - [ ] API documentation with drf-spectacular
 - [ ] Rate limiting implementation
@@ -283,10 +283,10 @@ All GnyanSetu services are pre-configured for seamless communication.
 - [ ] Automated testing suite
 - [ ] Docker containerization
 
-## 📞 Support
+## � Support
 
 For issues or questions related to the GnyanSetu User Authentication Service, please refer to the main GnyanSetu project documentation or contact the development team.
 
 ---
 
-**GnyanSetu User Authentication Service** - Building the future of AI-powered education with secure, scalable authentication. 🎓✨
+**GnyanSetu User Authentication Service** - Building the future of AI-powered education with secure, scalable authentication. 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Visualization JSON Extractor
 Extracts and validates visualization JSON from LLM-generated lesson content
 """
@@ -20,8 +20,8 @@ class VisualizationExtractor:
         """
         try:
             # DEBUG: Log the content being searched
-            logger.info(f"🔍 DEBUG: Searching for visualization in content length: {len(lesson_content)}")
-            logger.info(f"🔍 DEBUG: Content preview (first 500 chars): {lesson_content[:500]}")
+            logger.info(f"� DEBUG: Searching for visualization in content length: {len(lesson_content)}")
+            logger.info(f"� DEBUG: Content preview (first 500 chars): {lesson_content[:500]}")
             
             # Look for ```visualization block - handles optional headers and multiple newlines
             # Pattern matches: ## Visualization JSON\n\n```visualization OR just ```visualization
@@ -32,9 +32,9 @@ class VisualizationExtractor:
                 # DEBUG: Show what patterns we found
                 logger.warning("No visualization block found in lesson content")
                 if '```' in lesson_content:
-                    logger.info(f"🔍 DEBUG: Found ``` markers at positions: {[i for i, c in enumerate(lesson_content) if lesson_content[i:i+3] == '```'][:5]}")
+                    logger.info(f"� DEBUG: Found ``` markers at positions: {[i for i, c in enumerate(lesson_content) if lesson_content[i:i+3] == '```'][:5]}")
                 if 'visualization' in lesson_content.lower():
-                    logger.info(f"🔍 DEBUG: Found 'visualization' text in content")
+                    logger.info(f"� DEBUG: Found 'visualization' text in content")
                 return None
             
             viz_json_str = match.group(1).strip()
@@ -50,7 +50,7 @@ class VisualizationExtractor:
                 logger.error("Visualization JSON structure is invalid")
                 return None
             
-            logger.info(f"✅ Extracted visualization: {viz_data.get('topic', 'Unknown')}")
+            logger.info(f" Extracted visualization: {viz_data.get('topic', 'Unknown')}")
             return viz_data
             
         except json.JSONDecodeError as e:
@@ -224,7 +224,7 @@ class VisualizationExtractor:
                 # Use the base64 data URL directly
                 actual_image = img_data.get('base64', '')
                 viz_json_str = viz_json_str.replace(placeholder, actual_image)
-                logger.info(f"✅ Replaced {placeholder} with image data ({len(actual_image)} chars)")
+                logger.info(f" Replaced {placeholder} with image data ({len(actual_image)} chars)")
             
             return json.loads(viz_json_str)
             

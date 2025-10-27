@@ -1,4 +1,4 @@
-# 🎓 GnyanSetu Lesson Service
+﻿#  GnyanSetu Lesson Service
 
 **Advanced AI-Powered Lesson Generation Service**
 
@@ -7,39 +7,39 @@ Framework: Django + PyMongo
 AI Engine: Google Gemini  
 Database: MongoDB
 
-## 🚀 Features
+## � Features
 
-### 📄 Advanced PDF Processing
+### � Advanced PDF Processing
 - **Text Extraction**: High-quality text extraction from PDFs
 - **Image Processing**: Extract and process images from PDFs
 - **OCR Technology**: Convert scanned PDFs and images to text using Tesseract
 - **Multi-format Support**: Handle various PDF formats and layouts
 - **User-specific Storage**: All PDF data linked to user accounts
 
-### 🤖 AI Lesson Generation
+###  AI Lesson Generation
 - **Google Gemini Integration**: Powered by state-of-the-art AI
 - **Multiple Lesson Types**:
-  - 📚 **Interactive**: Engaging lessons with activities
-  - 🧪 **Quiz**: Test-based learning with Q&A
-  - 📋 **Summary**: Concise key points extraction
-  - 📖 **Detailed**: Comprehensive deep-dive lessons
+  - � **Interactive**: Engaging lessons with activities
+  -  **Quiz**: Test-based learning with Q&A
+  - � **Summary**: Concise key points extraction
+  - � **Detailed**: Comprehensive deep-dive lessons
 - **Smart Title Generation**: AI creates appropriate lesson titles
 - **Fallback System**: Graceful degradation when AI is unavailable
 
-### 👤 User Management
+### � User Management
 - **User-specific Data**: All content tied to authenticated users
 - **Lesson History**: Track all generated lessons
 - **Activity Tracking**: Monitor user interactions
 - **Personal Dashboard**: User-specific lesson library
 
-### 🔧 Technical Features
+### � Technical Features
 - **RESTful API**: Clean, documented endpoints
 - **MongoDB Integration**: Scalable document storage
 - **Health Monitoring**: Service status and diagnostics
 - **Error Handling**: Comprehensive error management
 - **Beautiful Logging**: Colored terminal output
 
-## 📋 API Endpoints
+## � API Endpoints
 
 ### Health & Status
 ```http
@@ -87,7 +87,7 @@ Content-Type: application/json
 }
 ```
 
-## 🛠️ Setup & Installation
+## � Setup & Installation
 
 ### Prerequisites
 - Python 3.8+
@@ -126,7 +126,7 @@ pip install -r requirements.txt
 python start_lesson_service.py
 ```
 
-## 📊 Usage Examples
+## � Usage Examples
 
 ### Generate Interactive Lesson
 ```bash
@@ -146,7 +146,7 @@ curl http://localhost:8003/api/users/user123/lessons/
 curl http://localhost:8003/health/
 ```
 
-## 🗄️ Database Schema
+## � Database Schema
 
 ### PDF Data Collection
 ```javascript
@@ -200,7 +200,7 @@ curl http://localhost:8003/health/
 }
 ```
 
-## 🔧 Configuration
+## � Configuration
 
 ### AI Settings
 - **Model**: `gemini-1.5-flash` (default)
@@ -214,7 +214,7 @@ curl http://localhost:8003/health/
 - **OCR**: Enabled with Tesseract
 - **Image Extraction**: Enabled
 
-## 🎯 Integration with Other Services
+##  Integration with Other Services
 
 ### API Gateway
 - All lesson service endpoints are routed through the API Gateway
@@ -231,7 +231,7 @@ curl http://localhost:8003/health/
 - User lesson library interface
 - History and progress tracking
 
-## 🚀 Service Architecture
+## � Service Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
@@ -250,7 +250,7 @@ curl http://localhost:8003/health/
                                            └───────────────────┘
 ```
 
-## 🎨 Sample Lesson Output
+##  Sample Lesson Output
 
 **Title**: "Understanding Photosynthesis in Plants"
 
@@ -276,9 +276,9 @@ Photosynthesis is the remarkable process by which plants convert sunlight into e
 [Step-by-step breakdown]
 
 ## Interactive Elements
-**🤔 Think About It**: How would life on Earth be different without photosynthesis?
+** Think About It**: How would life on Earth be different without photosynthesis?
 
-**🔬 Activity**: Design an experiment to test factors affecting photosynthesis rate
+**� Activity**: Design an experiment to test factors affecting photosynthesis rate
 
 ## Key Takeaways
 - Photosynthesis converts CO₂ + H₂O + sunlight → glucose + O₂
@@ -297,6 +297,6 @@ Photosynthesis is the remarkable process by which plants convert sunlight into e
 - Explore artificial photosynthesis technologies
 ```
 
-## 🎉 Ready to Generate Amazing Lessons!
+##  Ready to Generate Amazing Lessons!
 
-Your Django-based Lesson Service is now ready to transform PDFs into engaging educational content using the power of AI! 🚀
+Your Django-based Lesson Service is now ready to transform PDFs into engaging educational content using the power of AI! �

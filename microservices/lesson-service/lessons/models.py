@@ -1,4 +1,4 @@
-# MongoDB Models for Lesson Service
+﻿# MongoDB Models for Lesson Service
 # Using PyMongo for direct MongoDB operations
 
 from pymongo import MongoClient
@@ -184,7 +184,7 @@ class LessonModel:
         try:
             if lessons_collection is not None:
                 result = lessons_collection.insert_one(document)
-                print(f"💾 Lesson saved to MongoDB with ID: {result.inserted_id}")
+                print(f"� Lesson saved to MongoDB with ID: {result.inserted_id}")
                 print(f"   - Quiz data included: {bool(quiz_data)}")
                 print(f"   - Notes data included: {bool(notes_data)}")
                 return str(result.inserted_id)
@@ -193,7 +193,7 @@ class LessonModel:
                 return str(document['_id'])
         except Exception as e:
             logger.error(f"Error creating lesson: {e}")
-            print(f"❌ Error saving lesson to MongoDB: {e}")
+            print(f" Error saving lesson to MongoDB: {e}")
             return str(document['_id'])  # Return mock ID as fallback
     
     @staticmethod

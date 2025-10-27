@@ -1,4 +1,4 @@
-# Teaching Service Views - REST API and WebSocket endpoints
+﻿# Teaching Service Views - REST API and WebSocket endpoints
 import logging
 import json
 from datetime import datetime, timezone
@@ -83,7 +83,7 @@ def get_user_lessons(request):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error fetching user lessons: {e}")
+        logger.error(f" Error fetching user lessons: {e}")
         return JsonResponse({
             'error': 'Failed to fetch user lessons',
             'details': str(e)
@@ -93,7 +93,7 @@ def get_user_lessons(request):
 def get_lesson_detail(request, lesson_id):
     """Get detailed lesson content for teaching"""
     try:
-        logger.info(f"📖 Fetching lesson detail for: {lesson_id}")
+        logger.info(f"� Fetching lesson detail for: {lesson_id}")
         
         lesson = LessonService.get_lesson_by_id(lesson_id)
         
@@ -102,7 +102,7 @@ def get_lesson_detail(request, lesson_id):
                 'error': 'Lesson not found'
             }, status=404)
         
-        logger.info(f"✅ Found lesson: {lesson.get('lesson_title', 'Untitled')}")
+        logger.info(f" Found lesson: {lesson.get('lesson_title', 'Untitled')}")
         
         return JsonResponse({
             'lesson': lesson,
@@ -110,7 +110,7 @@ def get_lesson_detail(request, lesson_id):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error getting lesson detail: {e}")
+        logger.error(f" Error getting lesson detail: {e}")
         return JsonResponse({
             'error': 'Failed to get lesson detail',
             'details': str(e)
@@ -137,7 +137,7 @@ def create_conversation(request):
         title = data.get('title', 'New Teaching Session')
         lesson_id = data.get('lesson_id', None)
         
-        logger.info(f"📝 Creating new teaching session for user: {user_id}, title: {title}")
+        logger.info(f"� Creating new teaching session for user: {user_id}, title: {title}")
         
         # If lesson_id is provided, get lesson content
         lesson_content = {}
@@ -174,12 +174,12 @@ def create_conversation(request):
             'message_count': 0
         }
         
-        logger.info(f"✅ Created teaching session: {session_id}")
+        logger.info(f" Created teaching session: {session_id}")
         
         return JsonResponse(new_conversation, status=201)
         
     except Exception as e:
-        logger.error(f"❌ Error creating conversation: {e}")
+        logger.error(f" Error creating conversation: {e}")
         return JsonResponse({
             'error': 'Failed to create conversation',
             'details': str(e)
@@ -219,7 +219,7 @@ def delete_conversation(request, conversation_id):
 def get_user_profile(request, user_id):
     """Get user profile data for the Dashboard top-right corner"""
     try:
-        logger.info(f"👤 Fetching user profile for: {user_id}")
+        logger.info(f"� Fetching user profile for: {user_id}")
         
         user_profile = UserService.get_user_profile(user_id)
         
@@ -236,7 +236,7 @@ def get_user_profile(request, user_id):
         sessions = TeachingSessionModel.get_user_sessions(user_id)
         user_profile['total_sessions'] = len(sessions)
         
-        logger.info(f"✅ Found user profile: {user_profile.get('username', 'Unknown')}")
+        logger.info(f" Found user profile: {user_profile.get('username', 'Unknown')}")
         
         return JsonResponse({
             'user': user_profile,
@@ -248,7 +248,7 @@ def get_user_profile(request, user_id):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error getting user profile: {e}")
+        logger.error(f" Error getting user profile: {e}")
         return JsonResponse({
             'error': 'Failed to get user profile',
             'details': str(e)
@@ -275,7 +275,7 @@ def start_teaching_session(request):
                 'error': 'lesson_id and user_id are required'
             }, status=400)
         
-        logger.info(f"🎓 Starting teaching session for lesson: {lesson_id}, user: {user_id}")
+        logger.info(f" Starting teaching session for lesson: {lesson_id}, user: {user_id}")
         
         # Get lesson content
         lesson = LessonService.get_lesson_by_id(lesson_id)
@@ -312,7 +312,7 @@ def start_teaching_session(request):
         }, status=200)
         
     except Exception as e:
-        logger.error(f"❌ Error starting teaching session: {e}")
+        logger.error(f" Error starting teaching session: {e}")
         return JsonResponse({
             'error': 'Failed to start teaching session',
             'details': str(e)
@@ -333,7 +333,7 @@ def stop_teaching_session(request):
                 'error': 'session_id is required'
             }, status=400)
         
-        logger.info(f"⏹️ Stopping teaching session: {session_id}")
+        logger.info(f" Stopping teaching session: {session_id}")
         
         # Update session status
         success = TeachingSessionModel.update_session(session_id, {
@@ -353,7 +353,7 @@ def stop_teaching_session(request):
             }, status=400)
             
     except Exception as e:
-        logger.error(f"❌ Error stopping teaching session: {e}")
+        logger.error(f" Error stopping teaching session: {e}")
         return JsonResponse({
             'error': 'Failed to stop teaching session',
             'details': str(e)
@@ -379,7 +379,7 @@ def update_konva_state(request):
                 'error': 'session_id is required'
             }, status=400)
         
-        logger.info(f"🎨 Updating Konva state for session: {session_id}")
+        logger.info(f" Updating Konva state for session: {session_id}")
         
         # Update session with new Konva state
         success = TeachingSessionModel.update_session(session_id, {
@@ -399,7 +399,7 @@ def update_konva_state(request):
             }, status=400)
             
     except Exception as e:
-        logger.error(f"❌ Error updating Konva state: {e}")
+        logger.error(f" Error updating Konva state: {e}")
         return JsonResponse({
             'error': 'Failed to update Konva state',
             'details': str(e)
@@ -409,7 +409,7 @@ def update_konva_state(request):
 def get_konva_state(request, session_id):
     """Get Konva.js whiteboard state"""
     try:
-        logger.info(f"🎨 Getting Konva state for session: {session_id}")
+        logger.info(f" Getting Konva state for session: {session_id}")
         
         session = TeachingSessionModel.get_session(session_id)
         
@@ -426,7 +426,7 @@ def get_konva_state(request, session_id):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error getting Konva state: {e}")
+        logger.error(f" Error getting Konva state: {e}")
         return JsonResponse({
             'error': 'Failed to get Konva state',
             'details': str(e)

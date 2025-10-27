@@ -1,4 +1,4 @@
-# AI Lesson Generation Service using Google Gemini
+﻿# AI Lesson Generation Service using Google Gemini
 import logging
 import json
 import base64
@@ -28,8 +28,8 @@ class LessonGenerator:
             
             self.model = genai.GenerativeModel(self.model_name)
             self.text_model = self.model  # Use same model for both (supports both vision and text)
-            logger.info(f"✅ Initialized Gemini AI with FASTEST model: {self.model_name}")
-            logger.info(f"✅ Model supports: Vision (multimodal) + Text generation + ULTRA FAST")
+            logger.info(f" Initialized Gemini AI with FASTEST model: {self.model_name}")
+            logger.info(f" Model supports: Vision (multimodal) + Text generation + ULTRA FAST")
         else:
             self.model = None
             self.text_model = None
@@ -114,7 +114,7 @@ Focus on educational value and how this image supports the lesson."""
                 img['narration'] = explanation_json.get('narration', 'This image illustrates a key concept.')
                 img['explanation'] = explanation_json.get('description', '')
                 
-                logger.info(f"✅ Generated explanation for image {idx}")
+                logger.info(f" Generated explanation for image {idx}")
                 explained_images.append(img)
                 
             except Exception as e:
@@ -127,7 +127,7 @@ Focus on educational value and how this image supports the lesson."""
                 img['explanation'] = 'Educational diagram'
                 explained_images.append(img)
         
-        logger.info(f"✅ Explained {len(explained_images)} images")
+        logger.info(f" Explained {len(explained_images)} images")
         return explained_images
     
     def generate_lesson(self, pdf_text, images_ocr_text="", lesson_type="interactive", user_context=None, pdf_images=None):
@@ -155,7 +155,7 @@ Focus on educational value and how this image supports the lesson."""
             
             # Log image availability
             if pdf_images and len(pdf_images) > 0:
-                logger.info(f"🖼️ Processing lesson with {len(pdf_images)} images from PDF")
+                logger.info(f"� Processing lesson with {len(pdf_images)} images from PDF")
                 # Generate AI explanations for images
                 pdf_images = self.generate_image_explanations(pdf_images, full_content)
             
@@ -169,7 +169,7 @@ Focus on educational value and how this image supports the lesson."""
                         # Skip lines that look like headers, dates, or metadata
                         if not any(x in clean_line.lower() for x in ['page', 'chapter', 'section', '©', 'copyright', 'published']):
                             lesson_title = clean_line[:100]  # Limit to 100 chars
-                            logger.info(f"📝 Extracted title: {lesson_title}")
+                            logger.info(f"� Extracted title: {lesson_title}")
                             break
             except Exception as e:
                 logger.warning(f"Failed to extract title: {e}")
@@ -200,7 +200,7 @@ Focus on educational value and how this image supports the lesson."""
                 visualization_data = VisualizationExtractor.replace_pdf_image_placeholders(
                     visualization_data, pdf_images
                 )
-                logger.info(f"✅ Replaced image placeholders with actual image data")
+                logger.info(f" Replaced image placeholders with actual image data")
             
             result = {
                 'title': lesson_title,
@@ -214,7 +214,7 @@ Focus on educational value and how this image supports the lesson."""
             # Add visualization if extracted
             if visualization_data:
                 result['visualization'] = visualization_data
-                logger.info(f"✅ Visualization data extracted: {len(visualization_data.get('scenes', []))} scenes")
+                logger.info(f" Visualization data extracted: {len(visualization_data.get('scenes', []))} scenes")
             
             return result
             
@@ -334,7 +334,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
             json_match = re.search(r'\{[\s\S]*\}', result_text)
             if json_match:
                 analysis = json.loads(json_match.group())
-                logger.info(f"✅ AI Topic Analysis: {analysis.get('subject_category')} - {len(analysis.get('visual_elements', []))} elements")
+                logger.info(f" AI Topic Analysis: {analysis.get('subject_category')} - {len(analysis.get('visual_elements', []))} elements")
                 return analysis
             else:
                 logger.warning("Failed to parse AI analysis, using fallback")
@@ -380,7 +380,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         
         prompts = {
             'biology': """
-🌿 BIOLOGY VISUALIZATION GUIDELINES:
+ BIOLOGY VISUALIZATION GUIDELINES:
 **Required Elements:**
 - Plants: Use path shapes for leaves (curved organic shapes), rectangles for stems, circles for cells
 - Cells: Circle for cell membrane, smaller circles for nucleus/organelles, labels with arrows
@@ -408,7 +408,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
 """,
             
             'physics_electronics': """
-⚡ PHYSICS/ELECTRONICS VISUALIZATION GUIDELINES:
+ PHYSICS/ELECTRONICS VISUALIZATION GUIDELINES:
 **Required Elements:**
 - Circuit Components:
   * Battery: Rectangle with + and - labels
@@ -442,7 +442,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
 """,
             
             'chemistry': """
-🧪 CHEMISTRY VISUALIZATION GUIDELINES:
+ CHEMISTRY VISUALIZATION GUIDELINES:
 **Required Elements:**
 - Atoms: Circles with electron orbits (smaller circles or paths)
 - Molecules: Connected circles representing atoms (H₂O = 2 small + 1 large)
@@ -472,7 +472,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
 """,
             
             'computer_science': """
-💻 COMPUTER SCIENCE VISUALIZATION GUIDELINES:
+� COMPUTER SCIENCE VISUALIZATION GUIDELINES:
 **Required Elements:**
 - CPU/Computer: Rectangle with internal components (cache, registers shown as smaller boxes)
 - Memory: Grid of rectangles representing RAM cells
@@ -502,7 +502,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
 """,
             
             'mathematics': """
-📐 MATHEMATICS VISUALIZATION GUIDELINES:
+� MATHEMATICS VISUALIZATION GUIDELINES:
 **Required Elements:**
 - Graphs: Coordinate system (axes with arrows), plotted points, curves
 - Equations: Large clear text with proper spacing (y = mx + b)
@@ -535,7 +535,7 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         }
         
         return prompts.get(subject_category, """
-🎨 GENERAL VISUALIZATION GUIDELINES:
+ GENERAL VISUALIZATION GUIDELINES:
 - Use clear diagrams with labeled components
 - Show relationships with arrows
 - Use color coding for different concepts
@@ -628,46 +628,46 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         """Generate interactive lesson with vision understanding of PDF images - WITH SMART RETRY"""
         
         # ATTEMPT 1: Try with ONE small image (300x300)
-        logger.info("🔄 ATTEMPT 1: Generating with 1 compressed image (300px)")
+        logger.info("� ATTEMPT 1: Generating with 1 compressed image (300px)")
         result = self._try_generate_with_images(content, title, pdf_images, max_images=1, max_image_size=300)
         if result:
-            logger.info("✅ SUCCESS: Generated lesson with image")
-            # ✅ FIX: ALWAYS add fallback visualization if Gemini didn't generate proper visualization JSON
+            logger.info(" SUCCESS: Generated lesson with image")
+            #  FIX: ALWAYS add fallback visualization if Gemini didn't generate proper visualization JSON
             if "```visualization" not in result:
-                logger.warning("⚠️ No visualization JSON in generated content, adding fallback")
+                logger.warning(" No visualization JSON in generated content, adding fallback")
                 result += self._generate_fallback_visualization(title, pdf_images, content)
             return result
         
         # ATTEMPT 2: Try without any images (text-only)
-        logger.warning("⚠️ ATTEMPT 2: Image generation failed, trying TEXT-ONLY")
+        logger.warning(" ATTEMPT 2: Image generation failed, trying TEXT-ONLY")
         result = self._try_generate_text_only(content, title)
         if result:
-            logger.info("✅ SUCCESS: Generated text-only lesson")
+            logger.info(" SUCCESS: Generated text-only lesson")
             # Add PDF images to fallback visualization
             if "```visualization" not in result:
                 result += self._generate_fallback_visualization(title, pdf_images, content)
             return result
         
         # ATTEMPT 3: Complete fallback
-        logger.error("❌ ATTEMPT 3: All attempts failed, using complete fallback")
+        logger.error(" ATTEMPT 3: All attempts failed, using complete fallback")
         fallback = self._create_basic_lesson(content, title)
         fallback += self._generate_fallback_visualization(title, pdf_images, content)
         return fallback
     
     def _try_generate_text_only(self, content, title):
         """Try text-only generation (NO IMAGES) - calls _try_generate_with_images with no images"""
-        logger.info("🔄 ATTEMPT 2 (TEXT-ONLY): Calling Gemini without images")
+        logger.info("� ATTEMPT 2 (TEXT-ONLY): Calling Gemini without images")
         # Just call the main function with empty image list - it now handles this case
         return self._try_generate_with_images(content, title, pdf_images=None)
     
     def _try_generate_with_images(self, content, title, pdf_images=None, max_images=1, max_image_size=300):
         """Try to generate lesson with specified image constraints (or without images if none available)"""
         
-        # 🚀 SPEED OPTIMIZATION: Skip AI pre-analysis, let main prompt handle everything
+        # � SPEED OPTIMIZATION: Skip AI pre-analysis, let main prompt handle everything
         # Use simple subject detection instead of extra AI call
         subject_category = self._detect_subject_simple(title, content)
         
-        logger.info(f"🎨 Subject detected: {subject_category} (fast detection)")
+        logger.info(f" Subject detected: {subject_category} (fast detection)")
         
         # Get subject-specific guidelines (fallback if needed)
         subject_guidelines = self._get_subject_specific_prompt_additions(subject_category)
@@ -678,18 +678,18 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         # Frame content as EDUCATIONAL to avoid safety blocks
         safe_content = content[:800].replace('sudo ', 'command: ').replace('rm -rf', 'remove directory').replace('apt-get', 'package manager')
         
-        prompt_parts.append(f"""🎨 CREATE EXTRAORDINARY WHITEBOARD-STYLE TEACHING VISUALIZATION
+        prompt_parts.append(f""" CREATE EXTRAORDINARY WHITEBOARD-STYLE TEACHING VISUALIZATION
 
-📚 TOPIC: {title}
-🏷️ SUBJECT CATEGORY: {subject_category.upper().replace('_', ' ')}
+� TOPIC: {title}
+ SUBJECT CATEGORY: {subject_category.upper().replace('_', ' ')}
 
-🎯 YOUR MISSION: Create a VISUAL MASTERPIECE that teaches like the BEST teacher drawing on a whiteboard!
+ YOUR MISSION: Create a VISUAL MASTERPIECE that teaches like the BEST teacher drawing on a whiteboard!
 
 Think of how a great teacher uses diagrams, arrows, labeled parts, and step-by-step drawings to make complex topics crystal clear.
 
 {subject_guidelines}
 
-🖼️ USING IMAGES AND ICONS (CRITICAL - Use for complex shapes):
+� USING IMAGES AND ICONS (CRITICAL - Use for complex shapes):
 **For complex shapes that are hard to draw with basic shapes:**
 {{"type": "image", "src": "https://via.placeholder.com/200x200?text=Chlorophyll", "x": 960, "y": 540, "width": 200, "height": 200, "label": "Chlorophyll Structure"}}
 - Use image URLs for: chlorophyll molecule, transistor internals, DNA double helix, cell organelles, complex chemical structures
@@ -703,17 +703,17 @@ Think of how a great teacher uses diagrams, arrows, labeled parts, and step-by-s
 
 GENERAL VISUALIZATION RULES:
 
-�️ VISUALIZATION PRINCIPLES:
-✓ Use REALISTIC topic-specific drawings (not abstract shapes!)
-✓ For PHOTOSYNTHESIS: Draw actual plant with detailed leaves, sun with rays, CO2/O2 molecules
-✓ For CIRCUITS: Draw realistic battery, resistors (zigzag), wires (curves), LEDs with light
-✓ For BIOLOGY: Draw cell with nucleus, organelles, membrane
-✓ For COMPUTERS: Draw laptop/CPU with internal components visible
-✓ LABEL everything clearly - text ABOVE or BELOW shapes, never overlapping
-✓ Use ARROWS to show flow, connections, transformations
-✓ Build complexity gradually: Scene 1 (overview) → Scene 2 (parts) → Scene 3 (process) → Scene 4 (result)
+ VISUALIZATION PRINCIPLES:
+ Use REALISTIC topic-specific drawings (not abstract shapes!)
+ For PHOTOSYNTHESIS: Draw actual plant with detailed leaves, sun with rays, CO2/O2 molecules
+ For CIRCUITS: Draw realistic battery, resistors (zigzag), wires (curves), LEDs with light
+ For BIOLOGY: Draw cell with nucleus, organelles, membrane
+ For COMPUTERS: Draw laptop/CPU with internal components visible
+ LABEL everything clearly - text ABOVE or BELOW shapes, never overlapping
+ Use ARROWS to show flow, connections, transformations
+ Build complexity gradually: Scene 1 (overview) → Scene 2 (parts) → Scene 3 (process) → Scene 4 (result)
 
-🎨 ADVANCED SHAPE TYPES:
+ ADVANCED SHAPE TYPES:
 
 **SVG PATHS** (for organic, curved shapes):
 {{"type": "path", "d": "M 300,400 Q 280,350 300,300 Q 320,350 300,400 Z", "fill": "#4CAF50", "stroke": "#2E7D32", "strokeWidth": 3}}
@@ -733,7 +733,7 @@ Use for: stars, hexagons (glucose), arrows, crystals, custom shapes
 - Circuit = battery (rect with +/-) + wires (curved paths) + resistor (zigzag path) + LED (circle + ray polygons)
 - Cell = outer circle + nucleus (circle) + mitochondria (ovals) + labels (text with arrows)
 
-📋 DETAILED EXAMPLE FOR {title}:
+� DETAILED EXAMPLE FOR {title}:
 
 ANALYZE THE CONTENT and CREATE 4 PROGRESSIVE SCENES:
 
@@ -763,7 +763,7 @@ Scene 4: RESULTS & OUTPUT
 - Key takeaways highlighted
 - Use 8-10 shapes with emphasis animations (pulse, glow)
 
-🎬 ANIMATION STRATEGY (CRITICAL for whiteboard feel):
+ ANIMATION STRATEGY (CRITICAL for whiteboard feel):
 - "draw": Lines/paths appear stroke-by-stroke (like drawing with marker)
 - "write": Text appears letter-by-letter (like writing)
 - "fadeIn": Shape fades in smoothly
@@ -774,7 +774,7 @@ Scene 4: RESULTS & OUTPUT
 
 EVERY shape must have animation! Stagger delays: 0s, 0.5s, 1s, 1.5s, 2s...
 
-🎨 LAYOUT RULES (STRICTLY FOLLOW):
+ LAYOUT RULES (STRICTLY FOLLOW):
 - Canvas: 1920x1080 pixels
 - Center point: (960, 540)
 - Title: x=960, y=120, fontSize=52-60, fontStyle="bold", align="center"
@@ -820,7 +820,7 @@ REQUIRED JSON FORMAT:
 
 Content to analyze: {safe_content[:1200]}
 
-🚀 NOW CREATE YOUR EXTRAORDINARY WHITEBOARD VISUALIZATION!
+� NOW CREATE YOUR EXTRAORDINARY WHITEBOARD VISUALIZATION!
 Make it visual, detailed, animated, and educational. Use paths, polygons, and proper labeling.
 Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
         
@@ -843,16 +843,16 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
                 max_size = (max_image_size, max_image_size)
                 if pil_image.size[0] > max_size[0] or pil_image.size[1] > max_size[1]:
                     pil_image.thumbnail(max_size, PILImage.Resampling.LANCZOS)
-                    logger.info(f"📐 Resized image to {pil_image.size} (max {max_image_size}px)")
+                    logger.info(f"� Resized image to {pil_image.size} (max {max_image_size}px)")
                 
                 # Add image to prompt
                 prompt_parts.append(pil_image)
-                logger.info(f"✅ Added 1 ultra-compressed image")
+                logger.info(f" Added 1 ultra-compressed image")
                 
             except Exception as e:
                 logger.warning(f"Failed to add image, continuing without it: {e}")
         else:
-            logger.info("🎨 No PDF images, generating visualization from text content only")
+            logger.info(" No PDF images, generating visualization from text content only")
         
         try:
             # Generate with vision model - WITH TIMEOUT (120 seconds for complex prompts)
@@ -948,7 +948,7 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
         
         # Detect topic category
         topic_category = self._detect_topic_category(title, content)
-        logger.info(f"🎨 Detected topic category: {topic_category} for '{title}'")
+        logger.info(f" Detected topic category: {topic_category} for '{title}'")
         
         scenes = []
         
@@ -1417,7 +1417,7 @@ This comprehensive lesson will guide you through understanding the key concepts 
         Generate structured quiz data from lesson content
         Returns a dictionary with quiz questions in JSON format
         """
-        print("🎯 Starting quiz generation from lesson content...")
+        print(" Starting quiz generation from lesson content...")
         
         # Limit content length to avoid token limits
         content_preview = lesson_content[:2000] if len(lesson_content) > 2000 else lesson_content
@@ -1495,28 +1495,28 @@ Generate EXACTLY 5 questions following this format. Ensure proper JSON syntax wi
             if 'questions' not in quiz_data:
                 raise ValueError("Missing 'questions' field in quiz data")
             
-            print(f"✅ Quiz generated successfully: {len(quiz_data.get('questions', []))} questions")
+            print(f" Quiz generated successfully: {len(quiz_data.get('questions', []))} questions")
             return quiz_data
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error in quiz generation: {e}")
             logger.error(f"Problematic JSON text (first 1000 chars): {quiz_text[:1000]}")
-            print(f"❌ Error generating quiz: {e}")
+            print(f" Error generating quiz: {e}")
             
             # Try to salvage what we can with a more aggressive fix
             try:
                 fixed_text = self._aggressive_json_fix(quiz_text)
                 quiz_data = json.loads(fixed_text)
-                print(f"✅ Recovered quiz after aggressive fix: {len(quiz_data.get('questions', []))} questions")
+                print(f" Recovered quiz after aggressive fix: {len(quiz_data.get('questions', []))} questions")
                 return quiz_data
             except:
                 # Return fallback quiz structure
-                print("⚠️ Using fallback quiz structure")
+                print(" Using fallback quiz structure")
                 return self._get_fallback_quiz(lesson_title)
                 
         except Exception as e:
             logger.error(f"Error generating quiz data: {e}")
-            print(f"❌ Error generating quiz: {e}")
+            print(f" Error generating quiz: {e}")
             return {
                 "title": f"Quiz: {lesson_title}",
                 "questions": [
@@ -1605,7 +1605,7 @@ Generate EXACTLY 5 questions following this format. Ensure proper JSON syntax wi
         Generate structured notes from lesson content
         Returns a dictionary with organized notes in JSON format
         """
-        print("📝 Starting notes generation from lesson content...")
+        print("� Starting notes generation from lesson content...")
         
         # Limit content length to avoid token limits
         content_preview = lesson_content[:2000] if len(lesson_content) > 2000 else lesson_content
@@ -1687,29 +1687,29 @@ Generate notes following this format. Ensure proper JSON syntax with commas betw
                 raise ValueError("Missing 'sections' field in notes data")
             
             sections_count = len(notes_data.get('sections', []))
-            print(f"✅ Notes generated successfully: {sections_count} sections")
+            print(f" Notes generated successfully: {sections_count} sections")
             return notes_data
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error in notes generation: {e}")
             logger.error(f"Problematic JSON text (first 1000 chars): {notes_text[:1000]}")
-            print(f"❌ Error generating notes: {e}")
+            print(f" Error generating notes: {e}")
             
             # Try to salvage what we can with aggressive fix
             try:
                 fixed_text = self._aggressive_json_fix_notes(notes_text)
                 notes_data = json.loads(fixed_text)
-                print(f"✅ Recovered notes after aggressive fix: {len(notes_data.get('sections', []))} sections")
+                print(f" Recovered notes after aggressive fix: {len(notes_data.get('sections', []))} sections")
                 return notes_data
             except:
                 # Return fallback notes structure
-                print("⚠️ Using fallback notes structure")
+                print(" Using fallback notes structure")
                 return self._get_fallback_notes(lesson_title)
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error in notes generation: {e}")
             logger.error(f"Problematic JSON text: {notes_text[:500]}")
-            print(f"❌ Error generating notes: {e}")
+            print(f" Error generating notes: {e}")
             # Return fallback notes structure
             return {
                 "title": f"Notes: {lesson_title}",
@@ -1728,7 +1728,7 @@ Generate notes following this format. Ensure proper JSON syntax with commas betw
             }
         except Exception as e:
             logger.error(f"Error generating notes data: {e}")
-            print(f"❌ Error generating notes: {e}")
+            print(f" Error generating notes: {e}")
             return {
                 "title": f"Notes: {lesson_title}",
                 "summary": "Review the lesson content for comprehensive understanding.",

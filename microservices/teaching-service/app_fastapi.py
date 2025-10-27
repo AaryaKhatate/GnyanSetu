@@ -1,4 +1,4 @@
-"""
+﻿"""
 Teaching Service - FastAPI Implementation
 Real-time teaching with WebSocket support and lesson integration
 """
@@ -53,9 +53,9 @@ class MongoDBConnection:
                 self._lesson_db = self._client['lesson_db']
                 self._teaching_db = self._client['teaching_db']
                 self._user_db = self._client['user_db']
-                logger.info("✅ Connected to MongoDB for Teaching Service")
+                logger.info(" Connected to MongoDB for Teaching Service")
             except Exception as e:
-                logger.error(f"❌ Failed to connect to MongoDB: {e}")
+                logger.error(f" Failed to connect to MongoDB: {e}")
                 self._client = None
     
     @property
@@ -102,10 +102,10 @@ class TeachingSessionModel:
             result = sessions_collection.insert_one(session)
             session_id = str(result.inserted_id)
             
-            logger.info(f"✅ Created teaching session: {session_id}")
+            logger.info(f" Created teaching session: {session_id}")
             return session_id
         except Exception as e:
-            logger.error(f"❌ Error creating session: {e}")
+            logger.error(f" Error creating session: {e}")
             return None
     
     @classmethod
@@ -127,7 +127,7 @@ class TeachingSessionModel:
             
             return session
         except Exception as e:
-            logger.error(f"❌ Error getting session: {e}")
+            logger.error(f" Error getting session: {e}")
             return None
     
     @classmethod
@@ -147,7 +147,7 @@ class TeachingSessionModel:
             
             return result.modified_count > 0
         except Exception as e:
-            logger.error(f"❌ Error updating session: {e}")
+            logger.error(f" Error updating session: {e}")
             return False
     
     @classmethod
@@ -160,10 +160,10 @@ class TeachingSessionModel:
             sessions_collection = mongo.teaching_db.teaching_sessions
             result = sessions_collection.delete_one({'_id': ObjectId(session_id)})
             
-            logger.info(f"✅ Deleted session: {session_id}")
+            logger.info(f" Deleted session: {session_id}")
             return result.deleted_count > 0
         except Exception as e:
-            logger.error(f"❌ Error deleting session: {e}")
+            logger.error(f" Error deleting session: {e}")
             return False
 
 # ============================================================================
@@ -224,7 +224,7 @@ async def health_check():
 async def list_conversations(user_id: str = Query(..., description="User ID")):
     """Get all conversations (lessons) for a user"""
     try:
-        logger.info(f"📋 Fetching conversations for user: {user_id}")
+        logger.info(f"� Fetching conversations for user: {user_id}")
         
         if mongo.lesson_db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
@@ -250,7 +250,7 @@ async def list_conversations(user_id: str = Query(..., description="User ID")):
                 'message_count': 0
             })
         
-        logger.info(f"✅ Returning {len(conversations)} conversations")
+        logger.info(f" Returning {len(conversations)} conversations")
         
         return {
             'conversations': conversations,
@@ -261,7 +261,7 @@ async def list_conversations(user_id: str = Query(..., description="User ID")):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error fetching conversations: {e}")
+        logger.error(f" Error fetching conversations: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch conversations: {str(e)}")
 
 @app.post("/api/conversations/create/")
@@ -271,7 +271,7 @@ async def create_conversation(data: dict):
         user_id = data.get('user_id', 'dashboard_user')
         title = data.get('title', 'New Conversation')
         
-        logger.info(f"➕ Creating conversation: {title}")
+        logger.info(f" Creating conversation: {title}")
         
         # Create a temporary conversation (will be replaced when lesson is generated)
         conversation_id = f"temp_{datetime.now(timezone.utc).timestamp()}"
@@ -286,21 +286,21 @@ async def create_conversation(data: dict):
         }
         
     except Exception as e:
-        logger.error(f"❌ Error creating conversation: {e}")
+        logger.error(f" Error creating conversation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create conversation: {str(e)}")
 
 @app.delete("/api/conversations/{conversation_id}/delete/")
 async def delete_conversation(conversation_id: str):
     """Delete a conversation/teaching session"""
     try:
-        logger.info(f"🗑️ Deleting conversation: {conversation_id}")
+        logger.info(f"� Deleting conversation: {conversation_id}")
         
         # Delete teaching session if exists
         deleted_session = False
         if ObjectId.is_valid(conversation_id):
             deleted_session = TeachingSessionModel.delete_session(conversation_id)
         
-        logger.info(f"✅ Conversation deleted (session: {deleted_session})")
+        logger.info(f" Conversation deleted (session: {deleted_session})")
         
         return {
             'success': True,
@@ -310,7 +310,7 @@ async def delete_conversation(conversation_id: str):
         }
         
     except Exception as e:
-        logger.error(f"❌ Error deleting conversation: {e}")
+        logger.error(f" Error deleting conversation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete conversation: {str(e)}")
 
 # ============================================================================
@@ -321,7 +321,7 @@ async def delete_conversation(conversation_id: str):
 async def get_lesson_detail(lesson_id: str):
     """Get detailed lesson content"""
     try:
-        logger.info(f"📖 Fetching lesson: {lesson_id}")
+        logger.info(f"� Fetching lesson: {lesson_id}")
         
         if mongo.lesson_db is None or not ObjectId.is_valid(lesson_id):
             raise HTTPException(status_code=404, detail="Lesson not found")
@@ -341,14 +341,14 @@ async def get_lesson_detail(lesson_id: str):
         if 'updated_at' in lesson:
             lesson['updated_at'] = lesson['updated_at'].isoformat()
         
-        logger.info(f"✅ Found lesson: {lesson.get('lesson_title')}")
+        logger.info(f" Found lesson: {lesson.get('lesson_title')}")
         
         return {'lesson': lesson}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error fetching lesson: {e}")
+        logger.error(f" Error fetching lesson: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch lesson: {str(e)}")
 
 # ============================================================================
@@ -365,7 +365,7 @@ async def start_teaching_session(data: dict):
         if not lesson_id:
             raise HTTPException(status_code=400, detail="lesson_id is required")
         
-        logger.info(f"🎓 Starting teaching session for lesson: {lesson_id}")
+        logger.info(f" Starting teaching session for lesson: {lesson_id}")
         
         session_id = TeachingSessionModel.create_session(lesson_id, user_id)
         
@@ -383,7 +383,7 @@ async def start_teaching_session(data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error starting session: {e}")
+        logger.error(f" Error starting session: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start session: {str(e)}")
 
 @app.post("/api/sessions/stop/")
@@ -395,7 +395,7 @@ async def stop_teaching_session(data: dict):
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
         
-        logger.info(f"⏹️ Stopping teaching session: {session_id}")
+        logger.info(f" Stopping teaching session: {session_id}")
         
         success = TeachingSessionModel.update_session(session_id, {
             'status': 'completed',
@@ -414,7 +414,7 @@ async def stop_teaching_session(data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error stopping session: {e}")
+        logger.error(f" Error stopping session: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to stop session: {str(e)}")
 
 # ============================================================================
@@ -431,7 +431,7 @@ async def update_konva_state(data: dict):
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
         
-        logger.info(f"🎨 Updating Konva state for session: {session_id}")
+        logger.info(f" Updating Konva state for session: {session_id}")
         
         success = TeachingSessionModel.update_session(session_id, {
             'konva_state': konva_state
@@ -449,14 +449,14 @@ async def update_konva_state(data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error updating Konva state: {e}")
+        logger.error(f" Error updating Konva state: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update Konva state: {str(e)}")
 
 @app.get("/api/konva/{session_id}/")
 async def get_konva_state(session_id: str):
     """Get Konva.js whiteboard state"""
     try:
-        logger.info(f"🎨 Getting Konva state for session: {session_id}")
+        logger.info(f" Getting Konva state for session: {session_id}")
         
         session = TeachingSessionModel.get_session(session_id)
         
@@ -471,7 +471,7 @@ async def get_konva_state(session_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error getting Konva state: {e}")
+        logger.error(f" Error getting Konva state: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get Konva state: {str(e)}")
 
 # ============================================================================
@@ -486,12 +486,12 @@ class ConnectionManager:
     async def connect(self, session_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active_connections[session_id] = websocket
-        logger.info(f"🔌 WebSocket connected: {session_id}")
+        logger.info(f"� WebSocket connected: {session_id}")
     
     def disconnect(self, session_id: str):
         if session_id in self.active_connections:
             del self.active_connections[session_id]
-            logger.info(f"🔌 WebSocket disconnected: {session_id}")
+            logger.info(f"� WebSocket disconnected: {session_id}")
     
     async def send_message(self, session_id: str, message: dict):
         if session_id in self.active_connections:
@@ -512,7 +512,7 @@ async def teaching_websocket(websocket: WebSocket, session_id: str):
             message_type = data.get('type', 'message')
             content = data.get('content', '')
             
-            logger.info(f"📨 Received {message_type}: {content[:50]}...")
+            logger.info(f"� Received {message_type}: {content[:50]}...")
             
             # Echo back for now (replace with actual AI teaching logic)
             response = {

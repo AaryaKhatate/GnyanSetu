@@ -1,4 +1,4 @@
-# Django Views for Lesson Service API
+﻿# Django Views for Lesson Service API
 import logging
 import json
 import threading
@@ -12,7 +12,7 @@ from django.views.decorators.http import require_http_methods
 from django.conf import settings
 
 from .models import PDFDataModel, LessonModel, UserHistoryModel, check_database_connection, get_database_stats, lessons_collection
-from .pdf_processor_simple import PDFProcessor
+from .pdf_processor import PDFProcessor
 from .lesson_generator import LessonGenerator
 from bson import ObjectId
 
@@ -29,18 +29,18 @@ def generate_quiz_and_notes_async(lesson_id, lesson_content, lesson_title):
     """
     try:
         print("\n" + "="*60)
-        print(f"🔄 ASYNC: Starting quiz and notes generation for lesson: {lesson_id}")
+        print(f" ASYNC: Starting quiz and notes generation for lesson: {lesson_id}")
         print("="*60)
         
         # Generate quiz data
-        print("🎯 ASYNC: Generating quiz...")
+        print(" ASYNC: Generating quiz...")
         quiz_data = lesson_generator.generate_quiz_data(
             lesson_content=lesson_content,
             lesson_title=lesson_title
         )
         
         # Generate notes data
-        print("📝 ASYNC: Generating notes...")
+        print("� ASYNC: Generating notes...")
         notes_data = lesson_generator.generate_notes_data(
             lesson_content=lesson_content,
             lesson_title=lesson_title
@@ -61,18 +61,18 @@ def generate_quiz_and_notes_async(lesson_id, lesson_content, lesson_title):
             )
             
             print("="*60)
-            print("📊 ASYNC Generation Complete:")
-            print(f"   ✓ Lesson ID: {lesson_id}")
-            print(f"   ✓ Quiz: {len(quiz_data.get('questions', []))} questions")
-            print(f"   ✓ Notes: {len(notes_data.get('sections', []))} sections")
-            print(f"   ✓ Updated in database: {update_result.modified_count} document(s)")
+            print("� ASYNC Generation Complete:")
+            print(f"    Lesson ID: {lesson_id}")
+            print(f"    Quiz: {len(quiz_data.get('questions', []))} questions")
+            print(f"    Notes: {len(notes_data.get('sections', []))} sections")
+            print(f"    Updated in database: {update_result.modified_count} document(s)")
             print("="*60 + "\n")
         else:
-            print("❌ ASYNC: Cannot update - MongoDB not available")
+            print(" ASYNC: Cannot update - MongoDB not available")
             
     except Exception as e:
         logger.error(f"Error in async quiz/notes generation: {e}")
-        print(f"❌ ASYNC: Error generating quiz and notes: {e}")
+        print(f" ASYNC: Error generating quiz and notes: {e}")
         
         # Mark as failed in database
         if lessons_collection is not None:
@@ -210,9 +210,9 @@ def process_pdf_and_generate_lesson(request):
         
         # Start async generation of quiz and notes in background thread
         # This allows teaching to start immediately while quiz/notes are being generated
-        print("\n🚀 Starting ASYNC quiz and notes generation...")
-        print("📚 Teaching can begin immediately!")
-        print("🔄 Quiz and notes will be generated in the background...\n")
+        print("\n� Starting ASYNC quiz and notes generation...")
+        print("� Teaching can begin immediately!")
+        print("� Quiz and notes will be generated in the background...\n")
         
         thread = threading.Thread(
             target=generate_quiz_and_notes_async,
@@ -475,11 +475,11 @@ def delete_lesson(request, lesson_id):
         Response: JSON with success status and deleted items count
     """
     try:
-        logger.info(f"🗑️ Delete request received for lesson ID: {lesson_id}")
+        logger.info(f"� Delete request received for lesson ID: {lesson_id}")
         
         # Validate lesson ID format
         if not ObjectId.is_valid(lesson_id):
-            logger.warning(f"❌ Invalid lesson ID format: {lesson_id}")
+            logger.warning(f" Invalid lesson ID format: {lesson_id}")
             return Response({
                 'error': 'Invalid lesson ID format',
                 'success': False
@@ -488,7 +488,7 @@ def delete_lesson(request, lesson_id):
         # Find lesson to get metadata before deletion
         lesson = LessonModel.get_by_id(lesson_id)
         if not lesson:
-            logger.warning(f"❌ Lesson not found: {lesson_id}")
+            logger.warning(f" Lesson not found: {lesson_id}")
             return Response({
                 'error': 'Lesson not found',
                 'success': False
@@ -507,14 +507,14 @@ def delete_lesson(request, lesson_id):
         result = lessons_collection.delete_one({'_id': ObjectId(lesson_id)})
         if result.deleted_count > 0:
             deleted_items['lesson'] = True
-            logger.info(f"✅ Deleted lesson: {lesson_id}")
+            logger.info(f" Deleted lesson: {lesson_id}")
         
         # Delete history entries
         history_result = lessons_collection.database['user_history'].delete_many({
             'lesson_id': lesson_id
         })
         deleted_items['history'] = history_result.deleted_count
-        logger.info(f"✅ Deleted {history_result.deleted_count} history entries")
+        logger.info(f" Deleted {history_result.deleted_count} history entries")
         
         # Delete quiz data if exists
         quiz_result = lessons_collection.database['quiz'].delete_many({
@@ -522,7 +522,7 @@ def delete_lesson(request, lesson_id):
         })
         if quiz_result.deleted_count > 0:
             deleted_items['quiz'] = True
-            logger.info(f"✅ Deleted quiz data for lesson: {lesson_id}")
+            logger.info(f" Deleted quiz data for lesson: {lesson_id}")
         
         # Delete notes data if exists
         notes_result = lessons_collection.database['notes'].delete_many({
@@ -530,7 +530,7 @@ def delete_lesson(request, lesson_id):
         })
         if notes_result.deleted_count > 0:
             deleted_items['notes'] = True
-            logger.info(f"✅ Deleted notes data for lesson: {lesson_id}")
+            logger.info(f" Deleted notes data for lesson: {lesson_id}")
         
         # Delete visualization data if exists (from visualization service database)
         try:
@@ -543,7 +543,7 @@ def delete_lesson(request, lesson_id):
             })
             if viz_v2_result.deleted_count > 0:
                 deleted_items['visualization_v2'] = True
-                logger.info(f"✅ Deleted {viz_v2_result.deleted_count} v2 visualization(s) for lesson: {lesson_id}")
+                logger.info(f" Deleted {viz_v2_result.deleted_count} v2 visualization(s) for lesson: {lesson_id}")
             
             # Delete old visualizations (if any)
             viz_result = visualization_db['visualizations'].delete_many({
@@ -551,12 +551,12 @@ def delete_lesson(request, lesson_id):
             })
             if viz_result.deleted_count > 0:
                 deleted_items['visualizations'] = True
-                logger.info(f"✅ Deleted {viz_result.deleted_count} visualization(s) for lesson: {lesson_id}")
+                logger.info(f" Deleted {viz_result.deleted_count} visualization(s) for lesson: {lesson_id}")
         except Exception as viz_error:
-            logger.warning(f"⚠️ Could not delete visualizations: {viz_error}")
+            logger.warning(f" Could not delete visualizations: {viz_error}")
             deleted_items['visualization_error'] = str(viz_error)
         
-        logger.info(f"✅ Successfully deleted all data for lesson: {lesson_id}")
+        logger.info(f" Successfully deleted all data for lesson: {lesson_id}")
         
         return Response({
             'success': True,
@@ -566,7 +566,7 @@ def delete_lesson(request, lesson_id):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error deleting lesson {lesson_id}: {e}")
+        logger.error(f" Error deleting lesson {lesson_id}: {e}")
         return Response({
             'error': 'Failed to delete lesson',
             'success': False,

@@ -1,8 +1,8 @@
-# API Gateway
+﻿# API Gateway
 
 Central routing and load balancing service for the GnyanSetu microservices architecture. Acts as a single entry point for all client requests and routes them to appropriate microservices.
 
-## 🎯 **Gateway Responsibilities**
+##  **Gateway Responsibilities**
 
 - **Request Routing**: Route requests to appropriate microservices based on URL patterns
 - **Load Balancing**: Distribute requests across multiple service instances (future)
@@ -13,7 +13,7 @@ Central routing and load balancing service for the GnyanSetu microservices archi
 - **Request/Response Transformation**: Adapt requests between different service formats
 - **CORS Management**: Handle cross-origin requests centrally
 
-## 🌐 **Service Registry**
+##  **Service Registry**
 
 | Service | Port | URL | Routes |
 |---------|------|-----|--------|
@@ -25,7 +25,7 @@ Central routing and load balancing service for the GnyanSetu microservices archi
 | **Realtime Service** | 8005 | http://localhost:8005 | `/api/sessions`, `/ws` |
 | **Analytics Service** | 8006 | http://localhost:8006 | `/api/analytics`, `/api/progress` |
 
-## 🚀 **API Endpoints**
+## � **API Endpoints**
 
 ### Gateway Health & Service Discovery
 
@@ -179,7 +179,7 @@ The gateway will:
 3. Proxy the request to the service
 4. Return the response to the client
 
-## 🔧 **Request Flow**
+## � **Request Flow**
 
 ```
 Client Request
@@ -199,7 +199,7 @@ Response Processing
 Client Response
 ```
 
-## 🛡️ **Error Handling**
+## � **Error Handling**
 
 The gateway provides consistent error responses:
 
@@ -208,7 +208,7 @@ The gateway provides consistent error responses:
 - **504**: Request timeout (service took too long to respond)
 - **500**: Internal gateway error
 
-## 🔄 **Frontend Integration**
+## � **Frontend Integration**
 
 ### Landing Page Integration
 
@@ -254,7 +254,7 @@ const pdfUpload = async (file) => {
 };
 ```
 
-## 🚀 **Setup & Installation**
+## � **Setup & Installation**
 
 ### Prerequisites
 - Python 3.10+
@@ -284,7 +284,7 @@ const pdfUpload = async (file) => {
 
 The gateway will start on port 8000 and begin routing requests to registered services.
 
-## 🧪 **Testing**
+##  **Testing**
 
 ### Test Gateway Health
 ```bash
@@ -313,7 +313,7 @@ curl http://localhost:8000/api/services
 curl http://localhost:8000/api/services/user-service/health
 ```
 
-## ⚙️ **Configuration**
+##  **Configuration**
 
 Environment variables in `.env`:
 
@@ -336,14 +336,14 @@ HEALTH_CHECK_TIMEOUT=5
 CORS_ORIGINS=http://localhost:3001,http://localhost:8000,http://localhost:3000
 ```
 
-## 📈 **Monitoring & Logging**
+## � **Monitoring & Logging**
 
 - **Request Logging**: All requests are logged with method, path, and source IP
 - **Service Health Monitoring**: Regular health checks for all registered services
 - **Error Tracking**: Detailed error logging for failed requests and service issues
 - **Response Headers**: Each response includes gateway identification headers
 
-## 🔒 **Security Features**
+## � **Security Features**
 
 - **CORS Protection**: Configurable cross-origin request handling
 - **Header Filtering**: Removes sensitive headers when proxying requests
@@ -351,7 +351,7 @@ CORS_ORIGINS=http://localhost:3001,http://localhost:8000,http://localhost:3000
 - **Rate Limiting**: TODO - Implement rate limiting for API protection
 - **Service Authentication**: TODO - Add service-to-service authentication
 
-## 🚨 **Service Health Monitoring**
+## � **Service Health Monitoring**
 
 The gateway continuously monitors all registered services:
 
@@ -360,7 +360,7 @@ The gateway continuously monitors all registered services:
 - **Service Discovery**: Dynamic service registration (future enhancement)
 - **Circuit Breaker**: TODO - Implement circuit breaker pattern
 
-## 📋 **Next Steps**
+## � **Next Steps**
 
 1. **Start the API Gateway** using the startup script
 2. **Verify all services** are healthy via `/health` endpoint
@@ -368,7 +368,7 @@ The gateway continuously monitors all registered services:
 4. **Update frontend** to use gateway URLs instead of direct service URLs
 5. **Proceed to create AI Lesson Service** (next microservice)
 
-## 🔄 **Service Communication Flow**
+## � **Service Communication Flow**
 
 ```
 Landing Page (Port 3000)

@@ -1,4 +1,4 @@
-# 📘 GnyanSetu – AI-Powered Interactive Learning Platform
+﻿# � GnyanSetu – AI-Powered Interactive Learning Platform
 
 <div align="center">
 
@@ -21,24 +21,24 @@
 
 ---
 
-## 🌟 Overview
+##  Overview
 
 **GnyanSetu** (Bridge to Knowledge) is an advanced AI-powered learning platform that revolutionizes education by converting static study materials into interactive, personalized learning experiences. The platform combines cutting-edge AI technology with real-time visualization and adaptive learning mechanisms.
 
 ### What Makes GnyanSetu Different?
 
-- 🎯 **Interactive AI Teaching** - Not just content, but a virtual teacher that explains step-by-step
-- 🎨 **Visual Learning** - Dynamic whiteboard with animations, diagrams, and real-time drawing
-- 🧠 **Smart Assessment** - AI-generated quizzes that adapt to your learning pace
-- 📝 **Intelligent Notes** - Auto-generated, organized notes with key concepts highlighted
-- 🔄 **Real-time Interaction** - WebSocket-powered live learning experience
-- 📊 **Progress Tracking** - Comprehensive analytics to monitor learning journey
+-  **Interactive AI Teaching** - Not just content, but a virtual teacher that explains step-by-step
+-  **Visual Learning** - Dynamic whiteboard with animations, diagrams, and real-time drawing
+-  **Smart Assessment** - AI-generated quizzes that adapt to your learning pace
+- � **Intelligent Notes** - Auto-generated, organized notes with key concepts highlighted
+- � **Real-time Interaction** - WebSocket-powered live learning experience
+- � **Progress Tracking** - Comprehensive analytics to monitor learning journey
 
 ---
 
-## ✨ Features
+##  Features
 
-### 🎓 Core Learning Features
+###  Core Learning Features
 
 #### 1. **PDF Upload & Processing**
 - Drag-and-drop interface for easy file upload
@@ -63,7 +63,7 @@
 - Fullscreen mode for immersive learning
 - Export whiteboard content as images
 
-#### 4. **AI-Generated Quizzes** 🚧 *(In Development)*
+#### 4. **AI-Generated Quizzes** � *(In Development)*
 - **Automatic Question Generation** from lesson content
 - Multiple question types:
   - Multiple Choice Questions (MCQs)
@@ -77,7 +77,7 @@
 - **Time-bound quizzes** with progress indicators
 - **Question bank** management for review
 
-#### 5. **Smart Notes System** 📝 *(In Development)*
+#### 5. **Smart Notes System** � *(In Development)*
 - **AI-Generated Summaries** of lessons
 - **Key Points Extraction** with importance ranking
 - **Concept Mapping** and relationship visualization
@@ -88,7 +88,7 @@
 - **Collaborative Notes** sharing (planned)
 - **Mind Map Generation** from topics
 
-### 🔒 User Management & Authentication
+### � User Management & Authentication
 
 - **Google OAuth 2.0** - One-click sign-in
 - **Traditional Auth** - Email/password with JWT tokens
@@ -97,7 +97,7 @@
 - **Progress Tracking** - Individual learning history
 - **Multi-device Sync** - Learn anywhere, anytime
 
-### 🛠️ Technical Features
+### � Technical Features
 
 - **Microservices Architecture** - Scalable and maintainable
 - **API Gateway** - Centralized routing (Port 8000)
@@ -111,7 +111,7 @@
 
 ---
 
-## 🛠️ Tech Stack
+## � Tech Stack
 
 ### Backend Services
 
@@ -164,7 +164,7 @@
 
 ---
 
-## 📁 Project Architecture
+## � Project Architecture
 
 ### Directory Structure
 
@@ -348,7 +348,7 @@ GnyanSetu/
 
 ---
 
-## 🚀 Getting Started
+## � Getting Started
 
 ### Prerequisites
 
@@ -373,12 +373,12 @@ start_project.bat
 ```
 
 This will automatically:
-- ✅ Install all Python dependencies
-- ✅ Install all Node.js dependencies  
-- ✅ Start MongoDB
-- ✅ Start all microservices (Ports 8000-8004)
-- ✅ Start React applications (Ports 3000, 3001)
-- ✅ Open browser to landing page
+-  Install all Python dependencies
+-  Install all Node.js dependencies  
+-  Start MongoDB
+-  Start all microservices (Ports 8000-8004)
+-  Start React applications (Ports 3000, 3001)
+-  Open browser to landing page
 
 ### Manual Setup
 
@@ -473,13 +473,13 @@ PORT=3001 npm start          # Linux/Mac
 
 #### Step 6: Access Application
 
-- 🌐 **Landing Page**: http://localhost:3000
-- 📊 **Dashboard**: http://localhost:3001  
-- 🔧 **API Gateway**: http://localhost:8000/health
+-  **Landing Page**: http://localhost:3000
+- � **Dashboard**: http://localhost:3001  
+- � **API Gateway**: http://localhost:8000/health
 
 ---
 
-## 📚 API Documentation
+## � API Documentation
 
 ### Authentication Endpoints
 
@@ -597,9 +597,9 @@ PORT=3001 npm start          # Linux/Mac
 
 ---
 
-## 🎯 Roadmap
+##  Roadmap
 
-### ✅ Phase 1: Core Platform (Completed)
+###  Phase 1: Core Platform (Completed)
 - [x] Microservices architecture
 - [x] PDF upload and processing
 - [x] AI lesson generation with Gemini
@@ -608,7 +608,7 @@ PORT=3001 npm start          # Linux/Mac
 - [x] Interactive teaching canvas
 - [x] Landing page and dashboard
 
-### 🚧 Phase 2: Quiz System (In Progress)
+### � Phase 2: Quiz System (In Progress)
 - [ ] AI-powered quiz generation from lessons
 - [ ] Multiple question type support
 - [ ] Instant feedback mechanism
@@ -618,7 +618,7 @@ PORT=3001 npm start          # Linux/Mac
 - [ ] Quiz review with explanations
 - [ ] Performance insights dashboard
 
-### 📋 Phase 3: Notes System (Planned - Q1 2026)
+### � Phase 3: Notes System (Planned - Q1 2026)
 - [ ] AI-generated summary notes
 - [ ] Key points extraction
 - [ ] Concept mapping visualization
@@ -629,7 +629,7 @@ PORT=3001 npm start          # Linux/Mac
 - [ ] Version control for notes
 - [ ] Collaborative notes sharing
 
-### 🚀 Phase 4: Advanced Features (Q2 2026)
+### � Phase 4: Advanced Features (Q2 2026)
 - [ ] Mobile application (React Native)
 - [ ] Offline mode support
 - [ ] Video integration
@@ -643,7 +643,7 @@ PORT=3001 npm start          # Linux/Mac
 - [ ] Custom lesson templates
 - [ ] Admin dashboard
 
-### 🌐 Phase 5: Scale & Performance (Q3 2026)
+###  Phase 5: Scale & Performance (Q3 2026)
 - [ ] Docker containerization
 - [ ] Kubernetes orchestration
 - [ ] CDN integration
@@ -656,7 +656,7 @@ PORT=3001 npm start          # Linux/Mac
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 We welcome contributions from the community! Here's how you can help:
 
@@ -688,13 +688,13 @@ We welcome contributions from the community! Here's how you can help:
 
 ---
 
-## 📝 License
+## � License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👥 Team
+## � Team
 
 ### Core Contributors
 
@@ -714,7 +714,7 @@ See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of contributors.
 
 ---
 
-## 📧 Contact & Support
+## � Contact & Support
 
 - **Email**: aryakhatate@gmail.com
 - **GitHub Issues**: [Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues)
@@ -723,7 +723,7 @@ See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of contributors.
 
 ---
 
-## 🙏 Acknowledgments
+## � Acknowledgments
 
 - **Google Gemini AI** - Advanced language model for content generation
 - **OpenAI** - GPT models and research
@@ -734,7 +734,7 @@ See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of contributors.
 
 ---
 
-## 📊 Project Stats
+## � Project Stats
 
 ![GitHub stars](https://img.shields.io/github/stars/AaryaKhatate/GnyanSetu?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/AaryaKhatate/GnyanSetu?style=social)
@@ -745,11 +745,11 @@ See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of contributors.
 
 <div align="center">
 
-**Made with ❤️ for Education**
+**Made with  for Education**
 
 **GnyanSetu** - Building Bridges to Knowledge
 
-⭐ Star this repository if you find it helpful!
+ Star this repository if you find it helpful!
 
 [Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues) • [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement) • [Contribute](CONTRIBUTING.md)
 

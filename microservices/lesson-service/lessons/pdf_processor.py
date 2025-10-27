@@ -62,12 +62,14 @@ class PDFProcessor:
                     'has_ocr': len(page_text.strip()) < 50 and len(page_images) > 0
                 })
             
+            # Calculate total pages before closing the document
+            total_pages = len(pdf_document)
             pdf_document.close()
             
             # Prepare metadata
             metadata = {
                 'filename': filename,
-                'total_pages': len(pdf_document),
+                'total_pages': total_pages,
                 'total_images': len(images_data),
                 'text_length': len(text_content),
                 'processing_method': 'text_extraction_with_ocr',

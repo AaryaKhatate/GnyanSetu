@@ -116,7 +116,7 @@ echo.
 
 REM Start Landing Page (Port 3000) - Entry Point
 echo [5/6] Starting Landing Page on port 3000...
-cd /d "%BASE_DIR%\..\virtual_teacher_project\UI\landing_page\landing_page"
+cd /d "%BASE_DIR%\..\UI\landing_page\landing_page"
 if exist "package.json" (
     echo Installing landing page dependencies...
     call npm install >nul 2>&1
@@ -129,7 +129,7 @@ if exist "package.json" (
 
 REM Start Dashboard (Port 3001) - Main Application
 echo [6/6] Starting Dashboard on port 3001...
-cd /d "%BASE_DIR%\..\virtual_teacher_project\UI\Dashboard\Dashboard"
+cd /d "%BASE_DIR%\..\UI\Dashboard\Dashboard"
 if exist "package.json" (
     echo Installing dashboard dependencies...
     call npm install >nul 2>&1

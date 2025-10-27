@@ -67,12 +67,12 @@ try:
     results_db = client['Gnyansetu_Quiz_Results']
     quiz_results_collection = results_db['quiz_results']
     
-    logger.info("✓ Connected to MongoDB successfully")
-    logger.info("✓ Reading from: Gnyansetu_Lessons.lessons")
-    logger.info("✓ Writing results to: Gnyansetu_Quiz_Results.quiz_results")
+    logger.info(" Connected to MongoDB successfully")
+    logger.info(" Reading from: Gnyansetu_Lessons.lessons")
+    logger.info(" Writing results to: Gnyansetu_Quiz_Results.quiz_results")
     
 except Exception as e:
-    logger.error(f"❌ MongoDB connection failed: {e}")
+    logger.error(f" MongoDB connection failed: {e}")
     lessons_collection = None
     quiz_results_collection = None
 
