@@ -245,10 +245,17 @@ const NavBar = ({ onLogin, onSignup }) => {
         <div className="flex items-center justify-between h-16">
           <a
             href="#hero"
-            className="flex items-center text-xl font-semibold tracking-tight"
+            className="flex items-center gap-3 text-xl font-semibold tracking-tight"
           >
-            <span className="text-slate-200">Gyan</span>
-            <span className="text-accentBlue">सेतु</span>
+            <img
+              src="/GnyanSetu-2.png"
+              alt="GnyanSetu Logo"
+              className="h-10 w-10 rounded-lg"
+            />
+            <div className="flex items-center">
+              <span className="text-slate-200">Gyan</span>
+              <span className="text-accentBlue">सेतु</span>
+            </div>
           </a>
           <nav className="hidden md:flex items-center gap-8">
             <a
@@ -387,7 +394,7 @@ const Hero = ({ onPrimary }) => (
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white">
             Bridge knowledge with{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-accentBlue to-accentPurple">
-              GyanSetu
+              Gyanसेतु
             </span>
           </h1>
           <p className="mt-7 text-2xl text-slate-200 max-w-2xl">

@@ -220,7 +220,7 @@ export default function Sidebar({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-6 mt-4">
               <img
-                src="/GnyanSetu.png"
+                src="/GnyanSetu-2.png"
                 alt="GyanSetu Logo"
                 className="h-24 w-24 rounded-2xl"
               />

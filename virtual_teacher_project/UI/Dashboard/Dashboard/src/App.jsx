@@ -508,7 +508,7 @@ export default function App() {
     <div className="relative min-h-screen bg-background overflow-hidden">
       <GlowingBackground />
       {/* Watermark Logo */}
-      <img
+      {/* <img
         src="/GnyanSetu.png"
         alt="GnyanSetu Watermark"
         style={{
@@ -522,7 +522,7 @@ export default function App() {
           pointerEvents: "none",
           userSelect: "none",
         }}
-      />
+      /> */}
 
       {/* Error Toast */}
       {error && (
