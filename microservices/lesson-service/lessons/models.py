@@ -102,10 +102,6 @@ except Exception as e:
     pdf_data_collection = None
     lessons_collection = None
     user_histories_collection = None
-    db = None
-    pdf_data_collection = None
-    lessons_collection = None
-    user_histories_collection = None
 
 
 class PDFDataModel:
@@ -225,9 +221,6 @@ class LessonModel:
         except Exception as e:
             logger.error(f"Error getting user lessons: {e}")
             return []
-        if lessons_collection is not None:
-            return list(lessons_collection.find({'user_id': user_id}).sort('created_at', -1))
-        return []
 
 
 class UserHistoryModel:

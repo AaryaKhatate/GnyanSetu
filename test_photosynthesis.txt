@@ -1,0 +1,32 @@
+
+    PHOTOSYNTHESIS - THE PROCESS OF LIFE
+    
+    Introduction:
+    Photosynthesis is the process by which green plants and some other organisms use sunlight 
+    to synthesize nutrients from carbon dioxide and water. Photosynthesis in plants generally 
+    involves the green pigment chlorophyll and generates oxygen as a by-product.
+    
+    The Equation:
+    6CO2 + 6H2O + light energy -> C6H12O6 + 6O2
+    
+    Key Components:
+    1. Chloroplasts - The organelle where photosynthesis occurs
+    2. Chlorophyll - The green pigment that absorbs light
+    3. Stomata - Pores in leaves that allow gas exchange
+    4. Light-dependent reactions - Occur in thylakoid membranes
+    5. Light-independent reactions (Calvin Cycle) - Occur in stroma
+    
+    Process Steps:
+    1. Light absorption by chlorophyll
+    2. Water splitting (photolysis)
+    3. Oxygen release
+    4. ATP and NADPH production
+    5. Carbon fixation in Calvin Cycle
+    6. Glucose synthesis
+    
+    Importance:
+    - Produces oxygen for respiration
+    - Forms the base of food chains
+    - Removes CO₂ from atmosphere
+    - Provides energy for life on Earth
+    

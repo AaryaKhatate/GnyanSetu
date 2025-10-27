@@ -197,17 +197,8 @@ export default function App() {
 
       setHistoryItems(transformedConversations);
 
-      // If no conversations, create a new one
-      if (transformedConversations.length === 0) {
-        handleNewChat();
-      } else {
-        // Set the most recent conversation as current
-        const mostRecent = transformedConversations[0];
-        setCurrentSessionId(getConversationId(mostRecent));
-        if (mostRecent.title && mostRecent.title !== "Untitled Chat") {
-          setCurrentSession(mostRecent.title);
-        }
-      }
+      // Always start with a new chat on login/dashboard load
+      handleNewChat();
     } catch (error) {
       console.error("Error loading chat history:", error);
       setError("Failed to load chat history");

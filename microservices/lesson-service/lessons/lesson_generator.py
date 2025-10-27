@@ -1,6 +1,9 @@
 # AI Lesson Generation Service using Google Gemini
 import logging
 import json
+import base64
+from io import BytesIO
+from PIL import Image
 import google.generativeai as genai
 from django.conf import settings
 from datetime import datetime
@@ -49,6 +52,84 @@ class LessonGenerator:
             logger.error(f"Error extracting text from Gemini response: {e}")
             return fallback
     
+    def generate_image_explanations(self, pdf_images, lesson_content=""):
+        """
+        Generate AI explanations for extracted PDF images using Gemini Vision
+        
+        Args:
+            pdf_images (list): List of image dicts with base64_data
+            lesson_content (str): Context from lesson for better explanations
+            
+        Returns:
+            list: Updated images with explanations
+        """
+        if not pdf_images or not self.model:
+            return pdf_images or []
+        
+        explained_images = []
+        
+        for idx, img in enumerate(pdf_images):
+            try:
+                # Get base64 image data
+                img_base64 = img.get('base64_data', '')
+                if not img_base64:
+                    logger.warning(f"Image {idx} has no base64 data, skipping explanation")
+                    explained_images.append(img)
+                    continue
+                
+                # Decode base64 to bytes
+                if 'base64,' in img_base64:
+                    img_base64 = img_base64.split('base64,')[1]
+                
+                img_bytes = base64.b64decode(img_base64)
+                
+                # Create PIL Image
+                pil_image = Image.open(BytesIO(img_bytes))
+                
+                # Create prompt for image explanation
+                prompt = f"""Analyze this educational image extracted from a PDF lesson.
+
+Lesson context: {lesson_content[:500]}
+
+Provide a detailed explanation in JSON format:
+{{
+    "description": "Brief description of what the image shows (1-2 sentences)",
+    "teaching_points": ["Key point 1", "Key point 2", "Key point 3"],
+    "narration": "Natural explanation suitable for text-to-speech (2-3 sentences)"
+}}
+
+Focus on educational value and how this image supports the lesson."""
+
+                # Generate explanation using Gemini Vision
+                response = self.model.generate_content([prompt, pil_image])
+                response_text = self._safe_extract_text(response, fallback='{"description": "Educational diagram", "teaching_points": [], "narration": "This image illustrates a key concept from the lesson."}')
+                
+                # Parse JSON response
+                explanation_json = json.loads(response_text)
+                
+                # Update image with explanation
+                img['id'] = img.get('id', f'pdf_img_{idx}')
+                img['description'] = explanation_json.get('description', 'Educational diagram')
+                img['teaching_points'] = explanation_json.get('teaching_points', [])
+                img['narration'] = explanation_json.get('narration', 'This image illustrates a key concept.')
+                img['explanation'] = explanation_json.get('description', '')
+                
+                logger.info(f"✅ Generated explanation for image {idx}")
+                explained_images.append(img)
+                
+            except Exception as e:
+                logger.error(f"Failed to explain image {idx}: {e}")
+                # Add fallback explanation
+                img['id'] = img.get('id', f'pdf_img_{idx}')
+                img['description'] = 'Educational diagram from PDF'
+                img['teaching_points'] = []
+                img['narration'] = 'This image illustrates a concept from the lesson.'
+                img['explanation'] = 'Educational diagram'
+                explained_images.append(img)
+        
+        logger.info(f"✅ Explained {len(explained_images)} images")
+        return explained_images
+    
     def generate_lesson(self, pdf_text, images_ocr_text="", lesson_type="interactive", user_context=None, pdf_images=None):
         """
         Generate comprehensive lesson from PDF content with images
@@ -75,6 +156,8 @@ class LessonGenerator:
             # Log image availability
             if pdf_images and len(pdf_images) > 0:
                 logger.info(f"🖼️ Processing lesson with {len(pdf_images)} images from PDF")
+                # Generate AI explanations for images
+                pdf_images = self.generate_image_explanations(pdf_images, full_content)
             
             # Extract meaningful title from content (first line or heading)
             lesson_title = "Educational Lesson"  # Default fallback
@@ -869,33 +952,6 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
         
         scenes = []
         
-        # Generate intelligent intro scene based on topic
-        intro_audio = f"Welcome! Today we'll explore {title}. Let's visualize this concept step by step."
-        
-        scenes.append({
-            "scene_id": "intro",
-            "title": "Introduction",
-            "duration": 8,
-            "shapes": [
-                {"type": "rectangle", "zone": "center", "x": 960, "y": 540, "width": 1800, "height": 900, "fill": "#E3F2FD", "opacity": 0.3, "cornerRadius": 20},
-                {"type": "text", "zone": "top_center", "x": 960, "y": 200, "text": title, "fontSize": 56, "fill": "#1976D2", "fontFamily": "Arial", "fontStyle": "bold", "align": "center"},
-                {"type": "circle", "zone": "top_left", "x": 200, "y": 200, "radius": 60, "fill": "#4CAF50", "opacity": 0.7},
-                {"type": "circle", "zone": "top_right", "x": 1720, "y": 200, "radius": 60, "fill": "#FF9800", "opacity": 0.7},
-                {"type": "rectangle", "zone": "center", "x": 960, "y": 600, "width": 800, "height": 120, "fill": "#FFFFFF", "stroke": "#1976D2", "strokeWidth": 3, "cornerRadius": 10},
-                {"type": "text", "zone": "center", "x": 960, "y": 600, "text": "Visual Learning Journey", "fontSize": 32, "fill": "#333333", "fontFamily": "Arial", "align": "center"}
-            ],
-            "animations": [
-                {"shape_index": 0, "type": "fadeIn", "duration": 1.5, "delay": 0, "ease": "power2.out"},
-                {"shape_index": 1, "type": "write", "duration": 2.5, "delay": 0.5, "ease": "power1.inOut"},
-                {"shape_index": 2, "type": "scale", "duration": 1, "delay": 2, "from_props": {"scaleX": 0, "scaleY": 0}, "to_props": {"scaleX": 1, "scaleY": 1}, "ease": "back.out(1.7)"},
-                {"shape_index": 3, "type": "scale", "duration": 1, "delay": 2.2, "from_props": {"scaleX": 0, "scaleY": 0}, "to_props": {"scaleX": 1, "scaleY": 1}, "ease": "back.out(1.7)"},
-                {"shape_index": 4, "type": "fadeIn", "duration": 1.5, "delay": 3, "ease": "power2.out"},
-                {"shape_index": 5, "type": "fadeIn", "duration": 1, "delay": 3.5, "ease": "power2.out"}
-            ],
-            "effects": {"background": "#F5F5F5", "glow": True},
-            "audio": {"text": intro_audio, "duration": 7}
-        })
-        
         # Scene 1: Title Introduction (animated)
         scenes.append({
             "scene_id": "intro",
@@ -1032,7 +1088,6 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
             "audio": {"text": "To summarize: we've explored the fundamentals, learned how to apply these concepts, and built a foundation for deeper knowledge. Great work!", "duration": 9}
         })
         
-        import json
         viz_json = {
             "topic": title,
             "scenes": scenes
@@ -1434,7 +1489,6 @@ Generate EXACTLY 5 questions following this format. Ensure proper JSON syntax wi
             quiz_text = self._fix_json_errors(quiz_text)
             
             # Parse JSON
-            import json
             quiz_data = json.loads(quiz_text)
             
             # Validate structure
@@ -1519,7 +1573,6 @@ Generate EXACTLY 5 questions following this format. Ensure proper JSON syntax wi
             
             for s_text in cleaned_sections:
                 try:
-                    import json
                     s_obj = json.loads(s_text)
                     reconstructed["sections"].append(s_obj)
                 except:
@@ -1627,7 +1680,6 @@ Generate notes following this format. Ensure proper JSON syntax with commas betw
             notes_text = self._fix_json_errors(notes_text)
             
             # Parse JSON
-            import json
             notes_data = json.loads(notes_text)
             
             # Validate structure
@@ -1748,7 +1800,6 @@ Generate notes following this format. Ensure proper JSON syntax with commas betw
             
             for q_text in cleaned_questions:
                 try:
-                    import json
                     q_obj = json.loads(q_text)
                     reconstructed["questions"].append(q_obj)
                 except:

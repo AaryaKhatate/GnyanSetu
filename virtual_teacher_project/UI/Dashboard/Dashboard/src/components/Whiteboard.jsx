@@ -199,13 +199,51 @@ const Whiteboard = ({
   const { speak, pauseResume, stop, isSpeaking, isPaused } = useTTS();
 
   // ============================================================
+  // FETCH VISUALIZATION V2 - New Konva.js whiteboard format
+  // ============================================================
+  const fetchVisualizationV2 = async (lessonId) => {
+    console.log('🎨 === FETCHING VISUALIZATION V2 ===');
+    console.log('🎨 Lesson ID:', lessonId);
+    
+    try {
+      const response = await fetch(`http://localhost:8006/visualization/v2/${lessonId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('🎨 ✅ Fetched v2 visualization:', data);
+      console.log('🎨 Teaching sequence steps:', data.teaching_sequence?.length || 0);
+      
+      // Convert v2 format to existing teaching steps format (keeps UI unchanged!)
+      const convertedSteps = data.teaching_sequence.map((step, index) => ({
+        step: index + 1,
+        title: `Step ${index + 1}`, // Extract from first command if needed
+        speech_text: step.tts_text || step.text_explanation || '',
+        text_explanation: step.text_explanation || '',
+        drawing_commands: step.whiteboard_commands || []
+      }));
+      
+      console.log('🎨 ✅ Converted', convertedSteps.length, 'steps to existing format');
+      console.log('🎨 First converted step:', convertedSteps[0]);
+      
+      return convertedSteps;
+      
+    } catch (error) {
+      console.error('🎨 ❌ Error fetching visualization v2:', error);
+      return null;
+    }
+  };
+
+  // ============================================================
   // IMMEDIATE CHECK ON MOUNT - Force check sessionStorage
   // ============================================================
   useEffect(() => {
     console.log('🔥 === IMMEDIATE MOUNT CHECK ===');
     console.log('🔥 Component just mounted, checking sessionStorage immediately...');
     
-    const loadLessonFromStorage = () => {
+    const loadLessonFromStorage = async () => {
       try {
         const lessonDataStr = sessionStorage.getItem('lessonData');
         console.log('🔥 sessionStorage lessonData exists:', !!lessonDataStr);
@@ -214,9 +252,38 @@ const Whiteboard = ({
           const lessonData = JSON.parse(lessonDataStr);
           console.log('🔥 Parsed lesson data:', lessonData);
           
-          // ✨ PRIORITY 1: Check for visualization data FIRST!
+          // ✨ PRIORITY 1: Try fetching v2 visualization if lessonId exists
+          const lessonId = sessionStorage.getItem('lessonId');
+          if (lessonId) {
+            console.log('🎨 === ATTEMPTING V2 VISUALIZATION FETCH ===');
+            console.log('🎨 Found lessonId in sessionStorage:', lessonId);
+            
+            const v2Steps = await fetchVisualizationV2(lessonId);
+            
+            if (v2Steps && v2Steps.length > 0) {
+              console.log('🎨 ✅ SUCCESS! Using v2 visualization with', v2Steps.length, 'steps');
+              setTeachingSteps(v2Steps);
+              setStatus(`✨ Interactive lesson ready! ${v2Steps.length} steps prepared.`);
+              setTeachingMode(true);
+              
+              // Also load quiz/notes if available
+              if (lessonData.quiz_data) {
+                setQuizData(lessonData.quiz_data);
+              }
+              if (lessonData.notes_data) {
+                setNotesData(lessonData.notes_data);
+              }
+              
+              console.log('🎨 ✅ V2 visualization loaded successfully!');
+              return true;
+            } else {
+              console.log('🎨 ⚠️ V2 fetch failed, falling back to old format');
+            }
+          }
+          
+          // ✨ PRIORITY 2: Check for OLD visualization data (fallback)
           if (lessonData.visualization_data && lessonData.visualization_data.scenes) {
-            console.log('✨✨✨ VISUALIZATION DATA FOUND! ✨✨✨');
+            console.log('✨✨✨ OLD VISUALIZATION DATA FOUND! ✨✨✨');
             console.log('✨ Topic:', lessonData.visualization_data.topic);
             console.log('✨ Scenes:', lessonData.visualization_data.scenes.length);
             console.log('✨ First scene:', lessonData.visualization_data.scenes[0]);
@@ -234,7 +301,7 @@ const Whiteboard = ({
               setNotesData(lessonData.notes_data);
             }
             
-            console.log('✨ Visualization mode activated!');
+            console.log('✨ OLD Visualization mode activated!');
             return true;
           }
           
@@ -329,31 +396,8 @@ const Whiteboard = ({
       return false;
     };
     
-    // Try immediately
-    const found = loadLessonFromStorage();
-    
-    // If not found, set up polling to check for data arrival
-    if (!found) {
-      console.log('🔥 Setting up polling for lesson data...');
-      let pollCount = 0;
-      const maxPolls = 20; // Poll for 10 seconds max
-      
-      const pollInterval = setInterval(() => {
-        pollCount++;
-        console.log(`🔥 Poll ${pollCount}/${maxPolls}: Checking for lesson data...`);
-        
-        const foundNow = loadLessonFromStorage();
-        if (foundNow || pollCount >= maxPolls) {
-          console.log(`🔥 Stopping poll: ${foundNow ? 'Data found!' : 'Max polls reached'}`);
-          clearInterval(pollInterval);
-        }
-      }, 500); // Check every 500ms
-      
-      // Cleanup
-      return () => {
-        clearInterval(pollInterval);
-      };
-    }
+    // Try immediately (now async)
+    loadLessonFromStorage();
     
     console.log('🔥 === END IMMEDIATE MOUNT CHECK ===');
   }, []); // Empty dependency array - run once on mount
@@ -566,84 +610,105 @@ const Whiteboard = ({
       return;
     }
     
-    // Try to load lesson data from multiple sources
-    let lessonSteps = null;
-    let dataSource = 'none';
-    
-    // Source 1: pdfData prop (preferred)
-    if (pdfData?.lessonData?.teaching_steps?.length > 0) {
-      console.log('✅ Found lesson in pdfData prop:', pdfData.lessonData.teaching_steps.length, 'steps');
-      lessonSteps = pdfData.lessonData.teaching_steps;
-      dataSource = 'pdfData';
-    }
-    // Source 2: sessionStorage (backup)
-    else {
-      console.log('🔍 Checking sessionStorage for lesson data...');
-      try {
-        const lessonDataStr = sessionStorage.getItem('lessonData');
-        console.log('🔍 sessionStorage lessonData string:', lessonDataStr?.substring(0, 200));
-        if (lessonDataStr) {
-          const lessonData = JSON.parse(lessonDataStr);
-          console.log('🔍 Parsed lessonData:', lessonData);
-          if (lessonData?.teaching_steps?.length > 0) {
-            console.log('✅ Found lesson in sessionStorage:', lessonData.teaching_steps.length, 'steps');
-            lessonSteps = lessonData.teaching_steps;
-            dataSource = 'sessionStorage';
-          } else {
-            console.log('❌ sessionStorage lessonData has no teaching_steps');
-          }
+    // IIFE to handle async operations
+    (async () => {
+      // Try to load lesson data from multiple sources
+      let lessonSteps = null;
+      let dataSource = 'none';
+      
+      // Source 0: Try v2 API first if lessonId exists in sessionStorage
+      const lessonId = sessionStorage.getItem('lessonId');
+      if (lessonId && !pdfSentRef.current) {
+        console.log('🎨 === ATTEMPTING V2 API FETCH IN LOADER ===');
+        console.log('🎨 Lesson ID from sessionStorage:', lessonId);
+        
+        const v2Steps = await fetchVisualizationV2(lessonId);
+        
+        if (v2Steps && v2Steps.length > 0) {
+          console.log('🎨 ✅ SUCCESS! Loaded', v2Steps.length, 'steps from v2 API');
+          lessonSteps = v2Steps;
+          dataSource = 'visualizationV2API';
         } else {
-          console.log('❌ No lessonData in sessionStorage');
+          console.log('🎨 ⚠️ V2 API fetch failed, trying other sources...');
         }
-      } catch (error) {
-        console.error('❌ Error loading from sessionStorage:', error);
       }
-    }
+      
+      // Source 1: pdfData prop (if v2 didn't work)
+      if (!lessonSteps && pdfData?.lessonData?.teaching_steps?.length > 0) {
+        console.log('✅ Found lesson in pdfData prop:', pdfData.lessonData.teaching_steps.length, 'steps');
+        lessonSteps = pdfData.lessonData.teaching_steps;
+        dataSource = 'pdfData';
+      }
+      // Source 2: sessionStorage (backup)
+      else if (!lessonSteps) {
+        console.log('🔍 Checking sessionStorage for lesson data...');
+        try {
+          const lessonDataStr = sessionStorage.getItem('lessonData');
+          console.log('🔍 sessionStorage lessonData string:', lessonDataStr?.substring(0, 200));
+          if (lessonDataStr) {
+            const lessonData = JSON.parse(lessonDataStr);
+            console.log('🔍 Parsed lessonData:', lessonData);
+            if (lessonData?.teaching_steps?.length > 0) {
+              console.log('✅ Found lesson in sessionStorage:', lessonData.teaching_steps.length, 'steps');
+              lessonSteps = lessonData.teaching_steps;
+              dataSource = 'sessionStorage';
+            } else {
+              console.log('❌ sessionStorage lessonData has no teaching_steps');
+            }
+          } else {
+            console.log('❌ No lessonData in sessionStorage');
+          }
+        } catch (error) {
+          console.error('❌ Error loading from sessionStorage:', error);
+        }
+      }
     
-    // If we found lesson steps, use them
-    if (lessonSteps && lessonSteps.length > 0) {
-      console.log('✅ ✨ LOADING', lessonSteps.length, 'TEACHING STEPS FROM', dataSource.toUpperCase(), '!');
-      console.log('📚 First step:', lessonSteps[0]);
-      console.log('📚 First step keys:', Object.keys(lessonSteps[0]));
-      console.log('📚 First step speech_text:', lessonSteps[0].speech_text?.substring(0, 100));
-      
-      setTeachingSteps(lessonSteps);
-      setStatus(`Lesson ready! ${lessonSteps.length} steps prepared.`);
-      setTeachingMode(true);
-      pdfSentRef.current = true;
-      
-      console.log('✅ State updated: teachingSteps set, teachingMode=true, pdfSentRef=true');
-      
-      // Auto-start the lesson
-      console.log('🚀 Auto-starting lesson in 2 seconds...');
-      setTimeout(() => {
-        console.log('🎬 STARTING FIRST STEP NOW!');
-        console.log('🎬 Step to start:', lessonSteps[0]);
-        startTeachingStep(lessonSteps[0], 0);
-      }, 2000);
-    }
-    // Otherwise, send PDF to teaching service for generation
-    else if (pdfData && !pdfSentRef.current) {
-      console.log('❌ No pre-generated lesson, sending PDF to Teaching Service...');
-      console.log('📤 PDF data to send:', {
-        topic: pdfData.topic,
-        pdf_filename: pdfData.pdf_filename,
-        pdf_text_length: pdfData.pdf_text?.length,
-        has_lessonData: !!pdfData.lessonData
-      });
-      setTimeout(() => {
-        sendPDFDocument(pdfData);
+      // If we found lesson steps, use them
+      if (lessonSteps && lessonSteps.length > 0) {
+        console.log('✅ ✨ LOADING', lessonSteps.length, 'TEACHING STEPS FROM', dataSource.toUpperCase(), '!');
+        console.log('📚 First step:', lessonSteps[0]);
+        console.log('📚 First step keys:', Object.keys(lessonSteps[0]));
+        console.log('📚 First step speech_text:', lessonSteps[0].speech_text?.substring(0, 100));
+        
+        setTeachingSteps(lessonSteps);
+        setStatus(`Lesson ready! ${lessonSteps.length} steps prepared.`);
+        setTeachingMode(true);
         pdfSentRef.current = true;
-        console.log('✅ PDF sent to Teaching Service, pdfSentRef=true');
-      }, 500);
-    } else {
-      console.log('❌ No pdfData available or already sent');
-      console.log('   - pdfData:', !!pdfData);
-      console.log('   - pdfSentRef.current:', pdfSentRef.current);
-    }
+        
+        console.log('✅ State updated: teachingSteps set, teachingMode=true, pdfSentRef=true');
+        
+        // Auto-start the lesson
+        console.log('🚀 Auto-starting lesson in 2 seconds...');
+        setTimeout(() => {
+          console.log('🎬 STARTING FIRST STEP NOW!');
+          console.log('🎬 Step to start:', lessonSteps[0]);
+          startTeachingStep(lessonSteps[0], 0);
+        }, 2000);
+      }
+      // Otherwise, send PDF to teaching service for generation
+      else if (pdfData && !pdfSentRef.current) {
+        console.log('❌ No pre-generated lesson, sending PDF to Teaching Service...');
+        console.log('📤 PDF data to send:', {
+          topic: pdfData.topic,
+          pdf_filename: pdfData.pdf_filename,
+          pdf_text_length: pdfData.pdf_text?.length,
+          has_lessonData: !!pdfData.lessonData
+        });
+        setTimeout(() => {
+          sendPDFDocument(pdfData);
+          pdfSentRef.current = true;
+          console.log('✅ PDF sent to Teaching Service, pdfSentRef=true');
+        }, 500);
+      } else {
+        console.log('❌ No pdfData available or already sent');
+        console.log('   - pdfData:', !!pdfData);
+        console.log('   - pdfSentRef.current:', pdfSentRef.current);
+      }
+      
+      console.log('🎯 === END SINGLE LESSON LOADER ===');
+    })(); // End of async IIFE
     
-    console.log('🎯 === END SINGLE LESSON LOADER ===');
-  }, [connected, pdfData, teachingSteps.length, sendPDFDocument, startTeachingStep]); // Watch for pdfData changes
+  }, [connected, pdfData, teachingSteps.length, sendPDFDocument, startTeachingStep, fetchVisualizationV2]); // Added fetchVisualizationV2 to dependencies
 
   // Execute whiteboard commands for canvas drawing
   const executeWhiteboardCommands = (commands) => {
@@ -1000,6 +1065,24 @@ const Whiteboard = ({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-300 text-sm">{status}</span>
+            
+            {/* Interactive Teaching Mode Button */}
+            {teachingSteps.length > 0 && (
+              <button
+                onClick={() => {
+                  const lessonId = sessionStorage.getItem('lessonId');
+                  if (lessonId) {
+                    window.location.href = `/teaching/${lessonId}`;
+                  } else {
+                    window.location.href = '/teaching';
+                  }
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg text-sm font-semibold text-white shadow-lg transform transition hover:scale-105"
+                title="Open Interactive Teaching Mode"
+              >
+                🎓 Start Interactive Teaching
+              </button>
+            )}
 
             {/* WebSocket Lesson Controls */}
             {connected && lessonCommands.length > 0 && (

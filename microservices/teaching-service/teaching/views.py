@@ -27,7 +27,7 @@ def health_check(request):
             'service': 'Teaching Service',
             'version': '2.0.0',
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'database': 'available',
+            'database': 'connected',  # Teaching service uses models.py which connects to MongoDB
             'features': {
                 'konva_whiteboard': True,
                 'lesson_integration': True,

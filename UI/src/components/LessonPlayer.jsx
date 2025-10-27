@@ -211,15 +211,18 @@ const LessonPlayer = ({ userId = 'default_user' }) => {
     }
 
     try {
-      const response = await fetch(`${LESSON_SERVICE_URL}/api/lessons/${lessonId}`, {
+      const response = await fetch(`${LESSON_SERVICE_URL}/api/lessons/${lessonId}/delete/`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
         // Remove from history
         setHistory(history.filter(item => item.lesson_id !== lessonId));
+        console.log('✅ Lesson deleted successfully');
       } else {
-        throw new Error('Delete failed');
+        const error = await response.json();
+        console.error('Delete failed:', error);
+        throw new Error(error.error || 'Delete failed');
       }
     } catch (error) {
       console.error('Failed to delete lesson:', error);

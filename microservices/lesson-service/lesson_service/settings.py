@@ -180,7 +180,7 @@ CSRF_TRUSTED_ORIGINS = [
 # AI Configuration - Google Gemini
 AI_SETTINGS = {
     'GEMINI_API_KEY': config('GEMINI_API_KEY', default=''),
-    'MODEL_NAME': config('GEMINI_MODEL', default='gemini-2.5-flash'),
+    'MODEL_NAME': config('GEMINI_MODEL', default='gemini-2.0-flash-exp'),
     'MAX_TOKENS': config('MAX_TOKENS', default=8000, cast=int),
     'TEMPERATURE': config('TEMPERATURE', default=0.7, cast=float),
 }

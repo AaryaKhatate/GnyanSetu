@@ -168,12 +168,16 @@ def process_pdf_and_generate_lesson(request):
             if img_data.get('ocr_text'):
                 images_ocr_text += f"\n{img_data['ocr_text']}"
         
+        # Prepare pdf_images for lesson generation (with base64 data)
+        pdf_images = pdf_result['images_data'] if pdf_result['images_data'] else []
+        
         # Generate AI lesson
         lesson_result = lesson_generator.generate_lesson(
             pdf_text=pdf_result['text_content'],
             images_ocr_text=images_ocr_text,
             lesson_type=lesson_type,
-            user_context={'user_id': user_id}
+            user_context={'user_id': user_id},
+            pdf_images=pdf_images  # Pass images to generator
         )
         
         # Store lesson WITHOUT quiz and notes data (will be added asynchronously)
@@ -221,6 +225,8 @@ def process_pdf_and_generate_lesson(request):
             'success': True,
             'pdf_id': pdf_id,
             'lesson_id': lesson_id,
+            'text': pdf_result['text_content'],  # Add PDF text for frontend
+            'filename': pdf_file.name,  # Add filename for frontend
             'lesson': {
                 'title': lesson_result['title'],
                 'content': lesson_result['content'],
@@ -492,7 +498,9 @@ def delete_lesson(request, lesson_id):
             'lesson': False,
             'history': 0,
             'quiz': False,
-            'notes': False
+            'notes': False,
+            'visualizations': False,
+            'visualization_v2': False
         }
         
         # Delete lesson from lessons collection
@@ -523,6 +531,30 @@ def delete_lesson(request, lesson_id):
         if notes_result.deleted_count > 0:
             deleted_items['notes'] = True
             logger.info(f"✅ Deleted notes data for lesson: {lesson_id}")
+        
+        # Delete visualization data if exists (from visualization service database)
+        try:
+            # Access the visualization database (same MongoDB instance, different database)
+            visualization_db = lessons_collection.database.client['Gnyansetu_Visualizations']
+            
+            # Delete v2 visualizations
+            viz_v2_result = visualization_db['visualizations_v2'].delete_many({
+                'lesson_id': lesson_id
+            })
+            if viz_v2_result.deleted_count > 0:
+                deleted_items['visualization_v2'] = True
+                logger.info(f"✅ Deleted {viz_v2_result.deleted_count} v2 visualization(s) for lesson: {lesson_id}")
+            
+            # Delete old visualizations (if any)
+            viz_result = visualization_db['visualizations'].delete_many({
+                'lesson_id': lesson_id
+            })
+            if viz_result.deleted_count > 0:
+                deleted_items['visualizations'] = True
+                logger.info(f"✅ Deleted {viz_result.deleted_count} visualization(s) for lesson: {lesson_id}")
+        except Exception as viz_error:
+            logger.warning(f"⚠️ Could not delete visualizations: {viz_error}")
+            deleted_items['visualization_error'] = str(viz_error)
         
         logger.info(f"✅ Successfully deleted all data for lesson: {lesson_id}")
         

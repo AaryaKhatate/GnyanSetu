@@ -1,0 +1,268 @@
+/* TeachingSession.css - Styles for Interactive Teaching Interface */
+
+.teaching-session-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+}
+
+/* Header */
+.teaching-header {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 20px 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.teaching-header h1 {
+    margin: 0 0 15px 0;
+    color: #2d3748;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.progress-indicator {
+    font-size: 14px;
+    color: #4a5568;
+    font-weight: 500;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    transition: width 0.5s ease;
+}
+
+/* Main Content */
+.teaching-content {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 1200px) {
+    .teaching-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Whiteboard Section */
+.whiteboard-section {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.whiteboard-container {
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f7fafc;
+}
+
+/* Explanation Panel */
+.explanation-panel {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 20px;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.speaking-indicator {
+    background: #48bb78;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.panel-content {
+    min-height: 200px;
+    margin-bottom: 20px;
+}
+
+.explanation-text {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #2d3748;
+}
+
+.start-prompt {
+    text-align: center;
+    padding: 40px 20px;
+    color: #718096;
+    font-size: 16px;
+}
+
+/* Controls */
+.controls-section {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.control-button {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.start-button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    flex: 1 1 100%;
+}
+
+.start-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.next-button {
+    background: #4299e1;
+    color: white;
+}
+
+.next-button:hover:not(:disabled) {
+    background: #3182ce;
+    transform: translateY(-2px);
+}
+
+.next-button:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+}
+
+.repeat-button {
+    background: #ed8936;
+    color: white;
+}
+
+.repeat-button:hover {
+    background: #dd6b20;
+    transform: translateY(-2px);
+}
+
+.pause-button {
+    background: #fc8181;
+    color: white;
+}
+
+.pause-button:hover {
+    background: #f56565;
+    transform: translateY(-2px);
+}
+
+.navigation-hint {
+    margin-top: 15px;
+    padding: 12px;
+    background: #edf2f7;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 13px;
+    color: #4a5568;
+}
+
+/* Loading State */
+.loading-container,
+.error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #e2e8f0;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error-container h2 {
+    color: #e53e3e;
+    margin-bottom: 10px;
+}
+
+.error-container p {
+    color: #4a5568;
+    margin-bottom: 20px;
+}
+
+.retry-button {
+    padding: 10px 24px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.retry-button:hover {
+    background: #5a67d8;
+}

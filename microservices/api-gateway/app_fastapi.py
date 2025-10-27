@@ -45,7 +45,7 @@ SERVICES = {
     },
     'lesson-service': {
         'url': 'http://localhost:8003',
-        'health': '/health',
+        'health': '/health/',  # Fixed: Added trailing slash to match Django endpoint
         'routes': ['/api/generate-lesson', '/api/lessons', '/upload_pdf', '/api/upload']
     },
     'teaching-service': {

@@ -24,6 +24,11 @@ CORS(app,
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Health check cache - cache health status for 10 seconds
+from time import time
+health_cache = {}
+HEALTH_CACHE_TTL = 10  # seconds
+
 # Service Registry - Define all microservices
 SERVICES = {
     'user-service': {
@@ -91,14 +96,32 @@ def get_service_for_route(path):
                 return service_name, service_config
     return None, None
 
-def check_service_health(service_name, service_config):
-    """Check if a service is healthy."""
+def check_service_health(service_name, service_config, use_cache=True):
+    """Check if a service is healthy with caching."""
+    # Check cache first
+    if use_cache and service_name in health_cache:
+        cached_result, cached_time = health_cache[service_name]
+        if time() - cached_time < HEALTH_CACHE_TTL:
+            logger.debug(f"🏥 Using cached health status for {service_name}: {cached_result}")
+            return cached_result
+    
     try:
         health_url = f"{service_config['url']}{service_config['health']}"
+        logger.debug(f"🏥 Health check for {service_name}: {health_url}")
         response = requests.get(health_url, timeout=5)
-        return response.status_code == 200
+        is_healthy = response.status_code == 200
+        
+        # Cache the result
+        if use_cache:
+            health_cache[service_name] = (is_healthy, time())
+        
+        logger.debug(f"🏥 {service_name} health: {is_healthy} (status: {response.status_code})")
+        return is_healthy
     except Exception as e:
-        logger.error(f"Health check failed for {service_name}: {e}")
+        logger.error(f"❌ Health check failed for {service_name}: {e}")
+        # Cache failure as well to avoid repeated failed requests
+        if use_cache:
+            health_cache[service_name] = (False, time())
         return False
 
 def proxy_request(target_url, method, headers=None, data=None, files=None):
@@ -296,13 +319,18 @@ def pdf_documents(document_id=None):
 def generic_proxy(path):
     """Generic proxy for all other API routes."""
     full_path = f"/api/{path}"
+    logger.info(f"🔄 Generic proxy handling: {request.method} {full_path}")
     service_name, service_config = get_service_for_route(full_path)
     
     if not service_name:
+        logger.warning(f"❌ No service found for path: {full_path}")
         return jsonify({'error': f'No service found for path: {full_path}'}), 404
     
-    # Check if service is healthy
-    if not check_service_health(service_name, service_config):
+    logger.info(f"✅ Matched service: {service_name}")
+    
+    # Check if service is healthy (with caching)
+    if not check_service_health(service_name, service_config, use_cache=True):
+        logger.error(f"❌ Service {service_name} is unavailable")
         return jsonify({'error': f'Service {service_name} is unavailable'}), 503
     
     target_url = f"{service_config['url']}{full_path}"

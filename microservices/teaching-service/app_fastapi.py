@@ -207,7 +207,7 @@ async def health_check():
         "service": "Teaching Service (FastAPI)",
         "version": "3.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "database": "available" if mongo.teaching_db else "unavailable",
+        "database": "connected" if mongo.teaching_db else "unavailable",
         "features": {
             "konva_whiteboard": True,
             "lesson_integration": True,

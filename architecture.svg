@@ -1,0 +1,120 @@
+<svg width="1800" height="900" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="900" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="900" y="40" font-family="Arial" font-size="38" font-weight="bold" text-anchor="middle" fill="#333333">GYANSETU - System Architecture</text>
+
+  <!-- Left Column: USER, FRONTEND, API GATEWAY, MONGODB -->
+  
+  <!-- USER/STUDENT -->
+  <rect x="40" y="100" width="180" height="120" rx="10" fill="#7b2cbf" stroke="#5a189a" stroke-width="4"/>
+  <text x="130" y="150" font-family="Arial" font-size="26" font-weight="bold" text-anchor="middle" fill="#ffffff">USER</text>
+  <text x="130" y="180" font-family="Arial" font-size="26" font-weight="bold" text-anchor="middle" fill="#ffffff">STUDENT</text>
+
+  <!-- FRONTEND container -->
+  <rect x="260" y="80" width="360" height="360" rx="8" fill="#e3f2fd" stroke="#2196f3" stroke-width="3"/>
+  <text x="440" y="110" font-family="Arial" font-size="28" font-weight="bold" text-anchor="middle" fill="#000000">FRONTEND</text>
+
+  <!-- Landing Page -->
+  <rect x="280" y="130" width="320" height="130" rx="8" fill="#00d9ff" stroke="#00b4d8" stroke-width="4"/>
+  <text x="440" y="160" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#000000">Landing Page</text>
+  <text x="440" y="185" font-family="Arial" font-size="20" text-anchor="middle" fill="#000000">Port: 3000</text>
+  <text x="440" y="210" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">React 18 + Javascript</text>
+  <text x="440" y="235" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">Material-UI</text>
+
+  <!-- Dashboard -->
+  <rect x="280" y="280" width="320" height="130" rx="8" fill="#00d9ff" stroke="#00b4d8" stroke-width="4"/>
+  <text x="440" y="310" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#000000">Dashboard</text>
+  <text x="440" y="335" font-family="Arial" font-size="20" text-anchor="middle" fill="#000000">Port: 3001</text>
+  <text x="440" y="360" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">React 18 + Konva.js</text>
+  <text x="440" y="385" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">Web Speech API</text>
+
+  <!-- API GATEWAY -->
+  <rect x="660" y="130" width="280" height="180" rx="10" fill="#ff006e" stroke="#d00060" stroke-width="5"/>
+  <text x="800" y="165" font-family="Arial" font-size="26" font-weight="bold" text-anchor="middle" fill="#ffffff">API GATEWAY</text>
+  <text x="800" y="195" font-family="Arial" font-size="22" text-anchor="middle" fill="#ffffff">Port: 8000</text>
+  <text x="800" y="225" font-family="Arial" font-size="20" text-anchor="middle" fill="#ffffff">FastAPI</text>
+  <text x="800" y="250" font-family="Arial" font-size="20" text-anchor="middle" fill="#ffffff">Request Routing</text>
+  <text x="800" y="275" font-family="Arial" font-size="20" text-anchor="middle" fill="#ffffff">Load Balancing</text>
+  <text x="800" y="300" font-family="Arial" font-size="20" text-anchor="middle" fill="#ffffff">CORS Handler</text>
+
+  <!-- MONGODB CYLINDER -->
+  <ellipse cx="470" cy="540" rx="160" ry="40" fill="#06ffa5" stroke="#00d68f" stroke-width="5"/>
+  <rect x="310" y="540" width="320" height="180" fill="#06ffa5" stroke="none"/>
+  <line x1="310" y1="540" x2="310" y2="720" stroke="#00d68f" stroke-width="5"/>
+  <line x1="630" y1="540" x2="630" y2="720" stroke="#00d68f" stroke-width="5"/>
+  <ellipse cx="470" cy="720" rx="160" ry="40" fill="#00d68f" stroke="#00d68f" stroke-width="5"/>
+  <ellipse cx="470" cy="540" rx="160" ry="40" fill="none" stroke="#00d68f" stroke-width="5"/>
+
+  <text x="470" y="560" font-family="Arial" font-size="26" font-weight="bold" text-anchor="middle" fill="#000000">MONGODB</text>
+  <text x="470" y="605" font-family="Arial" font-size="20" font-weight="bold" text-anchor="middle" fill="#000000">Collections:</text>
+  <text x="470" y="635" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">users_db</text>
+  <text x="470" y="660" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">lesson_db</text>
+  <text x="470" y="685" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">teaching_db</text>
+  <text x="470" y="710" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">quiz_db, viz_db</text>
+
+  <!-- Right Column: BACKEND SERVICES -->
+  <rect x="1000" y="80" width="760" height="730" rx="8" fill="#fff3e0" stroke="#ff9800" stroke-width="3"/>
+  <text x="1380" y="120" font-family="Arial" font-size="30" font-weight="bold" text-anchor="middle" fill="#000000">BACKEND SERVICES</text>
+
+  <!-- Row 1 -->
+  <rect x="1020" y="150" width="340" height="150" rx="8" fill="#0096c7" stroke="#0077b6" stroke-width="4"/>
+  <text x="1190" y="185" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#ffffff">User Service</text>
+  <text x="1190" y="215" font-family="Arial" font-size="20" text-anchor="middle" fill="#ffffff">Port: 8002</text>
+  <text x="1190" y="240" font-family="Arial" font-size="19" text-anchor="middle" fill="#ffffff">Django 4.2 + MongoDB</text>
+  <text x="1190" y="265" font-family="Arial" font-size="19" text-anchor="middle" fill="#ffffff">JWT Auth + OAuth 2.0</text>
+
+  <rect x="1380" y="150" width="340" height="150" rx="8" fill="#06ffa5" stroke="#00d68f" stroke-width="4"/>
+  <text x="1550" y="185" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#000000">Lesson Service</text>
+  <text x="1550" y="215" font-family="Arial" font-size="20" text-anchor="middle" fill="#000000">Port: 8003</text>
+  <text x="1550" y="240" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">Django + Gemini 2.0</text>
+  <text x="1550" y="265" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">PDF + OCR</text>
+
+  <!-- Row 2 -->
+  <rect x="1020" y="320" width="340" height="150" rx="8" fill="#ffea00" stroke="#ffd60a" stroke-width="4"/>
+  <text x="1190" y="355" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#000000">Teaching Service</text>
+  <text x="1190" y="385" font-family="Arial" font-size="20" text-anchor="middle" fill="#000000">Port: 8004</text>
+  <text x="1190" y="410" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">Django Channels</text>
+  <text x="1190" y="435" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">WebSocket</text>
+
+  <rect x="1380" y="320" width="340" height="150" rx="8" fill="#ff9e00" stroke="#ff8500" stroke-width="4"/>
+  <text x="1550" y="355" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#000000">Quiz and Notes Service</text>
+  <text x="1550" y="385" font-family="Arial" font-size="20" text-anchor="middle" fill="#000000">Port: 8005</text>
+  <text x="1550" y="410" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">FastAPI + MongoDB</text>
+  <text x="1550" y="435" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">MCQ And Notes</text>
+
+  <!-- Row 3 - Centered -->
+  <rect x="1200" y="490" width="340" height="150" rx="8" fill="#ff6b9d" stroke="#ff477e" stroke-width="4"/>
+  <text x="1370" y="525" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#000000">Visualization</text>
+  <text x="1370" y="555" font-family="Arial" font-size="20" text-anchor="middle" fill="#000000">Port: 8006</text>
+  <text x="1370" y="580" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">FastAPI + Gemini 2.5</text>
+  <text x="1370" y="605" font-family="Arial" font-size="19" text-anchor="middle" fill="#000000">9-Zone Canvas</text>
+
+  <!-- MongoDB Connection Text -->
+  <text x="1380" y="720" font-family="Arial" font-size="20" text-anchor="middle" fill="#333333">All services connect to MongoDB</text>
+  <text x="1380" y="750" font-family="Arial" font-size="20" text-anchor="middle" fill="#333333">for data persistence</text>
+
+  <!-- Arrow Markers -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#333333"/>
+    </marker>
+  </defs>
+
+  <!-- ARROWS -->
+  <!-- USER → FRONTEND -->
+  <path d="M 220 160 L 260 160" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+
+  <!-- FRONTEND ↔ API GATEWAY -->
+  <path d="M 620 200 L 660 200" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <path d="M 660 240 L 620 240" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+
+  <!-- API GATEWAY ↔ BACKEND -->
+  <path d="M 940 200 L 1000 200" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <path d="M 1000 240 L 940 240" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+
+  <!-- MongoDB ↔ Backend (arrow from left) -->
+  <path d="M 630 630 L 1000 630" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <path d="M 1000 670 L 630 670" stroke="#333333" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+
+</svg>

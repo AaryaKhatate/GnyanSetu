@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GnyanSetu - Konva.js Visualization v2 Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+    <script src="https://unpkg.com/react-konva@18/umd/react-konva.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .lesson-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 12px;
+        }
+
+        .lesson-selector h2 {
+            margin-bottom: 15px;
+            color: #1f2937;
+        }
+
+        .lesson-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .lesson-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .lesson-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .lesson-btn.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .custom-input {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .custom-input input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .visualization-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .whiteboard {
+            background: white;
+            border: 3px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .explanation-panel {
+            background: #f9fafb;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .explanation-panel h3 {
+            color: #1f2937;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .explanation-panel p {
+            color: #4b5563;
+            line-height: 1.8;
+            font-size: 1.1em;
+        }
+
+        .progress-bar {
+            background: #e5e7eb;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            min-width: 120px;
+        }
+
+        .control-btn.start {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .control-btn.next {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .control-btn.repeat {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .control-btn.pause {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .speaking-indicator {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #10b981;
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-left: 15px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #6b7280;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .debug-info {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 GnyanSetu - Konva.js Visualization v2</h1>
+            <p>Interactive Whiteboard Teaching with AI-Generated Content</p>
+        </div>
+
+        <div class="content">
+            <div class="lesson-selector">
+                <h2>Select a Lesson</h2>
+                <div class="lesson-buttons">
+                    <button class="lesson-btn active" onclick="loadLesson('68fcd456c28f3607dee67d03')">
+                        Test Lesson (Chemical Reactions)
+                    </button>
+                    <button class="lesson-btn" onclick="loadLesson('68fcdc37c28f3607dee67d06')">
+                        Photosynthesis Lesson
+                    </button>
+                </div>
+                <div class="custom-input">
+                    <input type="text" id="customLessonId" placeholder="Enter custom lesson ID...">
+                    <button class="lesson-btn" onclick="loadCustomLesson()">Load Custom</button>
+                </div>
+            </div>
+
+            <div id="app">
+                <div class="loading">Loading visualization...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLessonId = '68fcd456c28f3607dee67d03';
+        let teachingData = null;
+        let currentStep = 0;
+        let isSpeaking = false;
+        let speechSynthesis = window.speechSynthesis;
+
+        function loadLesson(lessonId) {
+            currentLessonId = lessonId;
+            document.querySelectorAll('.lesson-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            fetchVisualization();
+        }
+
+        function loadCustomLesson() {
+            const customId = document.getElementById('customLessonId').value.trim();
+            if (customId) {
+                loadLesson(customId);
+            }
+        }
+
+        async function fetchVisualization() {
+            const app = document.getElementById('app');
+            app.innerHTML = '<div class="loading">Loading visualization...</div>';
+
+            try {
+                const response = await fetch(`http://localhost:8006/visualization/v2/${currentLessonId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                teachingData = data;
+                currentStep = 0;
+                isSpeaking = false;
+
+                console.log('✅ Loaded visualization:', data);
+                console.log('📊 Teaching steps:', data.teaching_sequence?.length || 0);
+
+                renderVisualization();
+            } catch (error) {
+                console.error('❌ Error loading visualization:', error);
+                app.innerHTML = `
+                    <div class="error">
+                        <h3>Error Loading Visualization</h3>
+                        <p>${error.message}</p>
+                        <p>Make sure the visualization service is running on http://localhost:8006</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderVisualization() {
+            const app = document.getElementById('app');
+            
+            if (!teachingData || !teachingData.teaching_sequence || teachingData.teaching_sequence.length === 0) {
+                app.innerHTML = '<div class="error">No teaching steps found in visualization data</div>';
+                return;
+            }
+
+            const totalSteps = teachingData.teaching_sequence.length;
+            const progress = totalSteps > 0 ? ((currentStep + 1) / totalSteps) * 100 : 0;
+            const currentStepData = teachingData.teaching_sequence[currentStep];
+
+            app.innerHTML = `
+                <div class="visualization-container">
+                    <div style="margin-bottom: 20px; color: #6b7280;">
+                        <strong>Step ${currentStep + 1} of ${totalSteps}</strong>
+                        ${isSpeaking ? '<span class="speaking-indicator">🔊 Speaking...</span>' : ''}
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
+                    </div>
+
+                    <div class="whiteboard" id="whiteboard-container">
+                        <!-- Konva canvas will be rendered here -->
+                    </div>
+
+                    <div class="explanation-panel">
+                        <h3>📖 Explanation</h3>
+                        <p>${currentStepData?.text_explanation || 'No explanation available'}</p>
+                    </div>
+
+                    <div class="controls">
+                        ${currentStep === 0 && !isSpeaking ? 
+                            '<button class="control-btn start" onclick="startLesson()">Start Lesson</button>' : 
+                            ''}
+                        ${currentStep > 0 || isSpeaking ? `
+                            <button class="control-btn next" onclick="nextStep()" ${currentStep >= totalSteps - 1 ? 'disabled' : ''}>
+                                Next Step ▶
+                            </button>
+                            <button class="control-btn repeat" onclick="repeatStep()">
+                                Repeat 🔁
+                            </button>
+                            <button class="control-btn pause" onclick="pauseSpeech()" ${!isSpeaking ? 'disabled' : ''}>
+                                Pause ⏸
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <div class="debug-info">
+                        <strong>Debug Info:</strong><br>
+                        Lesson ID: ${currentLessonId}<br>
+                        Current Step: ${currentStep + 1}/${totalSteps}<br>
+                        Step Type: ${currentStepData?.type || 'N/A'}<br>
+                        Commands: ${currentStepData?.whiteboard_commands?.length || 0}<br>
+                        TTS Text: ${currentStepData?.tts_text?.substring(0, 100) || 'N/A'}...
+                    </div>
+                </div>
+            `;
+
+            renderWhiteboard();
+        }
+
+        function renderWhiteboard() {
+            const container = document.getElementById('whiteboard-container');
+            if (!container) return;
+
+            const currentStepData = teachingData.teaching_sequence[currentStep];
+            const commands = currentStepData?.whiteboard_commands || [];
+
+            // Create Konva stage
+            const width = container.offsetWidth;
+            const height = 600;
+
+            container.innerHTML = `<div id="konva-stage"></div>`;
+            
+            const stage = new Konva.Stage({
+                container: 'konva-stage',
+                width: width,
+                height: height
+            });
+
+            const layer = new Konva.Layer();
+            stage.add(layer);
+
+            // Execute whiteboard commands
+            commands.forEach(cmd => {
+                executeCommand(layer, cmd, width, height);
+            });
+
+            layer.draw();
+        }
+
+        function executeCommand(layer, cmd, canvasWidth, canvasHeight) {
+            const x = (cmd.x_percent / 100) * canvasWidth;
+            const y = (cmd.y_percent / 100) * canvasHeight;
+
+            switch (cmd.action) {
+                case 'clear_all':
+                    layer.destroyChildren();
+                    break;
+
+                case 'write_text':
+                    const text = new Konva.Text({
+                        x: x - (cmd.align === 'center' ? 0 : 0),
+                        y: y,
+                        text: cmd.text,
+                        fontSize: cmd.font_size || 24,
+                        fill: cmd.color || '#000000',
+                        align: cmd.align || 'left',
+                        width: canvasWidth * 0.8
+                    });
+                    if (cmd.align === 'center') {
+                        text.offsetX(text.width() / 2);
+                    }
+                    layer.add(text);
+                    break;
+
+                case 'draw_text_box':
+                    const rect = new Konva.Rect({
+                        x: x,
+                        y: y,
+                        width: (cmd.width_percent / 100) * canvasWidth || 200,
+                        height: cmd.height || 100,
+                        fill: cmd.fill || '#f3f4f6',
+                        stroke: cmd.stroke || '#9ca3af',
+                        strokeWidth: cmd.stroke_width || 2,
+                        cornerRadius: 8
+                    });
+                    const boxText = new Konva.Text({
+                        x: x + 10,
+                        y: y + 10,
+                        text: cmd.text,
+                        fontSize: cmd.font_size || 18,
+                        fill: cmd.color || '#1f2937',
+                        width: rect.width() - 20,
+                        align: cmd.align || 'left'
+                    });
+                    layer.add(rect);
+                    layer.add(boxText);
+                    break;
+
+                case 'draw_arrow':
+                    const fromX = (cmd.from_percent[0] / 100) * canvasWidth;
+                    const fromY = (cmd.from_percent[1] / 100) * canvasHeight;
+                    const toX = (cmd.to_percent[0] / 100) * canvasWidth;
+                    const toY = (cmd.to_percent[1] / 100) * canvasHeight;
+                    
+                    const arrow = new Konva.Arrow({
+                        points: [fromX, fromY, toX, toY],
+                        stroke: cmd.color || '#000000',
+                        strokeWidth: cmd.thickness || 3,
+                        fill: cmd.color || '#000000',
+                        pointerLength: 15,
+                        pointerWidth: 15
+                    });
+                    layer.add(arrow);
+                    break;
+
+                case 'draw_circle':
+                    const circle = new Konva.Circle({
+                        x: x,
+                        y: y,
+                        radius: cmd.radius || 50,
+                        fill: cmd.fill || 'transparent',
+                        stroke: cmd.stroke || '#000000',
+                        strokeWidth: cmd.stroke_width || 2
+                    });
+                    layer.add(circle);
+                    break;
+
+                case 'draw_rectangle':
+                    const rectangle = new Konva.Rect({
+                        x: x,
+                        y: y,
+                        width: (cmd.width_percent / 100) * canvasWidth || 100,
+                        height: cmd.height || 100,
+                        fill: cmd.fill || 'transparent',
+                        stroke: cmd.stroke || '#000000',
+                        strokeWidth: cmd.stroke_width || 2
+                    });
+                    layer.add(rectangle);
+                    break;
+
+                case 'draw_equation':
+                    // Simple equation rendering (would use KaTeX in production)
+                    const equation = new Konva.Text({
+                        x: x,
+                        y: y,
+                        text: cmd.latex || '',
+                        fontSize: cmd.font_size || 24,
+                        fill: '#1f2937',
+                        fontFamily: 'Courier New',
+                        align: 'center'
+                    });
+                    equation.offsetX(equation.width() / 2);
+                    layer.add(equation);
+                    break;
+
+                case 'draw_line':
+                    const points = cmd.points_percent.flatMap(p => [
+                        (p[0] / 100) * canvasWidth,
+                        (p[1] / 100) * canvasHeight
+                    ]);
+                    const line = new Konva.Line({
+                        points: points,
+                        stroke: cmd.color || '#000000',
+                        strokeWidth: cmd.thickness || 2
+                    });
+                    layer.add(line);
+                    break;
+            }
+        }
+
+        function speak(text) {
+            return new Promise((resolve) => {
+                speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                
+                utterance.onend = () => {
+                    isSpeaking = false;
+                    resolve();
+                };
+                
+                utterance.onerror = () => {
+                    isSpeaking = false;
+                    resolve();
+                };
+
+                isSpeaking = true;
+                speechSynthesis.speak(utterance);
+            });
+        }
+
+        function pauseSpeech() {
+            speechSynthesis.cancel();
+            isSpeaking = false;
+            renderVisualization();
+        }
+
+        async function startLesson() {
+            await presentStep(0);
+        }
+
+        async function presentStep(stepIndex) {
+            currentStep = stepIndex;
+            renderVisualization();
+
+            const stepData = teachingData.teaching_sequence[stepIndex];
+            if (stepData?.tts_text) {
+                await speak(stepData.tts_text);
+                
+                // Auto-advance to next step
+                if (currentStep < teachingData.teaching_sequence.length - 1) {
+                    setTimeout(() => {
+                        presentStep(currentStep + 1);
+                    }, 1000);
+                } else {
+                    renderVisualization();
+                }
+            }
+        }
+
+        async function nextStep() {
+            pauseSpeech();
+            if (currentStep < teachingData.teaching_sequence.length - 1) {
+                await presentStep(currentStep + 1);
+            }
+        }
+
+        async function repeatStep() {
+            pauseSpeech();
+            await presentStep(currentStep);
+        }
+
+        // Auto-load on page load
+        window.onload = () => {
+            fetchVisualization();
+        };
+    </script>
+</body>
+</html>

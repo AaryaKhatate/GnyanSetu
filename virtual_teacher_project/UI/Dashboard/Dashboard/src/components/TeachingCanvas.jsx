@@ -58,13 +58,16 @@ const TeachingCanvas = forwardRef(
       },
     }));
 
-    // Clear canvas when new step starts
+    // Process whiteboard commands when step changes
     useEffect(() => {
-      if (teachingStep && teachingStep.step !== undefined) {
-        // Force clear canvas and reset state for new step
+      if (teachingStep && teachingStep.whiteboard_commands) {
+        console.log("🎨 TeachingCanvas: Processing step");
+        console.log("📝 Commands received:", teachingStep.whiteboard_commands.length);
+        console.log("📊 First command:", teachingStep.whiteboard_commands[0]);
+        
+        // Clear canvas
         setDrawnElements([]);
         setCurrentElementIndex(0);
-        // Reset position trackers
         setNextTextY(60);
         setNextShapeY(80);
 
@@ -73,26 +76,30 @@ const TeachingCanvas = forwardRef(
           clearTimeout(animationTimeoutRef.current);
         }
 
-        // If using Konva, you may also want to clear the Layer manually (if needed)
-        if (stageRef.current) {
-          const layer = stageRef.current.getLayers()[0];
-          if (layer) {
-            layer.removeChildren();
-            layer.draw();
+        // Process all whiteboard commands for this step
+        const commands = teachingStep.whiteboard_commands;
+        const elements = [];
+        
+        commands.forEach((command, index) => {
+          const element = createElementFromCommand(command, index);
+          if (element) {
+            elements.push(element);
           }
+        });
+        
+        console.log("✅ Created elements:", elements.length);
+        if (elements.length > 0) {
+          console.log("🎯 First element:", elements[0]);
         }
-      }
-    }, [teachingStep?.step]);
-
-    // Start drawing animation when playing
-    useEffect(() => {
-      if (isPlaying && teachingStep && teachingStep.drawing_commands) {
-        startDrawingAnimation();
+        
+        setDrawnElements(elements);
+      } else if (!teachingStep) {
+        console.log("⚠️ No teachingStep provided");
+        // Clear canvas if no step
+        setDrawnElements([]);
       } else {
-        // Stop animation if not playing
-        if (animationTimeoutRef.current) {
-          clearTimeout(animationTimeoutRef.current);
-        }
+        console.log("⚠️ teachingStep has no whiteboard_commands");
+        console.log("teachingStep:", teachingStep);
       }
 
       return () => {
@@ -100,7 +107,7 @@ const TeachingCanvas = forwardRef(
           clearTimeout(animationTimeoutRef.current);
         }
       };
-    }, [isPlaying, teachingStep]);
+    }, [teachingStep]);
 
     const startDrawingAnimation = useCallback(() => {
       if (!teachingStep || !teachingStep.drawing_commands) return;
@@ -150,173 +157,206 @@ const TeachingCanvas = forwardRef(
     }, [teachingStep, onStepComplete]);
 
     const createElementFromCommand = (command, index) => {
+      // Don't include 'key' in props object - React handles it separately
       const baseProps = {
         id: `element-${index}`,
-        key: `element-${index}`,
       };
 
-      // Use current position trackers to prevent overlapping
-      const getNextPosition = (elementType) => {
-        const margin = 30;
-
-        switch (elementType) {
-          case "text":
-            return {
-              x: margin,
-              y: nextTextY,
-            };
-
-          case "shape":
-            return {
-              x: canvasWidth - 250,
-              y: nextShapeY,
-            };
-
-          default:
-            return {
-              x: margin,
-              y: nextTextY,
-            };
-        }
+      // Convert percentage coordinates to pixels
+      const percentToPixel = (percent, dimension) => {
+        if (percent === null || percent === undefined) return null;
+        return (percent / 100) * dimension;
       };
 
       switch (command.action) {
-        case "draw_text":
-          const textPos = getNextPosition("text");
-          const fontSize = command.fontSize || 18;
+        case "clear_all":
+          // Handled by clearing drawnElements
+          return null;
 
+        case "write_text":
+          const x = percentToPixel(command.x_percent, canvasWidth) || canvasWidth / 2;
+          const y = percentToPixel(command.y_percent, canvasHeight) || 100;
+          
+          // For center alignment, we need to set offsetX to center the text at the x position
+          const textAlign = command.align || "center";
+          const textWidth = command.width_percent ? percentToPixel(command.width_percent, canvasWidth) : canvasWidth;
+          
           return {
             ...baseProps,
             type: "text",
-            x: textPos.x,
-            y: textPos.y,
+            x: textAlign === "center" ? 0 : x,
+            y: y,
             text: command.text || "",
-            fontSize: fontSize,
-            fontFamily: command.fontFamily || "Arial",
-            fontStyle: command.fontStyle || "normal",
+            fontSize: command.font_size || 24,
             fill: command.color || "#000000",
-            width: canvasWidth - textPos.x - 280, // Leave space for shapes on right
+            align: textAlign,
+            width: textWidth,
+          };
+
+        case "draw_text_box":
+          const boxX = percentToPixel(command.x_percent, canvasWidth) || canvasWidth / 2;
+          const boxY = percentToPixel(command.y_percent, canvasHeight) || 100;
+          const boxWidth = command.width_percent ? percentToPixel(command.width_percent, canvasWidth) : 200;
+          
+          return {
+            ...baseProps,
+            type: "text_box",
+            x: boxX - boxWidth/2, // Center the box
+            y: boxY,
+            width: boxWidth,
+            height: command.height || 50,
+            text: command.text || "",
+            fontSize: 18,
+            fill: command.color || "#e0e7ff",
+            stroke: command.stroke || "#6366f1",
+            strokeWidth: 2,
+            textColor: "#000000",
+          };
+
+        case "draw_equation":
+          const eqX = percentToPixel(command.x_percent, canvasWidth) || canvasWidth / 2;
+          const eqY = percentToPixel(command.y_percent, canvasHeight) || 100;
+          
+          return {
+            ...baseProps,
+            type: "text", // Render as text for now (LaTeX rendering would require additional library)
+            x: eqX,
+            y: eqY,
+            text: command.latex || command.text || "",
+            fontSize: command.font_size || 28,
+            fill: "#000000",
+            align: "center",
+            fontFamily: "monospace", // Use monospace for math
           };
 
         case "draw_rectangle":
-          const rectPos = getNextPosition("shape");
+          const rectX = percentToPixel(command.x_percent, canvasWidth) || 100;
+          const rectY = percentToPixel(command.y_percent, canvasHeight) || 100;
+          
           return {
             ...baseProps,
             type: "rect",
-            x: rectPos.x,
-            y: rectPos.y,
-            width: Math.min(command.width || 150, 200),
-            height: Math.min(command.height || 80, 100),
+            x: rectX,
+            y: rectY,
+            width: command.width || 150,
+            height: command.height || 80,
             fill: command.fill || "transparent",
-            stroke: command.color || "#0066cc",
-            strokeWidth: command.strokeWidth || 2,
+            stroke: command.color || command.stroke || "#0066cc",
+            strokeWidth: command.stroke_width || 2,
           };
 
         case "draw_circle":
-          const circlePos = getNextPosition("shape");
+          const circleX = percentToPixel(command.x_percent, canvasWidth) || canvasWidth / 2;
+          const circleY = percentToPixel(command.y_percent, canvasHeight) || canvasHeight / 2;
+          
           return {
             ...baseProps,
             type: "circle",
-            x: circlePos.x + 50, // Offset for circle center
-            y: circlePos.y + 50,
-            radius: Math.min(command.radius || 40, 50),
+            x: circleX,
+            y: circleY,
+            radius: command.radius || 40,
             fill: command.fill || "transparent",
             stroke: command.color || "#0066cc",
-            strokeWidth: command.strokeWidth || 2,
+            strokeWidth: command.stroke_width || 2,
           };
 
         case "draw_arrow":
-          // Arrows use fixed safe positions to avoid overlap
-          const arrowStartY = Math.max(nextTextY + 30, nextShapeY + 30);
-          let points;
-          if (command.points && Array.isArray(command.points)) {
-            points = command.points;
-          } else {
-            // Default arrow pointing from text area to shape area
-            points = [300, arrowStartY, 500, arrowStartY];
-          }
-
-          // Update position tracker for arrows
-          setNextTextY((prev) => Math.max(prev, arrowStartY + 50));
-          setNextShapeY((prev) => Math.max(prev, arrowStartY + 50));
-
+          // from_percent and to_percent are arrays: [x, y]
+          const fromX = command.from_percent ? percentToPixel(command.from_percent[0], canvasWidth) : 100;
+          const fromY = command.from_percent ? percentToPixel(command.from_percent[1], canvasHeight) : 100;
+          const toX = command.to_percent ? percentToPixel(command.to_percent[0], canvasWidth) : 200;
+          const toY = command.to_percent ? percentToPixel(command.to_percent[1], canvasHeight) : 100;
+          
           return {
             ...baseProps,
             type: "arrow",
-            points: points,
-            pointerLength: command.pointerLength || 10,
-            pointerWidth: command.pointerWidth || 10,
+            points: [fromX, fromY, toX, toY],
+            pointerLength: 10,
+            pointerWidth: 10,
             fill: command.color || "#059669",
             stroke: command.color || "#059669",
-            strokeWidth: command.strokeWidth || 2,
+            strokeWidth: command.thickness || 2,
           };
 
         case "draw_line":
-          const lineY = Math.max(nextTextY + 20, nextShapeY + 20);
-          setNextTextY((prev) => Math.max(prev, lineY + 30));
-          setNextShapeY((prev) => Math.max(prev, lineY + 30));
-
+          const linePoints = command.points_percent ? 
+            command.points_percent.flatMap(p => [
+              percentToPixel(p[0], canvasWidth),
+              percentToPixel(p[1], canvasHeight)
+            ]) :
+            [30, 100, canvasWidth - 30, 100];
+          
           return {
             ...baseProps,
             type: "line",
-            points: command.points || [30, lineY, canvasWidth - 30, lineY],
+            points: linePoints,
             stroke: command.color || "#000000",
-            strokeWidth: command.strokeWidth || 2,
+            strokeWidth: command.stroke_width || command.thickness || 2,
             lineCap: "round",
             lineJoin: "round",
           };
 
-        case "highlight":
-          // Highlight goes behind the most recent text
-          const highlightY = Math.max(nextTextY - 40, 60);
-          return {
-            ...baseProps,
-            type: "rect",
-            x: 25,
-            y: highlightY - 5,
-            width: canvasWidth - 310,
-            height: 35,
-            fill: "yellow",
-            opacity: 0.3,
-            stroke: "orange",
-            strokeWidth: 1,
-          };
-
         default:
-          console.warn("Unknown drawing command:", command.action);
+          console.warn("Unknown whiteboard command:", command.action);
           return null;
       }
     };
 
     const renderElement = (element) => {
-      const commonProps = {
-        key: element.id,
-        id: element.id,
-      };
-
+      // Don't spread key prop - pass it directly to each component
       switch (element.type) {
         case "text":
           return (
             <Text
-              {...commonProps}
+              key={element.id}
+              id={element.id}
               x={element.x}
               y={element.y}
               text={element.text}
               fontSize={element.fontSize}
-              fontFamily={element.fontFamily}
+              fontFamily={element.fontFamily || "Arial"}
               fill={element.fill}
               fontStyle={element.fontStyle}
               width={element.width}
-              align="left"
+              align={element.align || "left"}
               verticalAlign="top"
               wrap="word"
             />
           );
 
+        case "text_box":
+          return (
+            <React.Fragment key={element.id}>
+              <Rect
+                key={`${element.id}-rect`}
+                id={`${element.id}-rect`}
+                x={element.x}
+                y={element.y}
+                width={element.width}
+                height={element.height}
+                fill={element.fill}
+                stroke={element.stroke}
+                strokeWidth={element.strokeWidth}
+              />
+              <Text
+                key={`${element.id}-text`}
+                id={`${element.id}-text`}
+                x={element.x}
+                y={element.y + element.height/2 - 10}
+                width={element.width}
+                text={element.text}
+                fontSize={element.fontSize}
+                fill={element.textColor}
+                align="center"
+              />
+            </React.Fragment>
+          );
+
         case "rect":
           return (
             <Rect
-              {...commonProps}
+              key={element.id}
+              id={element.id}
               x={element.x}
               y={element.y}
               width={element.width}
@@ -331,7 +371,8 @@ const TeachingCanvas = forwardRef(
         case "circle":
           return (
             <Circle
-              {...commonProps}
+              key={element.id}
+              id={element.id}
               x={element.x}
               y={element.y}
               radius={element.radius}
@@ -344,7 +385,8 @@ const TeachingCanvas = forwardRef(
         case "arrow":
           return (
             <Arrow
-              {...commonProps}
+              key={element.id}
+              id={element.id}
               points={element.points}
               pointerLength={element.pointerLength}
               pointerWidth={element.pointerWidth}
@@ -357,7 +399,8 @@ const TeachingCanvas = forwardRef(
         case "line":
           return (
             <Line
-              {...commonProps}
+              key={element.id}
+              id={element.id}
               points={element.points}
               stroke={element.stroke}
               strokeWidth={element.strokeWidth}
@@ -381,11 +424,10 @@ const TeachingCanvas = forwardRef(
       >
         {/* Canvas Header */}
         <div className="absolute top-2 left-2 z-10 bg-black/70 text-white px-3 py-1 rounded text-sm">
-          {teachingStep ? `Step ${teachingStep.step}` : "Ready"}
+          {teachingStep ? "Active" : "Ready"}
           {drawnElements.length > 0 && (
             <span className="ml-2 text-green-300">
-              Drawing... ({drawnElements.length}/
-              {teachingStep?.drawing_commands?.length || 0})
+              {drawnElements.length} elements
             </span>
           )}
         </div>

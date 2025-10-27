@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, RotateCcw, ArrowRight, Loader2 } from "lucide-react";
+import { Check, X, RotateCcw, ArrowRight, Loader2, Award, TrendingUp } from "lucide-react";
+import confetti from "canvas-confetti";
 
 const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -107,11 +108,49 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
     fetchQuiz();
   }, [quizData]);
 
-  // Submit quiz results to backend
+  // Submit quiz results to backend (but don't exit session)
   useEffect(() => {
     if (showResult) {
       submitQuizResults();
-      onQuizComplete(score, questions.length);
+      // Note: onQuizComplete is called when user clicks "Finish" button, not here
+    }
+  }, [showResult]);
+
+  // Trigger confetti animation for scores above 75%
+  useEffect(() => {
+    if (showResult) {
+      const percentage = (score / questions.length) * 100;
+      if (percentage > 75) {
+        // Fire confetti
+        const duration = 3000;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+        const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+        const interval = setInterval(() => {
+          const timeLeft = animationEnd - Date.now();
+
+          if (timeLeft <= 0) {
+            return clearInterval(interval);
+          }
+
+          const particleCount = 50 * (timeLeft / duration);
+
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+          });
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+          });
+        }, 250);
+
+        return () => clearInterval(interval);
+      }
     }
   }, [showResult, score, questions.length]);
 
@@ -232,6 +271,20 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
     );
   }
 
+  const getPerformanceColor = (percentage) => {
+    if (percentage >= 80) return "text-green-400";
+    if (percentage >= 60) return "text-blue-400";
+    if (percentage >= 40) return "text-yellow-400";
+    return "text-red-400";
+  };
+
+  const getPerformanceGradient = (percentage) => {
+    if (percentage >= 80) return "from-green-500 to-emerald-600";
+    if (percentage >= 60) return "from-blue-500 to-indigo-600";
+    if (percentage >= 40) return "from-yellow-500 to-orange-600";
+    return "from-red-500 to-rose-600";
+  };
+
   const getFeedback = () => {
     const percentage = (score / questions.length) * 100;
     if (percentage >= 80) return "Excellent! You've mastered the concepts.";
@@ -243,47 +296,137 @@ const Quiz = ({ onQuizComplete, onRetakeLesson, quizData }) => {
   };
 
   if (showResult) {
+    const totalQuestions = questions.length;
+    const correctAnswers = score;
+    const wrongAnswers = totalQuestions - score;
+    const percentage = Math.round((score / totalQuestions) * 100);
+    const isExcellent = percentage > 75;
+
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="min-h-screen bg-slate-900 flex items-center justify-center p-4"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4"
       >
-        <div className="max-w-md w-full bg-slate-800 rounded-2xl p-8 text-center border border-slate-700/40">
+        <div className="max-w-2xl w-full">
+          {/* Header Card */}
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-            className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-6"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-8 mb-6 border border-slate-700/50 shadow-2xl"
           >
-            <span className="text-3xl font-bold text-white">{score}</span>
+            <div className="text-center">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className={`w-32 h-32 bg-gradient-to-br ${getPerformanceGradient(percentage)} rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg relative`}
+              >
+                {isExcellent && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1, rotate: 360 }}
+                    transition={{ delay: 0.3, duration: 0.6 }}
+                    className="absolute -top-3 -right-3"
+                  >
+                    <Award className="text-yellow-400" size={40} />
+                  </motion.div>
+                )}
+                <div className="text-center">
+                  <span className="text-5xl font-bold text-white block">{percentage}%</span>
+                </div>
+              </motion.div>
+
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-3xl font-bold text-white mb-2"
+              >
+                {isExcellent ? "🎉 Outstanding Performance!" : "Quiz Complete!"}
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className={`text-lg mb-4 ${getPerformanceColor(percentage)}`}
+              >
+                {getFeedback()}
+              </motion.p>
+            </div>
           </motion.div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">Quiz Complete!</h2>
-
-          <p className="text-slate-300 mb-6">
-            You scored {score}/{questions.length}
-          </p>
-
-          <p className="text-blue-400 mb-8 text-sm">{getFeedback()}</p>
-
-          <div className="space-y-3">
-            <button
-              onClick={retakeQuiz}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 }}
+              className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30 rounded-2xl p-6 text-center backdrop-blur-sm"
             >
-              <RotateCcw size={18} />
-              Retake Quiz
-            </button>
+              <div className="flex items-center justify-center mb-2">
+                <Check className="text-green-400 mr-2" size={24} />
+              </div>
+              <p className="text-3xl font-bold text-green-400">{correctAnswers}</p>
+              <p className="text-slate-300 text-sm mt-1">Correct</p>
+            </motion.div>
 
-            <button
-              onClick={() => onQuizComplete(score, questions.length)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/30 rounded-2xl p-6 text-center backdrop-blur-sm"
             >
-              Next
-              <ArrowRight size={18} />
-            </button>
+              <div className="flex items-center justify-center mb-2">
+                <X className="text-red-400 mr-2" size={24} />
+              </div>
+              <p className="text-3xl font-bold text-red-400">{wrongAnswers}</p>
+              <p className="text-slate-300 text-sm mt-1">Wrong</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.7 }}
+              className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-2xl p-6 text-center backdrop-blur-sm"
+            >
+              <div className="flex items-center justify-center mb-2">
+                <TrendingUp className="text-blue-400 mr-2" size={24} />
+              </div>
+              <p className="text-3xl font-bold text-blue-400">{totalQuestions}</p>
+              <p className="text-slate-300 text-sm mt-1">Total Questions</p>
+            </motion.div>
           </div>
+
+          {/* Action Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={retakeQuiz}
+                className="group relative overflow-hidden px-6 py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl hover:scale-105"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-slate-600 to-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <RotateCcw size={20} className="relative z-10" />
+                <span className="relative z-10">Retake Quiz</span>
+              </button>
+
+              <button
+                onClick={() => onQuizComplete(score, questions.length)}
+                className="group relative overflow-hidden px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl hover:scale-105"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span className="relative z-10">Finish</span>
+                <ArrowRight size={20} className="relative z-10" />
+              </button>
+            </div>
+          </motion.div>
         </div>
       </motion.div>
     );

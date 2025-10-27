@@ -1,0 +1,133 @@
+{
+  "services": {
+    "API Gateway": {
+      "status": "healthy",
+      "port": 8000,
+      "data": {
+        "gateway": "healthy",
+        "timestamp": "2025-10-24T14:40:57.509991",
+        "services": {
+          "user-service": {
+            "url": "http://localhost:8002",
+            "healthy": false
+          },
+          "lesson-service": {
+            "url": "http://localhost:8003",
+            "healthy": false
+          },
+          "teaching-service": {
+            "url": "http://localhost:8004",
+            "healthy": false
+          },
+          "quiz-notes-service": {
+            "url": "http://localhost:8005",
+            "healthy": true
+          }
+        },
+        "overall_health": "healthy"
+      }
+    },
+    "User Service": {
+      "status": "healthy",
+      "port": 8002,
+      "data": {
+        "status": "healthy",
+        "service": "GnyanSetu User Authentication Service",
+        "version": "1.0.0",
+        "timestamp": "2025-10-24T14:41:01.627881Z"
+      }
+    },
+    "Lesson Service": {
+      "status": "healthy",
+      "port": 8003,
+      "data": {
+        "service": "lesson-service",
+        "status": "healthy",
+        "port": 8003,
+        "database": "connected",
+        "ai_model": "gemini-2.0-flash-exp",
+        "stats": {
+          "status": "connected",
+          "database_name": "Gnyansetu_Lessons",
+          "collections": {
+            "pdf_data": 133,
+            "lessons": 107,
+            "user_histories": 131
+          },
+          "total_documents": 371
+        },
+        "timestamp": "2025-10-24T14:41:03.744469"
+      }
+    },
+    "Teaching Service": {
+      "status": "healthy",
+      "port": 8004,
+      "data": {
+        "status": "healthy",
+        "service": "Teaching Service",
+        "version": "2.0.0",
+        "timestamp": "2025-10-24T14:41:05.874799+00:00",
+        "database": "connected",
+        "features": {
+          "konva_whiteboard": true,
+          "lesson_integration": true,
+          "user_profiles": true,
+          "real_time_teaching": true,
+          "websockets": true
+        }
+      }
+    },
+    "Quiz Service": {
+      "status": "healthy",
+      "port": 8005,
+      "data": {
+        "status": "healthy",
+        "service": "quiz-notes-service",
+        "version": "2.0.0",
+        "architecture": "lightweight-retrieval-only",
+        "database": "connected",
+        "timestamp": "2025-10-24T14:41:07.976250"
+      }
+    },
+    "Visualization Service": {
+      "status": "healthy",
+      "port": 8006,
+      "data": {
+        "status": "healthy",
+        "database": "connected",
+        "timestamp": "2025-10-24T14:41:10.035596"
+      }
+    }
+  },
+  "database": {},
+  "ai_models": {},
+  "errors": [],
+  "lesson_generation": {
+    "status": "success",
+    "lesson_id": "68fb9009d2562acb4a07aa86",
+    "time": 3.585364580154419,
+    "quiz_notes_status": "generating"
+  },
+  "quiz_notes": {
+    "timeline": [
+      {
+        "time": 0,
+        "status": "completed",
+        "has_quiz": true,
+        "has_notes": true
+      }
+    ],
+    "final_status": "completed"
+  },
+  "final_lesson": {
+    "has_content": true,
+    "has_quiz": true,
+    "has_notes": true,
+    "quiz_count": 1,
+    "notes_count": 1
+  },
+  "visualization": {
+    "status": "success",
+    "visualization_id": "viz_test_viz_001_20251024144136"
+  }
+}

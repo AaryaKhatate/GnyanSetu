@@ -378,9 +378,9 @@ export default function Sidebar({
                           {item.title || "Untitled Chat"}
                         </span>
                         <div className="flex items-center gap-2 ml-2">
-                          <span className="text-[10px] text-slate-500">
+                          {/* <span className="text-[10px] text-slate-500">
                             {item.timestamp}
-                          </span>
+                          </span> */}
                           <div className="relative menu-container">
                             <button
                               onClick={(e) => {
