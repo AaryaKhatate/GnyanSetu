@@ -659,43 +659,68 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
             images_info=json.dumps(images_summary)
         )
         
-        # Generate with Gemini
-        logger.info(f" Generating Konva.js visualization for topic: {topic}")
-        response = GEMINI_MODEL.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.5,
-                "max_output_tokens": 8000,
-            }
-        )
+        # Generate with Gemini with retry logic for quota errors
+        logger.info(f"🎨 Generating Konva.js visualization for topic: {topic}")
         
-        # Extract JSON
-        response_text = response.candidates[0].content.parts[0].text
-        logger.info(f"� LLM Response length: {len(response_text)} chars")
+        max_retries = 2
+        retry_delay = 20  # seconds
         
-        # Parse JSON (handle markdown code blocks)
-        json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-        if not json_match:
-            json_match = re.search(r'(\{.*?\})', response_text, re.DOTALL)
-        
-        if json_match:
-            viz_data = json.loads(json_match.group(1))
-            
-            # Validate with Pydantic
-            validated = VisualizationDataV2(**viz_data)
-            logger.info(f" Generated {len(validated.teaching_sequence)} teaching steps")
-            
-            return validated.dict()
-        else:
-            logger.error(" Could not extract JSON from response")
-            return generate_fallback_visualization_v2(topic)
+        for attempt in range(max_retries):
+            try:
+                response = GEMINI_MODEL.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.5,
+                        "max_output_tokens": 8000,
+                    }
+                )
+                
+                # Extract JSON
+                response_text = response.candidates[0].content.parts[0].text
+                logger.info(f"✅ LLM Response length: {len(response_text)} chars")
+                
+                # Parse JSON (handle markdown code blocks)
+                json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+                if not json_match:
+                    json_match = re.search(r'(\{.*?\})', response_text, re.DOTALL)
+                
+                if json_match:
+                    viz_data = json.loads(json_match.group(1))
+                    
+                    # Validate with Pydantic
+                    validated = VisualizationDataV2(**viz_data)
+                    logger.info(f"✅ Generated {len(validated.teaching_sequence)} teaching steps")
+                    
+                    return validated.dict()
+                else:
+                    logger.error("❌ Could not extract JSON from response")
+                    return generate_fallback_visualization_v2(topic)
+                    
+            except Exception as api_error:
+                error_str = str(api_error)
+                
+                # Check if it's a quota error
+                if '429' in error_str or 'quota' in error_str.lower():
+                    logger.warning(f"⚠️ Quota exceeded (attempt {attempt + 1}/{max_retries})")
+                    
+                    if attempt < max_retries - 1:
+                        logger.info(f"⏳ Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.warning("⚠️ Max retries reached, using fallback visualization")
+                        return generate_fallback_visualization_v2(topic)
+                else:
+                    # Other error, don't retry
+                    raise api_error
             
     except Exception as e:
-        logger.error(f" Visualization generation failed: {e}")
+        logger.error(f"❌ Visualization generation failed: {e}")
         return generate_fallback_visualization_v2(topic)
 
 def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
     """Fallback visualization when AI generation fails"""
+    logger.info(f"🔄 Using fallback visualization for: {topic}")
     return {
         "teaching_sequence": [
             {

@@ -142,6 +142,407 @@ const Whiteboard = ({
     sendTestPDF
   } = useTeachingWebSocket();
 
+  // TTS (Text-to-Speech) hook - must be before useEffects that use it
+  const canvasRef = useRef(null);
+  const { speak, pauseResume, stop, isSpeaking, isPaused } = useTTS();
+
+  // ============================================================
+  // FETCH VISUALIZATION V2 - New Konva.js whiteboard format
+  // ============================================================
+  const fetchVisualizationV2 = useCallback(async (lessonId) => {
+    console.log(' === FETCHING VISUALIZATION V2 ===');
+    console.log(' Lesson ID:', lessonId);
+    
+    try {
+      const response = await fetch(`http://localhost:8006/visualization/v2/${lessonId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('  Fetched v2 visualization:', data);
+      console.log(' Teaching sequence steps:', data.teaching_sequence?.length || 0);
+      
+      //  Convert teaching_sequence to scenes format for KonvaTeachingBoard
+      if (data.teaching_sequence && data.teaching_sequence.length > 0) {
+        console.log(' Converting teaching_sequence to scenes format...');
+        
+        // Canvas dimensions for percentage conversion
+        const CANVAS_WIDTH = 1920;
+        const CANVAS_HEIGHT = 1080;
+        
+        const scenes = data.teaching_sequence.map((step, index) => {
+          // Filter out clear_all commands and convert whiteboard_commands to shapes
+          const shapes = (step.whiteboard_commands || [])
+            .filter(cmd => cmd.action !== 'clear_all') // Skip clear commands
+            .map(cmd => {
+              // Convert percentage coordinates to absolute pixels
+              const xPercent = cmd.x_percent || 50;
+              const yPercent = cmd.y_percent || 50;
+              const x = (xPercent / 100) * CANVAS_WIDTH;
+              const y = (yPercent / 100) * CANVAS_HEIGHT;
+              
+              // Handle different command types
+              switch (cmd.action) {
+                case 'write_text':
+                  return {
+                    type: 'text',
+                    x: cmd.align === 'center' ? x : x,
+                    y: y,
+                    text: cmd.text || '',
+                    fontSize: cmd.font_size || 24,
+                    fill: cmd.color || '#000000',
+                    align: cmd.align || 'left'
+                  };
+                  
+                case 'draw_text_box':
+                  const boxWidth = cmd.width_percent ? (cmd.width_percent / 100) * CANVAS_WIDTH : (cmd.width || 300);
+                  const boxHeight = cmd.height || 60;
+                  return [
+                    {
+                      type: 'rectangle',
+                      x: x - boxWidth / 2,
+                      y: y - boxHeight / 2,
+                      width: boxWidth,
+                      height: boxHeight,
+                      fill: cmd.color || '#f0f0f0',
+                      stroke: cmd.stroke || '#000000',
+                      strokeWidth: 2,
+                      cornerRadius: 8
+                    },
+                    {
+                      type: 'text',
+                      x: x,
+                      y: y,
+                      text: cmd.text || '',
+                      fontSize: 20,
+                      fill: '#1f2937',
+                      align: 'center',
+                      verticalAlign: 'middle'
+                    }
+                  ];
+                  
+                case 'draw_circle':
+                  return {
+                    type: 'circle',
+                    x: x,
+                    y: y,
+                    radius: cmd.radius || 30,
+                    fill: cmd.fill || 'transparent',
+                    stroke: cmd.stroke || '#000000',
+                    strokeWidth: cmd.stroke_width || 2
+                  };
+                  
+                case 'draw_rectangle':
+                  const rectWidth = cmd.width_percent ? (cmd.width_percent / 100) * CANVAS_WIDTH : cmd.width || 100;
+                  const rectHeight = cmd.height || 60;
+                  return {
+                    type: 'rectangle',
+                    x: x - rectWidth / 2,
+                    y: y - rectHeight / 2,
+                    width: rectWidth,
+                    height: rectHeight,
+                    fill: cmd.fill || 'transparent',
+                    stroke: cmd.stroke || '#000000',
+                    strokeWidth: cmd.stroke_width || 2
+                  };
+                  
+                case 'draw_line':
+                  const linePoints = (cmd.points_percent || []).map((point, i) => 
+                    i % 2 === 0 ? (point / 100) * CANVAS_WIDTH : (point / 100) * CANVAS_HEIGHT
+                  );
+                  return {
+                    type: 'line',
+                    points: linePoints.length > 0 ? linePoints : [x, y, x + 100, y + 100],
+                    stroke: cmd.stroke || cmd.color || '#000000',
+                    strokeWidth: cmd.stroke_width || cmd.thickness || 2
+                  };
+                  
+                case 'draw_arrow':
+                  const fromX = (cmd.from_percent?.[0] / 100) * CANVAS_WIDTH || x;
+                  const fromY = (cmd.from_percent?.[1] / 100) * CANVAS_HEIGHT || y;
+                  const toX = (cmd.to_percent?.[0] / 100) * CANVAS_WIDTH || x + 100;
+                  const toY = (cmd.to_percent?.[1] / 100) * CANVAS_HEIGHT || y;
+                  return {
+                    type: 'arrow',
+                    points: [fromX, fromY, toX, toY],
+                    stroke: cmd.color || '#000000',
+                    strokeWidth: cmd.thickness || 2,
+                    pointerLength: 10,
+                    pointerWidth: 10
+                  };
+                  
+                case 'draw_image':
+                  return {
+                    type: 'image',
+                    x: x,
+                    y: y,
+                    src: cmd.src || cmd.url || cmd.image_id,
+                    width: cmd.width || 200,
+                    height: cmd.height || 200,
+                    scale: cmd.scale || 1.0
+                  };
+                  
+                case 'draw_equation':
+                  // Render equation as text (LaTeX would need additional library)
+                  return {
+                    type: 'text',
+                    x: x,
+                    y: y,
+                    text: cmd.latex || cmd.equation || '',
+                    fontSize: cmd.font_size || 24,
+                    fill: '#1f2937',
+                    align: 'center',
+                    fontFamily: 'Courier New' // Monospace for equations
+                  };
+                  
+                default:
+                  console.warn(`Unknown action type: ${cmd.action}`);
+                  return null;
+              }
+            })
+            .flat() // Flatten because draw_text_box returns array
+            .filter(shape => shape !== null); // Remove nulls
+          
+          return {
+            scene_id: `scene_${index + 1}`,
+            title: step.text_explanation?.substring(0, 50) || `Step ${index + 1}`,
+            duration: 10.0,  // Default duration
+            shapes: shapes,
+            animations: [],  // Can add animations later
+            audio: {
+              text: step.tts_text || step.text_explanation,
+              language: 'en'
+            }
+          };
+        });
+        
+        console.log('  Converted to', scenes.length, 'scenes');
+        console.log(' First scene:', scenes[0]);
+        setHasVisualization(true);
+        setVisualizationScenes(scenes);
+        setCurrentVisualizationScene(0);
+        return { hasVisualization: true, scenes: scenes };
+      } else {
+        // No teaching_sequence available
+        console.log('⚠️ No teaching_sequence in visualization data');
+        return { hasVisualization: false, steps: [] };
+      }
+      
+    } catch (error) {
+      console.error('  Error fetching visualization v2:', error);
+      return null;
+    }
+  }, []);
+
+  // 🔥 CRITICAL: Convert lessonCommands from WebSocket to teachingSteps AND visualization scenes
+  useEffect(() => {
+    console.log('🔄 === LESSON COMMANDS CHANGED ===');
+    console.log('🔄 Commands count:', lessonCommands.length);
+    console.log('🔄 Commands array:', lessonCommands);
+    
+    if (lessonCommands && lessonCommands.length > 0) {
+      console.log(' Converting', lessonCommands.length, 'lesson commands to teaching steps');
+      
+      // Convert WebSocket commands to teaching steps format
+      const convertedSteps = lessonCommands.map((command, index) => ({
+        step: index + 1,
+        title: command.text || `Step ${index + 1}`,
+        speech_text: command.type === 'speak' ? command.text : '',
+        text_explanation: command.text || '',
+        drawing_commands: [command]
+      }));
+      
+      console.log(' Setting teaching steps:', convertedSteps.length);
+      console.log(' Teaching steps:', convertedSteps);
+      setTeachingSteps(convertedSteps);
+      setTeachingMode(true);
+      console.log(' Teaching mode activated, buttons should now be visible!');
+      
+      //  STRATEGY 1: Check if WebSocket data already has whiteboard_commands
+      const hasWhiteboardCommands = lessonCommands.some(cmd => 
+        cmd.whiteboard_commands && Array.isArray(cmd.whiteboard_commands) && cmd.whiteboard_commands.length > 0
+      );
+      
+      console.log(' WebSocket data has whiteboard_commands:', hasWhiteboardCommands);
+      
+      if (hasWhiteboardCommands) {
+        console.log(' === CREATING SCENES FROM WEBSOCKET DATA ===');
+        
+        const scenes = lessonCommands
+          .filter(cmd => cmd.whiteboard_commands && cmd.whiteboard_commands.length > 0)
+          .map((command, index) => {
+            const whiteboardCmds = command.whiteboard_commands;
+            
+            // Convert whiteboard commands to Konva shapes
+            const CANVAS_WIDTH = 1920;
+            const CANVAS_HEIGHT = 1080;
+            
+            const shapes = whiteboardCmds
+              .filter(cmd => cmd.action !== 'clear_all')
+              .map(cmd => {
+                const xPercent = cmd.x_percent || 50;
+                const yPercent = cmd.y_percent || 50;
+                const x = (xPercent / 100) * CANVAS_WIDTH;
+                const y = (yPercent / 100) * CANVAS_HEIGHT;
+                
+                switch (cmd.action) {
+                  case 'write_text':
+                    return {
+                      type: 'text',
+                      x: cmd.align === 'center' ? x : x,
+                      y: y,
+                      text: cmd.text || '',
+                      fontSize: cmd.font_size || 24,
+                      fill: cmd.color || '#000000',
+                      align: cmd.align || 'left'
+                    };
+                  
+                  case 'draw_text_box':
+                    const boxWidth = cmd.width_percent ? (cmd.width_percent / 100) * CANVAS_WIDTH : (cmd.width || 300);
+                    const boxHeight = cmd.height || 60;
+                    return [
+                      {
+                        type: 'rectangle',
+                        x: x - boxWidth / 2,
+                        y: y - boxHeight / 2,
+                        width: boxWidth,
+                        height: boxHeight,
+                        fill: cmd.color || '#f0f0f0',
+                        stroke: cmd.stroke || '#000000',
+                        strokeWidth: 2,
+                        cornerRadius: 8
+                      },
+                      {
+                        type: 'text',
+                        x: x,
+                        y: y,
+                        text: cmd.text || '',
+                        fontSize: 20,
+                        fill: '#1f2937',
+                        align: 'center',
+                        verticalAlign: 'middle'
+                      }
+                    ];
+                  
+                  case 'draw_circle':
+                    return {
+                      type: 'circle',
+                      x: x,
+                      y: y,
+                      radius: cmd.radius || 30,
+                      fill: cmd.fill || 'transparent',
+                      stroke: cmd.stroke || '#000000',
+                      strokeWidth: cmd.stroke_width || 2
+                    };
+                  
+                  case 'draw_rectangle':
+                    const rectWidth = cmd.width_percent ? (cmd.width_percent / 100) * CANVAS_WIDTH : cmd.width || 100;
+                    const rectHeight = cmd.height || 60;
+                    return {
+                      type: 'rectangle',
+                      x: x - rectWidth / 2,
+                      y: y - rectHeight / 2,
+                      width: rectWidth,
+                      height: rectHeight,
+                      fill: cmd.fill || 'transparent',
+                      stroke: cmd.stroke || '#000000',
+                      strokeWidth: cmd.stroke_width || 2
+                    };
+                  
+                  case 'draw_line':
+                    const linePoints = (cmd.points_percent || []).map((point, i) => 
+                      i % 2 === 0 ? (point / 100) * CANVAS_WIDTH : (point / 100) * CANVAS_HEIGHT
+                    );
+                    return {
+                      type: 'line',
+                      points: linePoints.length > 0 ? linePoints : [x, y, x + 100, y + 100],
+                      stroke: cmd.stroke || cmd.color || '#000000',
+                      strokeWidth: cmd.stroke_width || cmd.thickness || 2
+                    };
+                  
+                  case 'draw_arrow':
+                    const fromX = (cmd.from_percent?.[0] / 100) * CANVAS_WIDTH || x;
+                    const fromY = (cmd.from_percent?.[1] / 100) * CANVAS_HEIGHT || y;
+                    const toX = (cmd.to_percent?.[0] / 100) * CANVAS_WIDTH || x + 100;
+                    const toY = (cmd.to_percent?.[1] / 100) * CANVAS_HEIGHT || y;
+                    return {
+                      type: 'arrow',
+                      points: [fromX, fromY, toX, toY],
+                      stroke: cmd.color || '#000000',
+                      strokeWidth: cmd.thickness || 2,
+                      pointerLength: 10,
+                      pointerWidth: 10
+                    };
+                  
+                  default:
+                    console.warn(`Unknown action: ${cmd.action}`);
+                    return null;
+                }
+              })
+              .flat()
+              .filter(shape => shape !== null);
+            
+            return {
+              scene_id: `scene_${index + 1}`,
+              title: command.text?.substring(0, 50) || `Step ${index + 1}`,
+              duration: 10.0,
+              shapes: shapes,
+              animations: [],
+              audio: {
+                text: command.text || command.tts_text || '',
+                language: 'en'
+              }
+            };
+          });
+        
+        console.log(' Created', scenes.length, 'scenes from WebSocket data');
+        console.log(' First scene:', scenes[0]);
+        
+        setHasVisualization(true);
+        setVisualizationScenes(scenes);
+        setCurrentVisualizationScene(0);
+        
+      } else {
+        //  STRATEGY 2: No whiteboard_commands in WebSocket - fetch from Visualization Service
+        console.log(' === FETCHING FROM VISUALIZATION SERVICE ===');
+        const lessonId = sessionStorage.getItem('lessonId');
+        console.log(' Lesson ID from sessionStorage:', lessonId);
+        
+        if (lessonId) {
+          console.log(' Calling fetchVisualizationV2 for lesson:', lessonId);
+          fetchVisualizationV2(lessonId).then(v2Result => {
+            console.log(' Visualization V2 Result:', v2Result);
+            if (v2Result && v2Result.hasVisualization && v2Result.scenes) {
+              console.log(' Visualization loaded from service!', v2Result.scenes.length, 'scenes');
+              console.log(' First scene:', v2Result.scenes[0]);
+            } else {
+              console.log(' No visualization available from service');
+            }
+          }).catch(error => {
+            console.error(' Error fetching visualization:', error);
+          });
+        } else {
+          console.log(' No lesson ID in sessionStorage - cannot fetch visualization');
+        }
+      }
+    } else {
+      console.log(' No lesson commands received yet');
+    }
+  }, [lessonCommands, fetchVisualizationV2]);
+
+  //  CLEANUP: Stop speech when component unmounts
+  useEffect(() => {
+    return () => {
+      console.log(' Component unmounting - stopping all audio...');
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      stop();
+    };
+  }, [stop]);
+
   // Expose test function globally for debugging
   useEffect(() => {
     window.sendTestPDF = sendTestPDF;
@@ -194,104 +595,6 @@ const Whiteboard = ({
   const handleStopLesson = useCallback(() => {
     stopLesson();
   }, [stopLesson]);
-
-  const canvasRef = useRef(null);
-  const { speak, pauseResume, stop, isSpeaking, isPaused } = useTTS();
-
-  // ============================================================
-  // FETCH VISUALIZATION V2 - New Konva.js whiteboard format
-  // ============================================================
-  const fetchVisualizationV2 = async (lessonId) => {
-    console.log(' === FETCHING VISUALIZATION V2 ===');
-    console.log(' Lesson ID:', lessonId);
-    
-    try {
-      const response = await fetch(`http://localhost:8006/visualization/v2/${lessonId}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('  Fetched v2 visualization:', data);
-      console.log(' Teaching sequence steps:', data.teaching_sequence?.length || 0);
-      
-      //  Convert teaching_sequence to scenes format for KonvaTeachingBoard
-      if (data.teaching_sequence && data.teaching_sequence.length > 0) {
-        console.log(' Converting teaching_sequence to scenes format...');
-        
-        const scenes = data.teaching_sequence.map((step, index) => {
-          // Convert whiteboard_commands to shapes
-          const shapes = (step.whiteboard_commands || []).map(cmd => {
-            // Map command types to shape types
-            const shapeMap = {
-              'draw_circle': 'circle',
-              'draw_rectangle': 'rectangle', 
-              'draw_rect': 'rectangle',
-              'draw_line': 'line',
-              'draw_arrow': 'arrow',
-              'draw_text': 'text',
-              'add_image': 'image',
-              'draw_path': 'path',
-            };
-            
-            return {
-              type: shapeMap[cmd.action] || cmd.action,
-              x: cmd.x || cmd.position?.[0] || 0,
-              y: cmd.y || cmd.position?.[1] || 0,
-              radius: cmd.radius,
-              width: cmd.width || cmd.size?.[0],
-              height: cmd.height || cmd.size?.[1],
-              fill: cmd.fill || cmd.color,
-              stroke: cmd.stroke || cmd.color,
-              strokeWidth: cmd.stroke_width || cmd.thickness || 2,
-              text: cmd.text || cmd.content,
-              fontSize: cmd.font_size || 24,
-              fontStyle: cmd.font_style,
-              points: cmd.points,
-              src: cmd.src || cmd.url,
-              ...cmd  // Include any other properties
-            };
-          });
-          
-          return {
-            scene_id: `scene_${index + 1}`,
-            title: step.text_explanation?.substring(0, 50) || `Step ${index + 1}`,
-            duration: 10.0,  // Default duration
-            shapes: shapes,
-            animations: [],  // Can add animations later
-            audio: {
-              text: step.tts_text || step.text_explanation,
-              language: 'en'
-            }
-          };
-        });
-        
-        console.log('  Converted to', scenes.length, 'scenes');
-        console.log(' First scene:', scenes[0]);
-        setHasVisualization(true);
-        setVisualizationScenes(scenes);
-        setCurrentVisualizationScene(0);
-        return { hasVisualization: true, scenes: scenes };
-      }
-      
-      // Fallback: Convert to old teaching steps format
-      const convertedSteps = data.teaching_sequence.map((step, index) => ({
-        step: index + 1,
-        title: `Step ${index + 1}`,
-        speech_text: step.tts_text || step.text_explanation || '',
-        text_explanation: step.text_explanation || '',
-        drawing_commands: step.whiteboard_commands || []
-      }));
-      
-      console.log('  No visualization scenes, converted', convertedSteps.length, 'steps to old format');
-      return { hasVisualization: false, steps: convertedSteps };
-      
-    } catch (error) {
-      console.error('  Error fetching visualization v2:', error);
-      return null;
-    }
-  };
 
   // ============================================================
   // IMMEDIATE CHECK ON MOUNT - Force check sessionStorage
@@ -1106,44 +1409,60 @@ const Whiteboard = ({
     setChatMessage(''); // Clear input
   }, [chatMessage, connected, sendMessage]);
 
+  // 🔴 CLEANUP: Stop all audio/speech before exiting
+  const handleExit = useCallback(() => {
+    console.log('🔴 Exiting session - stopping all audio...');
+    
+    // Stop speech synthesis
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      console.log('✅ Speech synthesis cancelled');
+    }
+    
+    // Stop any ongoing speech from the hook (this handles state cleanup internally)
+    stop();
+    
+    // Call the original exit handler
+    if (onExit) {
+      onExit();
+    }
+  }, [stop, onExit]);
+
   return (
     <div
       className={`relative h-screen overflow-hidden ${
         isFullscreen ? "h-full" : ""
       }`}
     >
-      {/* Top Bar - Only show in normal mode */}
+      {/* Top Bar - Simplified with only essential controls */}
       {!isFullscreen && (
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="flex items-center justify-between p-4 border-b border-slate-700/40 bg-slate-800/60 backdrop-blur-sm"
         >
+          {/* Left: Title */}
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-semibold text-white">
               Lesson: {pdfName}
             </h1>
-            {/* WebSocket Connection Status */}
+          </div>
+
+          {/* Right: Connection Status + Controls + Exit */}
+          <div className="flex items-center gap-4">
+            {/* Connection Status */}
             <div
-              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
                 connected
                   ? "bg-green-500/20 text-green-400"
                   : "bg-red-500/20 text-red-400"
               }`}
             >
               {connected ? <Wifi size={16} /> : <WifiOff size={16} />}
-              {connected ? "● Teaching Service Connected" : "● Teaching Service Disconnected"}
+              {connected ? "Connected" : "Disconnected"}
             </div>
-            {sessionId && (
-              <div className="text-xs text-slate-400">
-                Session: {sessionId}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-slate-300 text-sm">{status}</span>
-            
-            {/* Interactive Teaching Mode Button */}
+
+            {/* Start Interactive Teaching Button */}
             {teachingSteps.length > 0 && (
               <button
                 onClick={() => {
@@ -1157,146 +1476,38 @@ const Whiteboard = ({
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg text-sm font-semibold text-white shadow-lg transform transition hover:scale-105"
                 title="Open Interactive Teaching Mode"
               >
-                 Start Interactive Teaching
+                🎓 Start Interactive Teaching
               </button>
             )}
 
-            {/* WebSocket Lesson Controls */}
-            {connected && lessonCommands.length > 0 && (
-              <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
-                <button
-                  onClick={handlePlayLesson}
-                  disabled={isPlaying || wsIsPlaying}
-                  className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Start AI lesson"
-                >
-                  ▶ Play AI Lesson
-                </button>
-
-                <button
-                  onClick={handleStopLesson}
-                  disabled={!isPlaying && !wsIsPlaying}
-                  className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Stop lesson"
-                >
-                   Stop
-                </button>
-                
-                <span className="text-xs text-slate-400">
-                  {currentStep}/{lessonCommands.length} steps
-                </span>
-              </div>
-            )}
-
-            {/* Audio Controls */}
-            <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
-              <button
-                onClick={() => setAutoPlay(!autoPlay)}
-                className={`px-3 py-1 rounded text-xs transition-colors ${
-                  autoPlay
-                    ? "bg-green-600 hover:bg-green-700 text-white"
-                    : "bg-slate-600 hover:bg-slate-500 text-slate-300"
-                }`}
-                title={`Auto-speak: ${autoPlay ? "ON" : "OFF"}`}
-              >
-                <Volume2 size={14} />
-              </button>
-
-              <button
-                onClick={speakCurrentSlide}
-                disabled={isSpeaking}
-                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs disabled:opacity-50 transition-colors"
-                title="Speak current slide"
-              >
-                �
-              </button>
-
-              <button
-                onClick={pauseResume}
-                disabled={!isSpeaking}
-                className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-xs disabled:opacity-50 transition-colors"
-                title={isPaused ? "Resume" : "Pause"}
-              >
-                {isPaused ? "▶" : ""}
-              </button>
-
-              <button
-                onClick={stop}
-                disabled={!isSpeaking}
-                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs disabled:opacity-50 transition-colors"
-                title="Stop speaking"
-              >
-                <Square size={12} />
-              </button>
-
-              {currentSpeakingStep && (
-                <span className="text-xs text-blue-300">
-                  � Step {currentSpeakingStep}
-                </span>
-              )}
-            </div>
-
-            {/* Mode Toggle */}
-            <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
-              <button
-                onClick={
-                  teachingMode ? switchToSlideMode : switchToTeachingMode
-                }
-                className={`px-3 py-1 rounded text-xs transition-colors ${
-                  teachingMode
-                    ? "bg-purple-600 hover:bg-purple-700 text-white"
-                    : "bg-slate-600 hover:bg-slate-500 text-slate-300"
-                }`}
-                title={`Mode: ${
-                  teachingMode ? "Interactive Teaching" : "Static Slides"
-                }`}
-              >
-                <Layers size={14} className="mr-1" />
-                {teachingMode ? "Teaching" : "Slides"}
-              </button>
-
-              {/*  Visualization Progress Indicator */}
-              {hasVisualization && (
-                <span className="text-xs text-purple-300 font-medium">
-                   Scene {currentVisualizationScene + 1} / {visualizationScenes.length}
-                </span>
-              )}
-
-              {teachingSteps.length > 0 && !hasVisualization && (
-                <span className="text-xs text-slate-400">
-                  {teachingSteps.length} steps
-                </span>
-              )}
-            </div>
-
-            {/* Synchronized Teaching Controls */}
+            {/* Teaching Controls - Only show when teaching mode is active */}
             {teachingMode && teachingSteps.length > 0 && (
-              <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={playLesson}
                   disabled={isSpeaking}
-                  className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Start lesson"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Play lesson"
                 >
-                  ▶ Play
+                  ▶️ Play
                 </button>
 
                 <button
                   onClick={pauseLesson}
                   disabled={!isSpeaking}
-                  className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Pause lesson"
                 >
-                   Pause
+                  ⏸️ Pause
                 </button>
 
                 <button
                   onClick={previousStep}
                   disabled={currentTeachingStepIndex <= 0 || isSpeaking}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Previous step"
                 >
-                   Prev
+                  ⏮️ Previous
                 </button>
 
                 <button
@@ -1305,43 +1516,31 @@ const Whiteboard = ({
                     currentTeachingStepIndex >= teachingSteps.length - 1 ||
                     isSpeaking
                   }
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Next step"
                 >
-                   Next
+                  ⏭️ Next
                 </button>
 
-                <span className="text-sm text-slate-400">
+                <button
+                  onClick={stop}
+                  disabled={!isSpeaking}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Stop lesson"
+                >
+                  ⏹️ Stop
+                </button>
+
+                <span className="text-sm text-slate-400 ml-2">
                   Step {currentTeachingStepIndex + 1} / {teachingSteps.length}
                 </span>
               </div>
             )}
 
-            {/* Quiz button - show when lesson is completed and quiz data is available */}
-            {!isPlaying && quizData && (
-              <button
-                onClick={() => {
-                  if (onQuizDataReceived) {
-                    onQuizDataReceived(quizData, notesData);
-                  }
-                  onLessonComplete();
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                Start Quiz
-              </button>
-            )}
-
+            {/* Exit Button */}
             <button
-              onClick={onToggleFullscreen}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Maximize2 size={18} />
-              Full Screen
-            </button>
-            <button
-              onClick={onExit}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors mr-4"
+              onClick={handleExit}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
             >
               <X size={18} />
               Exit

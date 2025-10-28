@@ -224,7 +224,7 @@ async def health_check():
 async def list_conversations(user_id: str = Query(..., description="User ID")):
     """Get all conversations (lessons) for a user"""
     try:
-        logger.info(f"� Fetching conversations for user: {user_id}")
+        logger.info(f"[FETCH] Fetching conversations for user: {user_id}")
         
         if mongo.lesson_db is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
@@ -293,7 +293,7 @@ async def create_conversation(data: dict):
 async def delete_conversation(conversation_id: str):
     """Delete a conversation/teaching session"""
     try:
-        logger.info(f"� Deleting conversation: {conversation_id}")
+        logger.info(f"[DELETE] Deleting conversation: {conversation_id}")
         
         # Delete teaching session if exists
         deleted_session = False
@@ -321,7 +321,7 @@ async def delete_conversation(conversation_id: str):
 async def get_lesson_detail(lesson_id: str):
     """Get detailed lesson content"""
     try:
-        logger.info(f"� Fetching lesson: {lesson_id}")
+        logger.info(f"[FETCH] Fetching lesson: {lesson_id}")
         
         if mongo.lesson_db is None or not ObjectId.is_valid(lesson_id):
             raise HTTPException(status_code=404, detail="Lesson not found")
@@ -486,12 +486,12 @@ class ConnectionManager:
     async def connect(self, session_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active_connections[session_id] = websocket
-        logger.info(f"� WebSocket connected: {session_id}")
+        logger.info(f"[WS] WebSocket connected: {session_id}")
     
     def disconnect(self, session_id: str):
         if session_id in self.active_connections:
             del self.active_connections[session_id]
-            logger.info(f"� WebSocket disconnected: {session_id}")
+            logger.info(f"[WS] WebSocket disconnected: {session_id}")
     
     async def send_message(self, session_id: str, message: dict):
         if session_id in self.active_connections:
@@ -512,7 +512,7 @@ async def teaching_websocket(websocket: WebSocket, session_id: str):
             message_type = data.get('type', 'message')
             content = data.get('content', '')
             
-            logger.info(f"� Received {message_type}: {content[:50]}...")
+            logger.info(f"[MSG] Received {message_type}: {content[:50]}...")
             
             # Echo back for now (replace with actual AI teaching logic)
             response = {

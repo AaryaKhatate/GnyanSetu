@@ -587,6 +587,16 @@ const KonvaTeachingBoard = ({ scenes = [], onSceneComplete, autoPlay = true }) =
   }
 
   const currentScene = scenes[currentSceneIndex];
+  
+  // Safety check: if currentSceneIndex is out of bounds
+  if (!currentScene) {
+    console.warn('Current scene index out of bounds:', currentSceneIndex, 'of', scenes.length);
+    return (
+      <div style={{ width: '100%', height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
+        <p>Scene not found</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', position: 'relative' }}>

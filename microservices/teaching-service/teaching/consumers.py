@@ -3,6 +3,7 @@ import json
 import logging
 import asyncio
 import uuid
+import aiohttp
 from datetime import datetime, timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -57,9 +58,16 @@ class TeachingConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             
-            # DEBUG: Log exactly what we received
-            logger.info(f"Received WebSocket message: {text_data}")
-            logger.info(f"Parsed data: {data}")
+            # DEBUG: Log exactly what we received (safe encoding)
+            try:
+                logger.info(f"Received WebSocket message: {text_data[:500]}...")  # Truncate long messages
+            except UnicodeEncodeError:
+                logger.info(f"Received WebSocket message (contains special characters): {len(text_data)} chars")
+            
+            try:
+                logger.info(f"Parsed data keys: {list(data.keys())}")
+            except UnicodeEncodeError:
+                logger.info(f"Parsed data (contains special characters)")
             
             # Determine message type - handle different message formats
             message_type = data.get('type', 'unknown')
@@ -274,8 +282,11 @@ class TeachingConsumer(AsyncWebsocketConsumer):
             pdf_text = data.get('pdf_text', '')
             conversation_id = data.get('conversation_id', self.session_id)
             user_id = data.get('user_id', 'anonymous')
+            lesson_id = data.get('lesson_id', None)  # Check if lesson was already generated
             
             logger.info(f"Processing PDF document: {pdf_filename} for topic: {topic}")
+            if lesson_id:
+                logger.info(f"[LESSON] Lesson already exists with ID: {lesson_id}")
             
             # Validate PDF text
             if not pdf_text or pdf_text == 'undefined' or len(pdf_text.strip()) < 10:
@@ -296,10 +307,27 @@ class TeachingConsumer(AsyncWebsocketConsumer):
                 'text_content': pdf_text,
                 'conversation_id': conversation_id,
                 'user_id': user_id,
+                'lesson_id': lesson_id,
                 'uploaded_at': datetime.now(timezone.utc).isoformat()
             }
             
             logger.info(f"PDF stored in session: {pdf_filename}")
+            
+            # [CRITICAL FIX]: If lesson_id exists, fetch the existing lesson instead of regenerating
+            if lesson_id:
+                logger.info(f"[LESSON] Fetching existing lesson: {lesson_id}")
+                await self.send(text_data=json.dumps({
+                    'type': 'lesson_generation_started',
+                    'message': f"Loading lesson for '{pdf_filename}'...",
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }))
+                
+                lesson_json = await self.fetch_existing_lesson(lesson_id)
+                if lesson_json:
+                    await self.start_teaching_from_lesson(lesson_json, pdf_filename, topic)
+                    return
+                else:
+                    logger.warning(f"Failed to fetch lesson {lesson_id}, will generate new one")
             
             # Send to Lesson Service for JSON lesson generation
             await self.send(text_data=json.dumps({
@@ -330,7 +358,6 @@ class TeachingConsumer(AsyncWebsocketConsumer):
     
     async def call_lesson_service(self, pdf_text, filename, user_id):
         """Call Lesson Service to generate structured lesson JSON"""
-        import aiohttp
         import tempfile
         import os
         
@@ -373,14 +400,78 @@ class TeachingConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error calling Lesson Service: {str(e)}")
             return None
     
+    async def fetch_existing_lesson(self, lesson_id):
+        """Fetch an existing lesson from Lesson Service AND get visualization"""
+        
+        try:
+            lesson_service_url = f"http://localhost:8003/api/lessons/{lesson_id}/"
+            
+            logger.info(f"[FETCH] Fetching lesson from: {lesson_service_url}")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(lesson_service_url) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        logger.info(f"[SUCCESS] Successfully fetched lesson: {lesson_id}")
+                        
+                        # Transform to match the format expected by start_teaching_from_lesson
+                        if result.get('success') and result.get('lesson'):
+                            lesson = result['lesson']
+                            
+                            # 🎨 CRITICAL: Fetch visualization with teaching_sequence from Visualization Service
+                            logger.info(f"[VIZ] Fetching visualization for lesson: {lesson_id}")
+                            viz_url = f"http://localhost:8006/visualization/v2/{lesson_id}"
+                            
+                            try:
+                                async with session.get(viz_url) as viz_response:
+                                    if viz_response.status == 200:
+                                        viz_data = await viz_response.json()
+                                        logger.info(f"[VIZ] Got visualization with {len(viz_data.get('teaching_sequence', []))} steps")
+                                        
+                                        # Add teaching_sequence to lesson data
+                                        lesson['teaching_sequence'] = viz_data.get('teaching_sequence', [])
+                                        lesson['pdf_images'] = viz_data.get('images', [])
+                                    else:
+                                        logger.warning(f"[VIZ] Visualization service returned status: {viz_response.status}")
+                            except Exception as viz_error:
+                                logger.error(f"[VIZ] Failed to fetch visualization: {viz_error}")
+                                # Continue without visualization
+                            
+                            # FIXED: Return lesson object with teaching_sequence intact
+                            return {
+                                'success': True,
+                                'lesson_id': lesson_id,
+                                'lesson': lesson,  # Return entire lesson object with teaching_sequence
+                                'text': '',
+                                'filename': lesson.get('pdf_id', 'document.pdf')
+                            }
+                        else:
+                            logger.error(f" Invalid lesson format from service")
+                            return None
+                    else:
+                        logger.error(f"� Failed to fetch lesson: {response.status}")
+                        error_text = await response.text()
+                        logger.error(f"� Error response: {error_text}")
+                        return None
+                        
+        except Exception as e:
+            logger.error(f"� Error fetching existing lesson: {str(e)}")
+            return None
+    
     async def start_teaching_from_lesson(self, lesson_data, filename, topic):
         """Start teaching using lesson JSON from Lesson Service"""
         try:
+            logger.info(f"[TEACHING] === START TEACHING FROM LESSON ===")
+            logger.info(f"[TEACHING] Filename: {filename}")
+            logger.info(f"[TEACHING] Topic: {topic}")
+            
             # Extract lesson commands from the JSON response
             lesson_content = lesson_data.get('lesson', {})
+            logger.info(f"[TEACHING] Lesson content keys: {list(lesson_content.keys())}")
             
             # Convert lesson JSON to teaching commands
             teaching_commands = await self.convert_lesson_to_commands(lesson_content)
+            logger.info(f"[TEACHING] Converted to {len(teaching_commands)} teaching commands")
             
             # Store in session
             self.temp_sessions[self.session_id]['current_lesson'] = {
@@ -393,6 +484,7 @@ class TeachingConsumer(AsyncWebsocketConsumer):
             }
             
             # Send lesson ready notification
+            logger.info(f"[TEACHING] Sending lesson_ready notification with {len(teaching_commands)} commands")
             await self.send(text_data=json.dumps({
                 'type': 'lesson_ready',
                 'message': f"Interactive lesson ready for '{topic}'! Starting teaching...",
@@ -405,6 +497,7 @@ class TeachingConsumer(AsyncWebsocketConsumer):
                 'commands': teaching_commands,
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }))
+            logger.info(f"[TEACHING] lesson_ready notification sent successfully")
             
             # Auto-start teaching
             await asyncio.sleep(1)  # Brief pause
@@ -418,6 +511,31 @@ class TeachingConsumer(AsyncWebsocketConsumer):
         commands = []
         
         try:
+            logger.info(f"[CONVERT] Converting lesson to commands. Lesson keys: {list(lesson_content.keys())}")
+            
+            # 🔥 CRITICAL: Check if lesson has teaching_sequence with whiteboard_commands
+            teaching_sequence = lesson_content.get('teaching_sequence', [])
+            
+            if teaching_sequence and len(teaching_sequence) > 0:
+                logger.info(f"[CONVERT] Found teaching_sequence with {len(teaching_sequence)} steps")
+                
+                # Use the teaching_sequence directly - it already has whiteboard_commands!
+                for i, step in enumerate(teaching_sequence):
+                    commands.append({
+                        'type': 'teaching_step',
+                        'step': i + 1,
+                        'text': step.get('text_explanation', ''),
+                        'tts_text': step.get('tts_text', step.get('text_explanation', '')),
+                        'whiteboard_commands': step.get('whiteboard_commands', []),
+                        'duration': 10
+                    })
+                
+                logger.info(f"[CONVERT] Converted {len(commands)} teaching steps with whiteboard commands")
+                return commands
+            
+            # Fallback: Create basic commands from title/sections
+            logger.info(f"[CONVERT] No teaching_sequence found, creating basic commands from sections")
+            
             # Extract title and introduction
             title = lesson_content.get('title', 'Interactive Lesson')
             introduction = lesson_content.get('introduction', '')

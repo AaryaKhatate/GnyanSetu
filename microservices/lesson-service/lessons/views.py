@@ -40,7 +40,7 @@ def generate_quiz_and_notes_async(lesson_id, lesson_content, lesson_title):
         )
         
         # Generate notes data
-        print("� ASYNC: Generating notes...")
+        print(" ASYNC: Generating notes...")
         notes_data = lesson_generator.generate_notes_data(
             lesson_content=lesson_content,
             lesson_title=lesson_title

@@ -198,11 +198,20 @@ export const useTeachingWebSocket = () => {
         break;
         
       case 'lesson_ready':
-        console.log(' Lesson ready with commands:', data.commands);
+        console.log('📚 === LESSON READY MESSAGE RECEIVED ===');
+        console.log('📚 Full data:', data);
+        console.log('📚 Commands array:', data.commands);
+        console.log('📚 Commands count:', data.commands?.length);
+        console.log('📚 Lesson data:', data.lesson_data);
+        
         if (data.commands && Array.isArray(data.commands)) {
+          console.log('✅ Setting lesson commands:', data.commands.length, 'commands');
           setLessonCommands(data.commands);
           setCurrentStep(0);
+        } else {
+          console.error('❌ No commands in lesson_ready message!');
         }
+        
         setMessages(prev => [...prev, {
           type: 'teacher',
           message: data.message,
@@ -288,6 +297,10 @@ export const useTeachingWebSocket = () => {
       return;
     }
     
+    // 🔥 CRITICAL: Get lesson_id from sessionStorage to avoid regenerating lessons
+    const lessonId = sessionStorage.getItem("lessonId");
+    console.log('� Lesson ID from sessionStorage:', lessonId);
+    
     const message = {
       type: 'pdf_document',
       topic: pdfData.topic,
@@ -295,6 +308,7 @@ export const useTeachingWebSocket = () => {
       pdf_text: pdfText,
       conversation_id: pdfData.conversation_id,
       user_id: pdfData.user_id || 'anonymous',
+      lesson_id: lessonId || null,  // Include lesson_id if available
       timestamp: new Date().toISOString()
     };
     
@@ -303,6 +317,7 @@ export const useTeachingWebSocket = () => {
     console.log('� Topic:', message.topic);
     console.log('� Filename:', message.pdf_filename);
     console.log('� Text length:', message.pdf_text.length);
+    console.log('� Lesson ID:', message.lesson_id);
     console.log('� Full message:', message);
     
     try {

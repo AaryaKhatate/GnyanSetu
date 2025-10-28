@@ -276,23 +276,24 @@ Focus on educational value and how this image supports the lesson."""
             return "Educational Lesson"
     
     def _detect_subject_simple(self, title, content):
-        """Fast subject detection without AI call"""
+        """Fast subject detection without AI call - removed hardcoded rules to avoid misclassification"""
         title_lower = title.lower()
         content_lower = content[:500].lower()
         combined = title_lower + " " + content_lower
         
-        # Detect subject using keywords
-        if any(word in combined for word in ['photosynthesis', 'cell', 'dna', 'plant', 'chlorophyll', 'organ', 'biology', 'animal', 'protein', 'enzyme']):
+        # Check for explicit subject mentions first
+        if 'biology' in combined:
             return 'biology'
-        elif any(word in combined for word in ['circuit', 'resistor', 'voltage', 'current', 'ohm', 'physics', 'electric', 'force', 'energy', 'motion']):
+        elif 'physics' in combined:
             return 'physics'
-        elif any(word in combined for word in ['molecule', 'atom', 'chemical', 'reaction', 'chemistry', 'compound', 'element', 'bond']):
+        elif 'chemistry' in combined:
             return 'chemistry'
-        elif any(word in combined for word in ['algorithm', 'code', 'programming', 'computer', 'cpu', 'software', 'data structure']):
+        elif any(word in combined for word in ['algorithm', 'code', 'programming', 'computer', 'software', 'sdlc', 'development']):
             return 'computer_science'
-        elif any(word in combined for word in ['equation', 'graph', 'theorem', 'math', 'calculus', 'algebra', 'geometry']):
+        elif any(word in combined for word in ['mathematics', 'math', 'calculus', 'algebra', 'geometry']):
             return 'mathematics'
         else:
+            # Default to general - let AI handle specific categorization
             return 'general'
     
     def _analyze_topic_with_ai(self, title, content):
@@ -345,19 +346,19 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
             return self._get_fallback_analysis(title, content)
     
     def _get_fallback_analysis(self, title, content):
-        """Fallback analysis when AI fails"""
+        """Fallback analysis when AI fails - removed hardcoded keywords to avoid misclassification"""
         title_lower = title.lower()
         content_lower = content[:500].lower()
         combined = title_lower + " " + content_lower
         
-        # Detect subject
-        if any(word in combined for word in ['photosynthesis', 'cell', 'dna', 'plant', 'chlorophyll', 'organ', 'biology']):
+        # Detect subject - simplified to avoid false positives like "cycle" matching biology
+        if 'biology' in combined:
             subject = 'biology'
-        elif any(word in combined for word in ['circuit', 'resistor', 'voltage', 'current', 'ohm', 'physics', 'electric']):
+        elif 'physics' in combined:
             subject = 'physics'
-        elif any(word in combined for word in ['molecule', 'atom', 'chemical', 'reaction', 'chemistry']):
+        elif 'chemistry' in combined:
             subject = 'chemistry'
-        elif any(word in combined for word in ['algorithm', 'code', 'programming', 'computer', 'cpu']):
+        elif any(word in combined for word in ['algorithm', 'code', 'programming', 'computer', 'software', 'sdlc', 'development']):
             subject = 'computer_science'
         elif any(word in combined for word in ['equation', 'graph', 'theorem', 'math', 'calculus']):
             subject = 'mathematics'
@@ -663,14 +664,8 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
     def _try_generate_with_images(self, content, title, pdf_images=None, max_images=1, max_image_size=300):
         """Try to generate lesson with specified image constraints (or without images if none available)"""
         
-        # � SPEED OPTIMIZATION: Skip AI pre-analysis, let main prompt handle everything
-        # Use simple subject detection instead of extra AI call
-        subject_category = self._detect_subject_simple(title, content)
-        
-        logger.info(f" Subject detected: {subject_category} (fast detection)")
-        
-        # Get subject-specific guidelines (fallback if needed)
-        subject_guidelines = self._get_subject_specific_prompt_additions(subject_category)
+        # REMOVED SUBJECT DETECTION - Let AI handle topic analysis naturally
+        # No more hardcoded categorization to avoid misclassification
         
         # Build multimodal prompt - REQUIRE TOPIC-SPECIFIC VISUAL STORYTELLING
         prompt_parts = []
@@ -680,16 +675,20 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         
         prompt_parts.append(f""" CREATE EXTRAORDINARY WHITEBOARD-STYLE TEACHING VISUALIZATION
 
-� TOPIC: {title}
- SUBJECT CATEGORY: {subject_category.upper().replace('_', ' ')}
+📚 TOPIC: {title}
 
- YOUR MISSION: Create a VISUAL MASTERPIECE that teaches like the BEST teacher drawing on a whiteboard!
+🎯 YOUR MISSION: Create a VISUAL MASTERPIECE that teaches like the BEST teacher drawing on a whiteboard!
 
 Think of how a great teacher uses diagrams, arrows, labeled parts, and step-by-step drawings to make complex topics crystal clear.
 
-{subject_guidelines}
+ANALYZE THE TOPIC AND CHOOSE APPROPRIATE VISUALIZATIONS:
+- For biology: cells, DNA, organs, plants, processes
+- For computer science: flowcharts, system diagrams, SDLC phases
+- For physics: circuits, forces, motion diagrams
+- For chemistry: molecules, reactions, bonds
+- For any topic: diagrams, arrows, labels
 
-� USING IMAGES AND ICONS (CRITICAL - Use for complex shapes):
+🖼️ USING IMAGES AND ICONS (CRITICAL - Use for complex shapes):
 **For complex shapes that are hard to draw with basic shapes:**
 {{"type": "image", "src": "https://via.placeholder.com/200x200?text=Chlorophyll", "x": 960, "y": 540, "width": 200, "height": 200, "label": "Chlorophyll Structure"}}
 - Use image URLs for: chlorophyll molecule, transistor internals, DNA double helix, cell organelles, complex chemical structures
@@ -905,15 +904,9 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
         """Detect the topic category to generate appropriate visualizations"""
         combined = (title + " " + content[:500]).lower()
         
-        # Biology topics
-        if any(word in combined for word in ['photosynthe', 'plant', 'cell', 'biology', 'photon', 'chloro', 'oxygen', 'carbon dioxide']):
-            return 'photosynthesis'
-        if any(word in combined for word in ['dna', 'gene', 'chromosome', 'rna', 'protein', 'evolution']):
-            return 'biology'
-        if any(word in combined for word in ['heart', 'blood', 'circulatory', 'respiration', 'lung']):
-            return 'anatomy'
-            
-        # Computer Science topics
+        # Computer Science topics - check FIRST to avoid confusion with biology
+        if any(word in combined for word in ['sdlc', 'software development', 'development life cycle', 'agile', 'waterfall', 'deployment']):
+            return 'software_engineering'
         if any(word in combined for word in ['computer', 'laptop', 'cpu', 'ram', 'hardware', 'processor', 'motherboard']):
             return 'computer_hardware'
         if any(word in combined for word in ['algorithm', 'code', 'program', 'software', 'function', 'variable', 'python', 'java']):
@@ -922,6 +915,14 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
             return 'networking'
         if any(word in combined for word in ['database', 'sql', 'table', 'query', 'data structure', 'array']):
             return 'data'
+        
+        # Biology topics - use more specific keywords
+        if any(word in combined for word in ['photosynthesis', 'chlorophyll', 'chloroplast']):
+            return 'photosynthesis'
+        if any(word in combined for word in ['dna', 'gene', 'chromosome', 'rna', 'protein synthesis', 'evolution']):
+            return 'biology'
+        if any(word in combined for word in ['heart', 'blood', 'circulatory', 'respiration', 'lung']):
+            return 'anatomy'
             
         # Physics topics
         if any(word in combined for word in ['circuit', 'voltage', 'current', 'resistor', 'capacitor', 'electric', 'ohm']):
@@ -946,9 +947,8 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
     def _generate_fallback_visualization(self, title, pdf_images=None, content=""):
         """Generate INTELLIGENT, topic-specific visualization with educational diagrams"""
         
-        # Detect topic category
-        topic_category = self._detect_topic_category(title, content)
-        logger.info(f" Detected topic category: {topic_category} for '{title}'")
+        # REMOVED SUBJECT DETECTION - Let AI handle topic analysis naturally
+        logger.info(f" Generating fallback visualization for '{title}'")
         
         scenes = []
         

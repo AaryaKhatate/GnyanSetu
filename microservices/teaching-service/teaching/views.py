@@ -93,7 +93,7 @@ def get_user_lessons(request):
 def get_lesson_detail(request, lesson_id):
     """Get detailed lesson content for teaching"""
     try:
-        logger.info(f"� Fetching lesson detail for: {lesson_id}")
+        logger.info(f"[FETCH] Fetching lesson detail for: {lesson_id}")
         
         lesson = LessonService.get_lesson_by_id(lesson_id)
         
@@ -137,7 +137,7 @@ def create_conversation(request):
         title = data.get('title', 'New Teaching Session')
         lesson_id = data.get('lesson_id', None)
         
-        logger.info(f"� Creating new teaching session for user: {user_id}, title: {title}")
+        logger.info(f"[CREATE] Creating new teaching session for user: {user_id}, title: {title}")
         
         # If lesson_id is provided, get lesson content
         lesson_content = {}
@@ -219,7 +219,7 @@ def delete_conversation(request, conversation_id):
 def get_user_profile(request, user_id):
     """Get user profile data for the Dashboard top-right corner"""
     try:
-        logger.info(f"� Fetching user profile for: {user_id}")
+        logger.info(f"[FETCH] Fetching user profile for: {user_id}")
         
         user_profile = UserService.get_user_profile(user_id)
         
