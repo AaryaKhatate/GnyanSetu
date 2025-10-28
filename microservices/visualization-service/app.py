@@ -11,6 +11,17 @@ Ensures perfect coordinate management, no overlaps, and audio-visual sync
 Port: 8006
 """
 
+import sys
+import os
+
+# Force UTF-8 encoding for Windows console - MUST BE BEFORE ANY OTHER IMPORTS
+if sys.platform == 'win32':
+    import io
+    if hasattr(sys.stdout, 'buffer'):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    if hasattr(sys.stderr, 'buffer'):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
@@ -18,7 +29,6 @@ from typing import List, Dict, Optional, Any, Literal, TYPE_CHECKING
 from enum import Enum
 import json
 import logging
-import os
 import re
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -43,7 +53,7 @@ PORT = 8006
 # Use the SAME API key as lesson service
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    logger.error(" GEMINI_API_KEY environment variable is not set!")
+    logger.error("❌ GEMINI_API_KEY environment variable is not set!")
     logger.error("Please set GEMINI_API_KEY in your .env file or environment variables")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -719,28 +729,143 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
         return generate_fallback_visualization_v2(topic)
 
 def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
-    """Fallback visualization when AI generation fails"""
-    logger.info(f"🔄 Using fallback visualization for: {topic}")
+    """Enhanced fallback visualization when AI generation fails"""
+    logger.info(f"🔄 Using enhanced fallback visualization for: {topic}")
+    
+    # Create a comprehensive 6-step lesson structure
     return {
         "teaching_sequence": [
             {
                 "type": "explanation_start",
-                "text_explanation": f"Welcome to the lesson on {topic}!",
-                "tts_text": f"Welcome! Let's begin learning about {topic}.",
+                "text_explanation": f"Welcome to the interactive lesson on {topic}!",
+                "tts_text": f"Welcome! Today we'll explore {topic} with visual explanations and interactive elements.",
                 "whiteboard_commands": [
                     {"action": "clear_all"},
-                    {"action": "write_text", "text": topic, "x_percent": 50, "y_percent": 40, "font_size": 48, "color": "#1e40af", "align": "center"},
-                    {"action": "write_text", "text": "Interactive Lesson", "x_percent": 50, "y_percent": 55, "font_size": 24, "color": "#6b7280", "align": "center"}
+                    # Title
+                    {"action": "write_text", "text": topic, "x_percent": 50, "y_percent": 15, "font_size": 56, "color": "#1e40af", "align": "center"},
+                    # Subtitle
+                    {"action": "write_text", "text": "Interactive Learning Experience", "x_percent": 50, "y_percent": 25, "font_size": 28, "color": "#6b7280", "align": "center"},
+                    # Decorative elements
+                    {"action": "draw_rectangle", "x_percent": 50, "y_percent": 20, "width_percent": 60, "height": 3, "fill": "#3b82f6", "stroke": "#3b82f6"},
+                    # Main content box
+                    {"action": "draw_text_box", "text": "Let's Begin!", "x_percent": 50, "y_percent": 50, "width_percent": 50, "height": 80, "color": "#dbeafe", "stroke": "#3b82f6"},
+                    # Icon indicators
+                    {"action": "draw_circle", "x_percent": 20, "y_percent": 70, "radius": 40, "fill": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "write_text", "text": "Learn", "x_percent": 20, "y_percent": 70, "font_size": 18, "color": "#92400e", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 70, "radius": 40, "fill": "#dbeafe", "stroke": "#3b82f6"},
+                    {"action": "write_text", "text": "Explore", "x_percent": 50, "y_percent": 70, "font_size": 18, "color": "#1e40af", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 80, "y_percent": 70, "radius": 40, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "Practice", "x_percent": 80, "y_percent": 70, "font_size": 18, "color": "#065f46", "align": "center"}
                 ]
             },
             {
                 "type": "explanation_step",
-                "text_explanation": "Let's explore this topic together with visual aids and explanations.",
-                "tts_text": "Let's explore this topic together. Pay attention to the visual explanations.",
+                "text_explanation": f"Introduction to {topic}: Understanding the fundamentals and core concepts.",
+                "tts_text": f"Let's start by understanding what {topic} is all about and why it's important.",
                 "whiteboard_commands": [
                     {"action": "clear_all"},
-                    {"action": "write_text", "text": "Key Concepts", "x_percent": 50, "y_percent": 30, "font_size": 36, "color": "#1e40af", "align": "center"},
-                    {"action": "draw_circle", "x_percent": 50, "y_percent": 60, "radius": 80, "fill": "#dbeafe", "stroke": "#3b82f6"}
+                    # Section title
+                    {"action": "write_text", "text": "What is it?", "x_percent": 50, "y_percent": 12, "font_size": 42, "color": "#1e40af", "align": "center"},
+                    # Main definition box
+                    {"action": "draw_text_box", "text": "Core Concept", "x_percent": 50, "y_percent": 35, "width_percent": 70, "height": 120, "color": "#eff6ff", "stroke": "#3b82f6"},
+                    # Key points
+                    {"action": "draw_circle", "x_percent": 15, "y_percent": 60, "radius": 8, "fill": "#3b82f6", "stroke": "#3b82f6"},
+                    {"action": "write_text", "text": "Fundamental Principles", "x_percent": 20, "y_percent": 60, "font_size": 22, "color": "#1f2937"},
+                    {"action": "draw_circle", "x_percent": 15, "y_percent": 70, "radius": 8, "fill": "#3b82f6", "stroke": "#3b82f6"},
+                    {"action": "write_text", "text": "Key Components", "x_percent": 20, "y_percent": 70, "font_size": 22, "color": "#1f2937"},
+                    {"action": "draw_circle", "x_percent": 15, "y_percent": 80, "radius": 8, "fill": "#3b82f6", "stroke": "#3b82f6"},
+                    {"action": "write_text", "text": "Practical Applications", "x_percent": 20, "y_percent": 80, "font_size": 22, "color": "#1f2937"}
+                ]
+            },
+            {
+                "type": "explanation_step",
+                "text_explanation": f"Key components and important elements of {topic}.",
+                "tts_text": "Now let's examine the key components and how they work together.",
+                "whiteboard_commands": [
+                    {"action": "clear_all"},
+                    {"action": "write_text", "text": "Key Components", "x_percent": 50, "y_percent": 12, "font_size": 42, "color": "#7c3aed", "align": "center"},
+                    # Component boxes
+                    {"action": "draw_text_box", "text": "Component 1", "x_percent": 25, "y_percent": 40, "width_percent": 30, "height": 100, "color": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "draw_text_box", "text": "Component 2", "x_percent": 75, "y_percent": 40, "width_percent": 30, "height": 100, "color": "#dbeafe", "stroke": "#3b82f6"},
+                    # Connection arrow
+                    {"action": "draw_arrow", "from_percent": [40, 40], "to_percent": [60, 40], "color": "#6b7280", "thickness": 3},
+                    # Result box
+                    {"action": "draw_text_box", "text": "Result", "x_percent": 50, "y_percent": 70, "width_percent": 40, "height": 90, "color": "#d1fae5", "stroke": "#10b981"}
+                ]
+            },
+            {
+                "type": "explanation_step",
+                "text_explanation": f"How {topic} works: Step-by-step process and mechanisms.",
+                "tts_text": "Let's break down the process into simple, easy-to-understand steps.",
+                "whiteboard_commands": [
+                    {"action": "clear_all"},
+                    {"action": "write_text", "text": "The Process", "x_percent": 50, "y_percent": 12, "font_size": 42, "color": "#059669", "align": "center"},
+                    # Step 1
+                    {"action": "draw_circle", "x_percent": 20, "y_percent": 35, "radius": 35, "fill": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "write_text", "text": "1", "x_percent": 20, "y_percent": 35, "font_size": 32, "color": "#92400e", "align": "center"},
+                    {"action": "write_text", "text": "Step One", "x_percent": 20, "y_percent": 50, "font_size": 20, "color": "#1f2937", "align": "center"},
+                    # Arrow 1
+                    {"action": "draw_arrow", "from_percent": [28, 35], "to_percent": [42, 35], "color": "#6b7280", "thickness": 2},
+                    # Step 2
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 35, "radius": 35, "fill": "#dbeafe", "stroke": "#3b82f6"},
+                    {"action": "write_text", "text": "2", "x_percent": 50, "y_percent": 35, "font_size": 32, "color": "#1e40af", "align": "center"},
+                    {"action": "write_text", "text": "Step Two", "x_percent": 50, "y_percent": 50, "font_size": 20, "color": "#1f2937", "align": "center"},
+                    # Arrow 2
+                    {"action": "draw_arrow", "from_percent": [58, 35], "to_percent": [72, 35], "color": "#6b7280", "thickness": 2},
+                    # Step 3
+                    {"action": "draw_circle", "x_percent": 80, "y_percent": 35, "radius": 35, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "3", "x_percent": 80, "y_percent": 35, "font_size": 32, "color": "#065f46", "align": "center"},
+                    {"action": "write_text", "text": "Step Three", "x_percent": 80, "y_percent": 50, "font_size": 20, "color": "#1f2937", "align": "center"},
+                    # Summary box
+                    {"action": "draw_text_box", "text": "Process Overview", "x_percent": 50, "y_percent": 75, "width_percent": 70, "height": 80, "color": "#f3f4f6", "stroke": "#6b7280"}
+                ]
+            },
+            {
+                "type": "explanation_step",
+                "text_explanation": f"Practical applications and real-world examples of {topic}.",
+                "tts_text": "Let's see how this applies to real-world situations and practical examples.",
+                "whiteboard_commands": [
+                    {"action": "clear_all"},
+                    {"action": "write_text", "text": "Real-World Applications", "x_percent": 50, "y_percent": 12, "font_size": 42, "color": "#dc2626", "align": "center"},
+                    # Example 1
+                    {"action": "draw_text_box", "text": "Example 1", "x_percent": 30, "y_percent": 35, "width_percent": 35, "height": 90, "color": "#fef2f2", "stroke": "#dc2626"},
+                    {"action": "draw_circle", "x_percent": 30, "y_percent": 30, "radius": 12, "fill": "#dc2626", "stroke": "#dc2626"},
+                    # Example 2
+                    {"action": "draw_text_box", "text": "Example 2", "x_percent": 70, "y_percent": 35, "width_percent": 35, "height": 90, "color": "#eff6ff", "stroke": "#3b82f6"},
+                    {"action": "draw_circle", "x_percent": 70, "y_percent": 30, "radius": 12, "fill": "#3b82f6", "stroke": "#3b82f6"},
+                    # Use cases
+                    {"action": "draw_text_box", "text": "Common Use Cases", "x_percent": 50, "y_percent": 65, "width_percent": 70, "height": 100, "color": "#fef3c7", "stroke": "#f59e0b"},
+                    # Benefit indicators
+                    {"action": "draw_circle", "x_percent": 20, "y_percent": 85, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "✓", "x_percent": 20, "y_percent": 85, "font_size": 28, "color": "#065f46", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 85, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "✓", "x_percent": 50, "y_percent": 85, "font_size": 28, "color": "#065f46", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 80, "y_percent": 85, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "✓", "x_percent": 80, "y_percent": 85, "font_size": 28, "color": "#065f46", "align": "center"}
+                ]
+            },
+            {
+                "type": "explanation_end",
+                "text_explanation": f"Summary and key takeaways about {topic}. You've completed this lesson!",
+                "tts_text": "Great job! Let's recap what we've learned and highlight the key takeaways.",
+                "whiteboard_commands": [
+                    {"action": "clear_all"},
+                    {"action": "write_text", "text": "Summary & Key Takeaways", "x_percent": 50, "y_percent": 10, "font_size": 44, "color": "#7c3aed", "align": "center"},
+                    # Trophy/completion icon
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 30, "radius": 50, "fill": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "write_text", "text": "★", "x_percent": 50, "y_percent": 30, "font_size": 48, "color": "#f59e0b", "align": "center"},
+                    # Key points boxes
+                    {"action": "draw_text_box", "text": "Key Point 1", "x_percent": 25, "y_percent": 55, "width_percent": 30, "height": 70, "color": "#dbeafe", "stroke": "#3b82f6"},
+                    {"action": "draw_text_box", "text": "Key Point 2", "x_percent": 50, "y_percent": 55, "width_percent": 30, "height": 70, "color": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "draw_text_box", "text": "Key Point 3", "x_percent": 75, "y_percent": 55, "width_percent": 30, "height": 70, "color": "#d1fae5", "stroke": "#10b981"},
+                    # Completion message
+                    {"action": "draw_text_box", "text": "Lesson Complete! 🎉", "x_percent": 50, "y_percent": 80, "width_percent": 60, "height": 80, "color": "#ede9fe", "stroke": "#7c3aed"},
+                    # Progress indicators
+                    {"action": "draw_circle", "x_percent": 30, "y_percent": 92, "radius": 8, "fill": "#10b981", "stroke": "#10b981"},
+                    {"action": "draw_circle", "x_percent": 40, "y_percent": 92, "radius": 8, "fill": "#10b981", "stroke": "#10b981"},
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 92, "radius": 8, "fill": "#10b981", "stroke": "#10b981"},
+                    {"action": "draw_circle", "x_percent": 60, "y_percent": 92, "radius": 8, "fill": "#10b981", "stroke": "#10b981"},
+                    {"action": "draw_circle", "x_percent": 70, "y_percent": 92, "radius": 8, "fill": "#10b981", "stroke": "#10b981"}
                 ]
             }
         ],

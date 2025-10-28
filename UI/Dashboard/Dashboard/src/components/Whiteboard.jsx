@@ -186,14 +186,22 @@ const Whiteboard = ({
               // Handle different command types
               switch (cmd.action) {
                 case 'write_text':
+                  // For center-aligned text, we need to offset x position
+                  let textX = x;
+                  if (cmd.align === 'center') {
+                    // Don't change x for center align - Konva handles it with align property
+                    textX = x;
+                  }
+                  
                   return {
                     type: 'text',
-                    x: cmd.align === 'center' ? x : x,
+                    x: textX,
                     y: y,
                     text: cmd.text || '',
                     fontSize: cmd.font_size || 24,
                     fill: cmd.color || '#000000',
-                    align: cmd.align || 'left'
+                    align: cmd.align || 'left',
+                    width: cmd.align === 'center' ? CANVAS_WIDTH : undefined // Full width for center alignment
                   };
                   
                 case 'draw_text_box':
@@ -389,14 +397,22 @@ const Whiteboard = ({
                 
                 switch (cmd.action) {
                   case 'write_text':
+                    // For center-aligned text, we need to offset x position
+                    let textX = x;
+                    if (cmd.align === 'center') {
+                      // Don't change x for center align - Konva handles it with align property
+                      textX = x;
+                    }
+                    
                     return {
                       type: 'text',
-                      x: cmd.align === 'center' ? x : x,
+                      x: textX,
                       y: y,
                       text: cmd.text || '',
                       fontSize: cmd.font_size || 24,
                       fill: cmd.color || '#000000',
-                      align: cmd.align || 'left'
+                      align: cmd.align || 'left',
+                      width: cmd.align === 'center' ? CANVAS_WIDTH : undefined // Full width for center alignment
                     };
                   
                   case 'draw_text_box':

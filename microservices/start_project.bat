@@ -1,5 +1,10 @@
 @echo off
 chcp 65001 >nul
+
+REM Set Python to use UTF-8 encoding
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
+
 echo.
 echo ========================================
 echo  GnyanSetu Microservices Architecture

@@ -455,18 +455,23 @@ const KonvaTeachingBoard = ({ scenes = [], onSceneComplete, autoPlay = true }) =
         return <Arrow key={shapeKey} {...arrowProps} />;
 
       case 'text':
-        return (
-          <Text
-            key={shapeKey}
-            {...commonProps}
-            text={shape.text || shape.label || ''}
-            fontSize={shape.fontSize || 16}
-            fontFamily={shape.fontFamily || 'Arial'}
-            fill={shape.fill || '#000000'}
-            align={shape.align || 'left'}
-            verticalAlign={shape.verticalAlign || 'top'}
-          />
-        );
+        const textProps = {
+          key: shapeKey,
+          ...commonProps,
+          text: shape.text || shape.label || '',
+          fontSize: shape.fontSize || 16,
+          fontFamily: shape.fontFamily || 'Arial',
+          fill: shape.fill || '#000000',
+          align: shape.align || 'left',
+          verticalAlign: shape.verticalAlign || 'top'
+        };
+        
+        // Add width for center-aligned text to allow proper centering
+        if (shape.width) {
+          textProps.width = shape.width;
+        }
+        
+        return <Text {...textProps} />;
 
       case 'image':
         // Enhanced image loading with fallback and error handling

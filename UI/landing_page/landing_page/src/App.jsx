@@ -403,8 +403,7 @@ const Hero = ({ onPrimary }) => (
             Experience the future of education with cutting-edge technology.
           </p>
           <div className="mt-8 text-slate-300 text-lg max-w-2xl">
-             AI-Powered Learning •  Personalized Experience • 
-            Collaborative Tools
+            🤖 AI-Powered Learning • ✨ Personalized Experience • 🤝 Collaborative Tools
           </div>
           <div className="mt-10 flex flex-wrap gap-6">
             <button
@@ -452,31 +451,40 @@ const About = () => (
         to test your understanding— all in one place.
       </p>
       <div className="mt-10 grid md:grid-cols-3 gap-8 text-center">
-        <div className="p-6">
-          <div className="text-4xl mb-3">�</div>
-          <h3 className="text-xl font-bold text-white mb-3">
-            Innovation First
-          </h3>
-          <p className="text-slate-300 text-lg">
-            Cutting-edge AI technology that adapts to your learning style
-          </p>
+        <div className="group relative p-6 rounded-2xl border border-slate-800 bg-slate-900/50 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-accentBlue/10">
+          <div className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-accentBlue/20 to-accentPurple/20 blur"></div>
+          <div className="relative">
+            <div className="text-4xl mb-3">💡</div>
+            <h3 className="text-xl font-bold text-white mb-3">
+              Innovation First
+            </h3>
+            <p className="text-slate-300 text-lg">
+              Cutting-edge AI technology that adapts to your learning style
+            </p>
+          </div>
         </div>
-        <div className="p-6">
-          <div className="text-4xl mb-3"></div>
-          <h3 className="text-xl font-bold text-white mb-3">
-            Academic Excellence
-          </h3>
-          <p className="text-slate-300 text-lg">
-            Designed by educators for students, ensuring quality learning
-            outcomes
-          </p>
+        <div className="group relative p-6 rounded-2xl border border-slate-800 bg-slate-900/50 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-accentBlue/10">
+          <div className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-accentBlue/20 to-accentPurple/20 blur"></div>
+          <div className="relative">
+            <div className="text-4xl mb-3">🎓</div>
+            <h3 className="text-xl font-bold text-white mb-3">
+              Academic Excellence
+            </h3>
+            <p className="text-slate-300 text-lg">
+              Designed by educators for students, ensuring quality learning
+              outcomes
+            </p>
+          </div>
         </div>
-        <div className="p-6">
-          <div className="text-4xl mb-3"></div>
-          <h3 className="text-xl font-bold text-white mb-3">Global Access</h3>
-          <p className="text-slate-300 text-lg">
-            Break down language barriers and make education accessible to all
-          </p>
+        <div className="group relative p-6 rounded-2xl border border-slate-800 bg-slate-900/50 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-accentBlue/10">
+          <div className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-accentBlue/20 to-accentPurple/20 blur"></div>
+          <div className="relative">
+            <div className="text-4xl mb-3">🌍</div>
+            <h3 className="text-xl font-bold text-white mb-3">Global Access</h3>
+            <p className="text-slate-300 text-lg">
+              Break down language barriers and make education accessible to all
+            </p>
+          </div>
         </div>
       </div>
     </div>
