@@ -1,10 +1,6 @@
-﻿# � GnyanSetu – AI-Powered Interactive Learning Platform
+﻿# 📚 GnyanSetu – AI-Powered Interactive Learning Platform
 
 <div align="center">
-
-<img src="./virtual_teacher_project/GnyanSetu.png" alt="GnyanSetu Logo" width="200"/>
-
-<br/><br/>
 
 ![GnyanSetu Badge](https://img.shields.io/badge/GnyanSetu-AI%20Learning-blue?style=for-the-badge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
@@ -21,24 +17,24 @@
 
 ---
 
-##  Overview
+## 📖 Overview
 
 **GnyanSetu** (Bridge to Knowledge) is an advanced AI-powered learning platform that revolutionizes education by converting static study materials into interactive, personalized learning experiences. The platform combines cutting-edge AI technology with real-time visualization and adaptive learning mechanisms.
 
 ### What Makes GnyanSetu Different?
 
--  **Interactive AI Teaching** - Not just content, but a virtual teacher that explains step-by-step
--  **Visual Learning** - Dynamic whiteboard with animations, diagrams, and real-time drawing
--  **Smart Assessment** - AI-generated quizzes that adapt to your learning pace
-- � **Intelligent Notes** - Auto-generated, organized notes with key concepts highlighted
-- � **Real-time Interaction** - WebSocket-powered live learning experience
-- � **Progress Tracking** - Comprehensive analytics to monitor learning journey
+- 🎓 **Interactive AI Teaching** - Not just content, but a virtual teacher that explains step-by-step
+- 🎨 **Visual Learning** - Dynamic whiteboard with animations, diagrams, and real-time drawing
+- 📝 **Smart Assessment** - AI-generated quizzes that adapt to your learning pace
+- 📓 **Intelligent Notes** - Auto-generated, organized notes with key concepts highlighted
+- ⚡ **Real-time Interaction** - WebSocket-powered live learning experience
+- 📊 **Progress Tracking** - Comprehensive analytics to monitor learning journey
 
 ---
 
-##  Features
+## ✨ Features
 
-###  Core Learning Features
+### 🎯 Core Learning Features
 
 #### 1. **PDF Upload & Processing**
 - Drag-and-drop interface for easy file upload
@@ -63,55 +59,37 @@
 - Fullscreen mode for immersive learning
 - Export whiteboard content as images
 
-#### 4. **AI-Generated Quizzes** � *(In Development)*
-- **Automatic Question Generation** from lesson content
-- Multiple question types:
-  - Multiple Choice Questions (MCQs)
-  - True/False statements
-  - Fill in the blanks
-  - Short answer questions
-  - Match the following
-- **Instant Feedback** with detailed explanations
-- **Difficulty Adaptation** based on performance
-- **Score Tracking** and performance analytics
-- **Time-bound quizzes** with progress indicators
-- **Question bank** management for review
+#### 4. **AI-Generated Quizzes**
+- Automatic question generation from lesson content
+- Multiple question types (MCQ, True/False, Fill blanks, Short answer)
+- Instant feedback with explanations
+- Score tracking and analytics
+- Adaptive difficulty system
 
-#### 5. **Smart Notes System** � *(In Development)*
-- **AI-Generated Summaries** of lessons
-- **Key Points Extraction** with importance ranking
-- **Concept Mapping** and relationship visualization
-- **Downloadable PDF** with formatted content
-- **Searchable Database** of all notes
-- **Highlighting and Annotations** support
-- **Version Control** for note updates
-- **Collaborative Notes** sharing (planned)
-- **Mind Map Generation** from topics
+#### 5. **Smart Notes System**
+- AI-generated summaries of lessons
+- Key points extraction
+- Downloadable PDF with formatting
+- Searchable note database
+- Highlighting and annotations support
 
-### � User Management & Authentication
+#### 6. **User Management**
+- Google OAuth 2.0 integration
+- Email/password authentication with JWT
+- User profiles and dashboards
+- Learning history tracking
 
-- **Google OAuth 2.0** - One-click sign-in
-- **Traditional Auth** - Email/password with JWT tokens
-- **Secure Sessions** - Token-based authentication
-- **User Profiles** - Personalized dashboards
-- **Progress Tracking** - Individual learning history
-- **Multi-device Sync** - Learn anywhere, anytime
-
-### � Technical Features
-
-- **Microservices Architecture** - Scalable and maintainable
-- **API Gateway** - Centralized routing (Port 8000)
-- **WebSocket Support** - Real-time bidirectional communication
-- **MongoDB Integration** - Flexible document storage
-- **RESTful APIs** - Standard API design
-- **CORS Enabled** - Cross-origin resource sharing
-- **Error Handling** - Comprehensive error management
-- **Logging System** - Detailed application logs
-- **Load Balancing** - Distributed request handling
+#### 7. **Technical Features**
+- Microservices architecture
+- API Gateway (Port 8000)
+- WebSocket real-time communication
+- MongoDB database
+- RESTful APIs
+- Comprehensive logging
 
 ---
 
-## � Tech Stack
+## 🛠️ Tech Stack
 
 ### Backend Services
 
@@ -164,7 +142,7 @@
 
 ---
 
-## � Project Architecture
+## 🏗️ Project Architecture
 
 ### Directory Structure
 
@@ -348,7 +326,7 @@ GnyanSetu/
 
 ---
 
-## � Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -373,12 +351,12 @@ start_project.bat
 ```
 
 This will automatically:
--  Install all Python dependencies
--  Install all Node.js dependencies  
--  Start MongoDB
--  Start all microservices (Ports 8000-8004)
--  Start React applications (Ports 3000, 3001)
--  Open browser to landing page
+- ✅ Install all Python dependencies
+- ✅ Install all Node.js dependencies  
+- ✅ Start MongoDB
+- ✅ Start all microservices (Ports 8000-8004)
+- ✅ Start React applications (Ports 3000, 3001)
+- ✅ Open browser to landing page
 
 ### Manual Setup
 
@@ -473,13 +451,13 @@ PORT=3001 npm start          # Linux/Mac
 
 #### Step 6: Access Application
 
--  **Landing Page**: http://localhost:3000
-- � **Dashboard**: http://localhost:3001  
-- � **API Gateway**: http://localhost:8000/health
+- 🌐 **Landing Page**: http://localhost:3000
+- 📊 **Dashboard**: http://localhost:3001  
+- 🔧 **API Gateway**: http://localhost:8000/health
 
 ---
 
-## � API Documentation
+## 📡 API Documentation
 
 ### Authentication Endpoints
 
@@ -597,160 +575,98 @@ PORT=3001 npm start          # Linux/Mac
 
 ---
 
-##  Roadmap
+## 🗺️ Roadmap
 
-###  Phase 1: Core Platform (Completed)
+### ✅ Phase 1: Core Platform (Completed)
 - [x] Microservices architecture
 - [x] PDF upload and processing
-- [x] AI lesson generation with Gemini
+- [x] AI lesson generation (Gemini 2.0)
 - [x] Real-time whiteboard with WebSocket
 - [x] User authentication (Google OAuth + JWT)
 - [x] Interactive teaching canvas
-- [x] Landing page and dashboard
+- [x] Visualization service with percentage-based coordinates
 
-### � Phase 2: Quiz System (In Progress)
-- [ ] AI-powered quiz generation from lessons
-- [ ] Multiple question type support
-- [ ] Instant feedback mechanism
-- [ ] Score tracking and analytics
-- [ ] Adaptive difficulty system
-- [ ] Question bank management
-- [ ] Quiz review with explanations
-- [ ] Performance insights dashboard
+### 🚧 Phase 2: Enhancement (Current)
+- [ ] Quiz system improvements
+- [ ] Notes generation enhancements
+- [ ] Performance optimization
+- [ ] Mobile responsiveness
 
-### � Phase 3: Notes System (Planned - Q1 2026)
-- [ ] AI-generated summary notes
-- [ ] Key points extraction
-- [ ] Concept mapping visualization
-- [ ] PDF export with formatting
-- [ ] Markdown export support
-- [ ] Search functionality
-- [ ] Note annotations and highlights
-- [ ] Version control for notes
-- [ ] Collaborative notes sharing
-
-### � Phase 4: Advanced Features (Q2 2026)
-- [ ] Mobile application (React Native)
-- [ ] Offline mode support
+### 📅 Phase 3: Advanced Features (2026)
+- [ ] Mobile application
 - [ ] Video integration
-- [ ] Voice commands for navigation
-- [ ] Advanced analytics dashboard
-- [ ] Gamification elements
-- [ ] Leaderboards and achievements
-- [ ] Discussion forums
-- [ ] Study groups and collaboration
+- [ ] Advanced analytics
 - [ ] Multi-language support
-- [ ] Custom lesson templates
-- [ ] Admin dashboard
+- [ ] Gamification
 
-###  Phase 5: Scale & Performance (Q3 2026)
+### 🔧 Phase 4: Scale & Deploy
 - [ ] Docker containerization
-- [ ] Kubernetes orchestration
-- [ ] CDN integration
-- [ ] Database optimization
-- [ ] Caching layer enhancement
-- [ ] Load testing and optimization
+- [ ] Cloud deployment
+- [ ] Performance optimization
 - [ ] Security audits
-- [ ] GDPR compliance
-- [ ] Accessibility improvements (WCAG 2.1)
 
 ---
 
-##  Contributing
+## 🤝 Contributing
 
-We welcome contributions from the community! Here's how you can help:
+We welcome contributions! Here's how:
 
-### Getting Started
+1. Fork the repository
+2. Create a branch: `git checkout -b feature/YourFeature`
+3. Make your changes
+4. Commit: `git commit -m 'Add YourFeature'`
+5. Push: `git push origin feature/YourFeature`
+6. Open a Pull Request
 
-1. **Fork the repository**
-2. **Clone your fork**: `git clone https://github.com/YOUR_USERNAME/GnyanSetu.git`
-3. **Create a branch**: `git checkout -b feature/AmazingFeature`
-4. **Make your changes**
-5. **Commit**: `git commit -m 'Add some AmazingFeature'`
-6. **Push**: `git push origin feature/AmazingFeature`
-7. **Open a Pull Request**
+### Guidelines
 
-### Development Guidelines
-
-- Follow **PEP 8** for Python code
-- Use **ESLint** for JavaScript/React code
-- Write **meaningful commit messages**
-- Add **tests** for new features
-- Update **documentation**
-- Keep **code DRY** (Don't Repeat Yourself)
-
-### Code Review Process
-
-1. All submissions require review
-2. Changes must pass CI/CD checks
-3. Maintain test coverage above 80%
-4. Follow existing code patterns
+- Follow PEP 8 for Python
+- Use ESLint for JavaScript
+- Write meaningful commit messages
+- Add tests for new features
+- Update documentation
 
 ---
 
-## � License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## � Team
+## 👥 Contributors
 
-### Core Contributors
-
-- **Aarya Khatate** - Project Lead & Full Stack Developer
-  - GitHub: [@AaryaKhatate](https://github.com/AaryaKhatate)
-  - Email: aryakhatate@gmail.com
-
-- **Vinay Gone** - Backend Developer
-  - GitHub: [@VinayGone2006](https://github.com/VinayGone2006)
-
-- **Yashraj Patil** - Frontend Developer
-  - GitHub: [@Yashrajpatil22](https://github.com/Yashrajpatil22)
-
-### Contributors
-
-See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of contributors.
+- **Aarya Khatate** - [@AaryaKhatate](https://github.com/AaryaKhatate)
+- **Vinay Gone** - [@VinayGone2006](https://github.com/VinayGone2006)
+- **Yashraj Patil** - [@Yashrajpatil22](https://github.com/Yashrajpatil22)
 
 ---
 
-## � Contact & Support
+## 📧 Contact & Support
 
 - **Email**: aryakhatate@gmail.com
-- **GitHub Issues**: [Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues)
-- **Feature Requests**: [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement)
-- **Discussions**: [GitHub Discussions](https://github.com/AaryaKhatate/GnyanSetu/discussions)
+- **Issues**: [Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues)
+- **Features**: [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement)
 
 ---
 
-## � Acknowledgments
+## 🙏 Acknowledgments
 
-- **Google Gemini AI** - Advanced language model for content generation
-- **OpenAI** - GPT models and research
-- **MongoDB** - Flexible database solutions
-- **React Community** - UI framework and ecosystem
-- **Django Community** - Web framework and tools
-- **All Contributors** - Thank you for your support!
-
----
-
-## � Project Stats
-
-![GitHub stars](https://img.shields.io/github/stars/AaryaKhatate/GnyanSetu?style=social)
-![GitHub forks](https://img.shields.io/github/forks/AaryaKhatate/GnyanSetu?style=social)
-![GitHub issues](https://img.shields.io/github/issues/AaryaKhatate/GnyanSetu)
-![GitHub pull requests](https://img.shields.io/github/issues-pr/AaryaKhatate/GnyanSetu)
+- Google Gemini AI for language models
+- MongoDB for database solutions
+- React and Django communities
+- All contributors and supporters
 
 ---
 
 <div align="center">
 
-**Made with  for Education**
+**Made with ❤️ for Education**
 
 **GnyanSetu** - Building Bridges to Knowledge
 
- Star this repository if you find it helpful!
+⭐ Star this repository if you find it helpful!
 
-[Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues) • [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement) • [Contribute](CONTRIBUTING.md)
+[Report Bug](https://github.com/AaryaKhatate/GnyanSetu/issues) • [Request Feature](https://github.com/AaryaKhatate/GnyanSetu/issues/new?labels=enhancement)
 
 </div>

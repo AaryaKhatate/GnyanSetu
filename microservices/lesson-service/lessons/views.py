@@ -181,6 +181,7 @@ def process_pdf_and_generate_lesson(request):
         )
         
         # Store lesson WITHOUT quiz and notes data (will be added asynchronously)
+        # Include pdf_images for Visualization Service to use
         lesson_id = LessonModel.create(
             user_id=user_id,
             pdf_id=pdf_id,
@@ -197,12 +198,18 @@ def process_pdf_and_generate_lesson(request):
             }
         )
         
-        # Mark initial status in database
-        if lessons_collection is not None:
+        # Add pdf_images to lesson document for Visualization Service
+        if lessons_collection is not None and lesson_result.get('pdf_images'):
             lessons_collection.update_one(
                 {'_id': ObjectId(lesson_id)},
-                {'$set': {'quiz_notes_status': 'generating'}}
+                {
+                    '$set': {
+                        'pdf_images': lesson_result.get('pdf_images', []),
+                        'quiz_notes_status': 'generating'
+                    }
+                }
             )
+            logger.info(f"✅ Stored {len(lesson_result.get('pdf_images', []))} PDF images in lesson document")
         
         # Create history entry
         if lesson_id:

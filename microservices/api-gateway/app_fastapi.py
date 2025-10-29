@@ -40,7 +40,7 @@ app.add_middleware(
 SERVICES = {
     'user-service': {
         'url': 'http://localhost:8002',
-        'health': '/api/v1/health',
+        'health': '/api/v1/health/',  # Fixed: Added trailing slash to match Django endpoint
         'routes': ['/api/v1/auth', '/api/auth', '/api/users', '/api/v1/users']
     },
     'lesson-service': {
@@ -205,9 +205,9 @@ async def auth_signup(request: Request):
     target_url = f"{SERVICES['user-service']['url']}/api/auth/register/"
     
     data = await request.json()
-    # Remove confirm_password if present (frontend validation)
+    # Map confirm_password to password_confirm (Django expects password_confirm)
     if 'confirm_password' in data:
-        data.pop('confirm_password')
+        data['password_confirm'] = data.pop('confirm_password')
     
     logger.info(f"Proxying signup request for: {data.get('email', 'unknown')}")
     return await proxy_request(target_url, 'POST', dict(request.headers), json_data=data)
@@ -228,6 +228,15 @@ async def auth_reset_password(request: Request):
     data = await request.json()
     
     logger.info("Proxying reset password request")
+    return await proxy_request(target_url, 'POST', dict(request.headers), json_data=data)
+
+@app.post('/api/auth/verify-otp/')
+async def auth_verify_otp(request: Request):
+    """Proxy OTP verification request to User Service."""
+    target_url = f"{SERVICES['user-service']['url']}/api/auth/verify-otp/"
+    data = await request.json()
+    
+    logger.info(f"Proxying OTP verification for: {data.get('email', 'unknown')}")
     return await proxy_request(target_url, 'POST', dict(request.headers), json_data=data)
 
 @app.post('/api/auth/logout/')
