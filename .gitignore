@@ -356,7 +356,8 @@ media/
 static_files/
 
 # Log files
-logs/
+logs/*
+!logs/.gitkeep
 *.log
 log/
 
