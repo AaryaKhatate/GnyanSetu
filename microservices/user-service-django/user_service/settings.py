@@ -15,7 +15,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security settings
 SECRET_KEY = config('SECRET_KEY', default='gnyansetu-user-service-secret-key-change-in-production')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS = ['gnyansetu.onrender.com',
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0']
 
 # Application definition
 INSTALLED_APPS = [
