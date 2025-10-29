@@ -1,4 +1,4 @@
-﻿# AI Lesson Generation Service using Google Gemini
+# AI Lesson Generation Service using Google Gemini
 import logging
 import json
 import base64
@@ -7,7 +7,6 @@ from PIL import Image
 import google.generativeai as genai
 from django.conf import settings
 from datetime import datetime
-from .visualization_extractor import VisualizationExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +127,7 @@ Focus on educational value and how each image supports the lesson."""
                     batch_result = {"images": []}
                     explanations = []
                 
-                logger.info(f"✅ Generated explanations for {len(explanations)} images in single batch")
+                logger.info(f"Generated explanations for {len(explanations)} images in single batch")
                 
                 # Apply explanations to images
                 for explanation in explanations:
@@ -160,7 +159,7 @@ Focus on educational value and how each image supports the lesson."""
                 img['narration'] = 'This image illustrates a concept from the lesson.'
                 img['explanation'] = 'Educational diagram'
         
-        logger.info(f"✅ Batch explained {len(pdf_images)} images with 1 API call (OPTIMIZED)")
+        logger.info(f"Batch explained {len(pdf_images)} images with 1 API call (OPTIMIZED)")
         return pdf_images
     
     def generate_lesson(self, pdf_text, images_ocr_text="", lesson_type="interactive", user_context=None, pdf_images=None):
@@ -188,7 +187,7 @@ Focus on educational value and how each image supports the lesson."""
             
             # Log image availability
             if pdf_images and len(pdf_images) > 0:
-                logger.info(f"� Processing lesson with {len(pdf_images)} images from PDF")
+                logger.info(f"Processing lesson with {len(pdf_images)} images from PDF")
                 # Generate AI explanations for images
                 pdf_images = self.generate_image_explanations(pdf_images, full_content)
             
@@ -202,7 +201,7 @@ Focus on educational value and how each image supports the lesson."""
                         # Skip lines that look like headers, dates, or metadata
                         if not any(x in clean_line.lower() for x in ['page', 'chapter', 'section', '©', 'copyright', 'published']):
                             lesson_title = clean_line[:100]  # Limit to 100 chars
-                            logger.info(f"� Extracted title: {lesson_title}")
+                            logger.info(f"Extracted title: {lesson_title}")
                             break
             except Exception as e:
                 logger.warning(f"Failed to extract title: {e}")
@@ -225,15 +224,9 @@ Focus on educational value and how each image supports the lesson."""
             
             logger.info(f"Generated {lesson_type} lesson: {lesson_title}")
             
-            # Extract visualization JSON if present
-            visualization_data = VisualizationExtractor.extract_visualization_json(lesson_content)
-            
-            # Replace image placeholders with actual base64 data
-            if visualization_data and pdf_images:
-                visualization_data = VisualizationExtractor.replace_pdf_image_placeholders(
-                    visualization_data, pdf_images
-                )
-                logger.info(f" Replaced image placeholders with actual image data")
+            # NO visualization extraction - Visualization Service handles this separately
+            # Lesson Service generates ONLY educational content (2000-3000 words)
+            # Visualization Service generates teaching_sequence and whiteboard_commands
             
             result = {
                 'title': lesson_title,
@@ -241,13 +234,8 @@ Focus on educational value and how each image supports the lesson."""
                 'type': lesson_type,
                 'generated_at': datetime.utcnow().isoformat(),
                 'success': True,
-                'pdf_images': pdf_images  # Include images in result
+                'pdf_images': pdf_images  # Include images for Visualization Service to use
             }
-            
-            # Add visualization if extracted
-            if visualization_data:
-                result['visualization'] = visualization_data
-                logger.info(f" Visualization data extracted: {len(visualization_data.get('scenes', []))} scenes")
             
             return result
             
@@ -644,196 +632,111 @@ Focus on educational value and how each image supports the lesson."""
         return self._try_generate_with_images(content, title, pdf_images=None)
     
     def _try_generate_with_images(self, content, title, pdf_images=None, max_images=1, max_image_size=300):
-        """Try to generate lesson with specified image constraints (or without images if none available)"""
+        """Generate comprehensive educational lesson (2000-3000 words) - NO VISUALIZATION
         
-        # REMOVED SUBJECT DETECTION - Let AI handle topic analysis naturally
-        # No more hardcoded categorization to avoid misclassification
+        Visualization is handled separately by the Visualization Service.
+        This function generates ONLY rich educational content.
+        """
         
-        # Build multimodal prompt - REQUIRE TOPIC-SPECIFIC VISUAL STORYTELLING
+        # Build multimodal prompt with educational content focus
         prompt_parts = []
         
-        # Frame content as EDUCATIONAL to avoid safety blocks
-        safe_content = content[:800].replace('sudo ', 'command: ').replace('rm -rf', 'remove directory').replace('apt-get', 'package manager')
+        # Extract safe content preview
+        safe_content = content[:1200]
         
-        prompt_parts.append(f""" CREATE EXTRAORDINARY WHITEBOARD-STYLE TEACHING VISUALIZATION
+        prompt_parts.append(f"""Generate a comprehensive, detailed educational lesson about: {title}
 
-📚 TOPIC: {title}
+CRITICAL REQUIREMENTS:
+- Length: 2000-3000 words of rich educational content
+- NO VISUALIZATION JSON - visualization is handled by a separate service
+- Focus on thorough explanations, examples, analogies, and step-by-step breakdowns
+- Include real-world applications and practical examples
+- Use clear headings and subheadings
+- Explain concepts progressively from simple to complex
 
-🎯 YOUR MISSION: Create a VISUAL MASTERPIECE that teaches like the BEST teacher drawing on a whiteboard!
+CONTENT STRUCTURE:
 
-Think of how a great teacher uses diagrams, arrows, labeled parts, and step-by-step drawings to make complex topics crystal clear.
+# {title}
 
-ANALYZE THE TOPIC AND CHOOSE APPROPRIATE VISUALIZATIONS:
-- For biology: cells, DNA, organs, plants, processes
-- For computer science: flowcharts, system diagrams, SDLC phases
-- For physics: circuits, forces, motion diagrams
-- For chemistry: molecules, reactions, bonds
-- For any topic: diagrams, arrows, labels
+## Introduction (200-300 words)
+- Hook the learner with an interesting fact or question
+- Explain why this topic is important
+- Provide a brief overview of what will be covered
+- Real-world context and relevance
 
-🖼️ USING IMAGES AND ICONS (CRITICAL - Use for complex shapes):
-**For complex shapes that are hard to draw with basic shapes:**
-{{"type": "image", "src": "https://via.placeholder.com/200x200?text=Chlorophyll", "x": 960, "y": 540, "width": 200, "height": 200, "label": "Chlorophyll Structure"}}
-- Use image URLs for: chlorophyll molecule, transistor internals, DNA double helix, cell organelles, complex chemical structures
-- Use placeholder format: "https://via.placeholder.com/WIDTHxHEIGHT?text=DESCRIPTION"
-- Real images will be fetched by visualization service
+## Core Concepts (800-1200 words)
+Break down the main concepts into digestible sections:
+- Define key terms clearly
+- Explain each concept thoroughly with examples
+- Use analogies to relate to familiar concepts
+- Provide step-by-step explanations for processes
+- Include multiple examples for clarity
+- Address common misconceptions
 
-**For icons (simple representations):**
-{{"type": "icon", "name": "sun", "x": 960, "y": 200, "size": 80, "color": "#FFD700"}}
-- Available icon names: sun, leaf, battery, cpu, molecule, atom, beaker, flask, lightbulb, book, water-droplet, lightning, heart, brain, tree, cloud, etc.
-- Use icons for simple, recognizable symbols
+## Detailed Explanation (600-900 words)
+- Deep dive into the most important aspects
+- Explain the "why" and "how" behind the concepts
+- Provide detailed examples and case studies
+- Show different scenarios or variations
+- Explain cause and effect relationships
+- Include practical applications
 
-GENERAL VISUALIZATION RULES:
+## Summary & Key Takeaways (200-300 words)
+- Recap the main points covered
+- Highlight the most important concepts
+- Provide memory aids or mnemonics
+- Suggest next steps for further learning
+- End with a thought-provoking conclusion
 
- VISUALIZATION PRINCIPLES:
- Use REALISTIC topic-specific drawings (not abstract shapes!)
- For PHOTOSYNTHESIS: Draw actual plant with detailed leaves, sun with rays, CO2/O2 molecules
- For CIRCUITS: Draw realistic battery, resistors (zigzag), wires (curves), LEDs with light
- For BIOLOGY: Draw cell with nucleus, organelles, membrane
- For COMPUTERS: Draw laptop/CPU with internal components visible
- LABEL everything clearly - text ABOVE or BELOW shapes, never overlapping
- Use ARROWS to show flow, connections, transformations
- Build complexity gradually: Scene 1 (overview) → Scene 2 (parts) → Scene 3 (process) → Scene 4 (result)
+STYLE GUIDELINES:
+- Use clear, conversational language
+- Explain technical terms when first introduced
+- Use short paragraphs (3-4 sentences max)
+- Include transitions between sections
+- Ask rhetorical questions to engage learners
+- Use bullet points for lists and key points
+- Emphasize important terms with **bold** text
+- Provide concrete examples for abstract concepts
 
- ADVANCED SHAPE TYPES:
+CONTENT FROM PDF:
+{safe_content}
 
-**SVG PATHS** (for organic, curved shapes):
-{{"type": "path", "d": "M 300,400 Q 280,350 300,300 Q 320,350 300,400 Z", "fill": "#4CAF50", "stroke": "#2E7D32", "strokeWidth": 3}}
-- M x,y = Move to point
-- L x,y = Line to point  
-- Q x1,y1 x,y = Quadratic curve
-- C x1,y1 x2,y2 x,y = Cubic curve
-- Z = Close path
-Use for: leaves, waves, organic shapes, molecules, curved wires
-
-**POLYGONS** (for multi-point shapes):
-{{"type": "polygon", "points": [960,200, 1000,300, 920,300], "fill": "#FFD700", "stroke": "#FF8C00", "strokeWidth": 2}}
-Use for: stars, hexagons (glucose), arrows, crystals, custom shapes
-
-**COMPOSITE DIAGRAMS** - Combine shapes to create detailed drawings:
-- Plant = stem (rectangle) + 3-4 leaf paths (curved) + roots (thin lines)
-- Circuit = battery (rect with +/-) + wires (curved paths) + resistor (zigzag path) + LED (circle + ray polygons)
-- Cell = outer circle + nucleus (circle) + mitochondria (ovals) + labels (text with arrows)
-
-� DETAILED EXAMPLE FOR {title}:
-
-ANALYZE THE CONTENT and CREATE 4 PROGRESSIVE SCENES:
-
-Scene 1: INTRODUCTION & OVERVIEW
-- Large title at top (y=120, fontSize=56, bold, centered)
-- Main diagram showing complete system/concept
-- Key components labeled with text ABOVE/BELOW (not on shapes!)
-- Use 12-15 shapes total
-
-Scene 2: COMPONENTS & INPUTS
-- Show individual parts in detail
-- Each part labeled and explained
-- Use arrows pointing to features
-- Include measurements, chemical formulas, or specifications
-- Use 10-12 shapes
-
-Scene 3: PROCESS & TRANSFORMATION  
-- Show step-by-step how it works
-- Animated arrows showing flow/movement
-- Before → During → After states
-- Chemical reactions, data flow, energy transfer
-- Use 12-15 shapes with lots of animations
-
-Scene 4: RESULTS & OUTPUT
-- Final product/outcome
-- Summary of what was learned
-- Key takeaways highlighted
-- Use 8-10 shapes with emphasis animations (pulse, glow)
-
- ANIMATION STRATEGY (CRITICAL for whiteboard feel):
-- "draw": Lines/paths appear stroke-by-stroke (like drawing with marker)
-- "write": Text appears letter-by-letter (like writing)
-- "fadeIn": Shape fades in smoothly
-- "scale": Shape grows from small to normal size
-- "move": Shape moves from position A to B
-- "pulse": Shape rhythmically scales up/down (for emphasis)
-- "glow": Shadow/glow effect (highlight important parts)
-
-EVERY shape must have animation! Stagger delays: 0s, 0.5s, 1s, 1.5s, 2s...
-
- LAYOUT RULES (STRICTLY FOLLOW):
-- Canvas: 1920x1080 pixels
-- Center point: (960, 540)
-- Title: x=960, y=120, fontSize=52-60, fontStyle="bold", align="center"
-- Main content: y=300 to y=900
-- Text labels: Place 60-80px ABOVE or BELOW shapes (never overlapping!)
-- Margins: Keep 100px from edges
-- Spacing: 120px minimum between major elements
-- Use 10-15 shapes per scene for rich detail!
-
-REQUIRED JSON FORMAT:
-```visualization
-{{
-  "topic": "{title}",
-  "scenes": [
-    {{
-      "scene_id": "scene_1",
-      "title": "Introduction",
-      "duration": 12.0,
-      "shapes": [
-        {{"type": "text", "x": 960, "y": 120, "text": "Main Title", "fontSize": 56, "fill": "#1976D2", "fontStyle": "bold", "align": "center"}},
-        {{"type": "path", "d": "M 300,400 Q 280,350 300,300 Z", "fill": "#4CAF50", "stroke": "#2E7D32", "strokeWidth": 3}},
-        {{"type": "polygon", "points": [960,200, 1000,250, 920,250], "fill": "#FFD700", "stroke": "#FF8C00", "strokeWidth": 2}},
-        {{"type": "circle", "x": 960, "y": 540, "radius": 80, "fill": "#FFD700", "stroke": "#FF8C00", "strokeWidth": 3}},
-        {{"type": "rectangle", "x": 500, "y": 400, "width": 200, "height": 100, "fill": "#4CAF50", "cornerRadius": 10}},
-        {{"type": "arrow", "points": [400, 500, 600, 500], "stroke": "#FF5722", "strokeWidth": 4, "pointerLength": 20}},
-        {{"type": "text", "x": 500, "y": 320, "text": "Label Above", "fontSize": 28, "fill": "#333333", "align": "center"}}
-      ],
-      "animations": [
-        {{"shape_index": 0, "type": "write", "duration": 2.0, "delay": 0}},
-        {{"shape_index": 1, "type": "draw", "duration": 2.5, "delay": 2}},
-        {{"shape_index": 2, "type": "fadeIn", "duration": 1.5, "delay": 3}},
-        {{"shape_index": 3, "type": "scale", "duration": 1.0, "delay": 4, "from_props": {{"scaleX": 0, "scaleY": 0}}, "to_props": {{"scaleX": 1, "scaleY": 1}}}},
-        {{"shape_index": 4, "type": "fadeIn", "duration": 1.5, "delay": 5}},
-        {{"shape_index": 5, "type": "draw", "duration": 1.5, "delay": 6}},
-        {{"shape_index": 6, "type": "write", "duration": 1.0, "delay": 7}}
-      ],
-      "audio": {{"text": "Narration for this scene explaining what we see", "duration": 11}}
-    }},
-    ... CREATE 3 MORE SCENES FOLLOWING THIS PATTERN ...
-  ]
-}}
-```
-
-Content to analyze: {safe_content[:1200]}
-
-� NOW CREATE YOUR EXTRAORDINARY WHITEBOARD VISUALIZATION!
-Make it visual, detailed, animated, and educational. Use paths, polygons, and proper labeling.
-Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
+Generate a thorough, well-structured lesson with clear explanations, examples, and practical applications.
+Focus on making complex concepts accessible through careful explanation and real-world context.
+""")
         
-        
-        # Add ONLY FIRST image if available, ULTRA-COMPRESSED
+        # Add images if available (for visual context)
         if pdf_images and len(pdf_images) > 0:
             try:
                 import PIL.Image as PILImage
                 import base64
                 import io
                 
-                img_data = pdf_images[0]
+                # Add up to max_images, compressed
+                images_added = 0
+                for idx, img_data in enumerate(pdf_images[:max_images]):
+                    try:
+                        img_b64 = img_data['base64'].split(',')[1] if ',' in img_data['base64'] else img_data['base64']
+                        img_bytes = base64.b64decode(img_b64)
+                        pil_image = PILImage.open(io.BytesIO(img_bytes))
+                        
+                        # Resize to prevent timeout
+                        max_size = (max_image_size, max_image_size)
+                        if pil_image.size[0] > max_size[0] or pil_image.size[1] > max_size[1]:
+                            pil_image.thumbnail(max_size, PILImage.Resampling.LANCZOS)
+                            logger.info(f"Resized image to {pil_image.size} (max {max_image_size}px)")
+                        
+                        prompt_parts.append(pil_image)
+                        images_added += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to add image {idx}: {e}")
                 
-                # Extract and compress image
-                img_b64 = img_data['base64'].split(',')[1] if ',' in img_data['base64'] else img_data['base64']
-                img_bytes = base64.b64decode(img_b64)
-                pil_image = PILImage.open(io.BytesIO(img_bytes))
-                
-                # AGGRESSIVE resize to avoid timeout
-                max_size = (max_image_size, max_image_size)
-                if pil_image.size[0] > max_size[0] or pil_image.size[1] > max_size[1]:
-                    pil_image.thumbnail(max_size, PILImage.Resampling.LANCZOS)
-                    logger.info(f"� Resized image to {pil_image.size} (max {max_image_size}px)")
-                
-                # Add image to prompt
-                prompt_parts.append(pil_image)
-                logger.info(f" Added 1 ultra-compressed image")
+                logger.info(f"Added {images_added} compressed images to prompt")
                 
             except Exception as e:
-                logger.warning(f"Failed to add image, continuing without it: {e}")
+                logger.warning(f"Failed to process images: {e}")
         else:
-            logger.info(" No PDF images, generating visualization from text content only")
+            logger.info("No PDF images available, generating from text content only")
         
         try:
             # Generate with vision model - WITH TIMEOUT (120 seconds for complex prompts)

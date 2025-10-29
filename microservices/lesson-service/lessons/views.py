@@ -197,6 +197,7 @@ def process_pdf_and_generate_lesson(request):
             lesson_title=lesson_result['title'],
             lesson_content=lesson_result['content'],
             lesson_type=lesson_type,
+            pdf_images=pdf_images,  # Store PDF images for Visualization Service
             quiz_data={},  # Empty initially
             notes_data={},  # Empty initially
             metadata={

@@ -164,7 +164,7 @@ class LessonModel:
     """Model for storing AI-generated lessons"""
     
     @staticmethod
-    def create(user_id, pdf_id, lesson_title, lesson_content, lesson_type='interactive', metadata=None, quiz_data=None, notes_data=None):
+    def create(user_id, pdf_id, lesson_title, lesson_content, lesson_type='interactive', metadata=None, quiz_data=None, notes_data=None, pdf_images=None):
         """Create a new lesson with quiz and notes data"""
         document = {
             '_id': ObjectId(),
@@ -175,6 +175,7 @@ class LessonModel:
             'lesson_type': lesson_type,  # interactive, quiz, summary, detailed
             'quiz_data': quiz_data or {},  # Structured quiz data
             'notes_data': notes_data or {},  # Structured notes data
+            'pdf_images': pdf_images or [],  # PDF images for Visualization Service
             'metadata': metadata or {},
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow(),
@@ -187,6 +188,7 @@ class LessonModel:
                 print(f"� Lesson saved to MongoDB with ID: {result.inserted_id}")
                 print(f"   - Quiz data included: {bool(quiz_data)}")
                 print(f"   - Notes data included: {bool(notes_data)}")
+                print(f"   - PDF images included: {len(pdf_images) if pdf_images else 0}")
                 return str(result.inserted_id)
             else:
                 logger.warning("MongoDB unavailable, returning mock lesson ID")

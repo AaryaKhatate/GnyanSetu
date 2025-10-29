@@ -219,7 +219,7 @@ class WhiteboardCommand(BaseModel):
 
 class TeachingStep(BaseModel):
     """Single step in teaching sequence"""
-    type: Literal["explanation_start", "explanation_step", "notes_and_quiz_ready"]
+    type: Literal["explanation_start", "explanation_step", "explanation_end", "notes_and_quiz_ready"]
     text_explanation: str
     tts_text: str
     whiteboard_commands: List[WhiteboardCommand]
@@ -239,6 +239,116 @@ class VisualizationDataV2(BaseModel):
     images: List[ImageInfo] = []
     notes_content: Optional[str] = None
     quiz: Optional[List[Dict[str, Any]]] = []
+
+# ==================== Coordinate Validation ====================
+def validate_and_fix_coordinates(teaching_sequence: List[TeachingStep]) -> List[TeachingStep]:
+    """
+    Validate and fix coordinates to ensure nothing goes outside the whiteboard.
+    Safe zones: x_percent [10-90], y_percent [8-95]
+    """
+    SAFE_X_MIN = 10
+    SAFE_X_MAX = 90
+    SAFE_Y_MIN = 8
+    SAFE_Y_MAX = 95
+    
+    fixed_steps = []
+    violations_found = 0
+    
+    for step_idx, step in enumerate(teaching_sequence):
+        fixed_commands = []
+        
+        for cmd_idx, cmd in enumerate(step.whiteboard_commands):
+            cmd_dict = cmd if isinstance(cmd, dict) else cmd.dict()
+            action = cmd_dict.get('action')
+            
+            # Skip clear_all (no coordinates)
+            if action == 'clear_all':
+                fixed_commands.append(cmd_dict)
+                continue
+            
+            # Validate x_percent
+            if 'x_percent' in cmd_dict and cmd_dict['x_percent'] is not None:
+                original_x = cmd_dict['x_percent']
+                
+                # For text with left/right alignment, allow closer to edges
+                if action == 'write_text' and cmd_dict.get('align') in ['left', 'right']:
+                    safe_min_x = 5 if cmd_dict.get('align') == 'left' else SAFE_X_MIN
+                    safe_max_x = SAFE_X_MAX if cmd_dict.get('align') == 'left' else 95
+                else:
+                    safe_min_x = SAFE_X_MIN
+                    safe_max_x = SAFE_X_MAX
+                
+                if original_x < safe_min_x:
+                    cmd_dict['x_percent'] = safe_min_x
+                    violations_found += 1
+                    logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}: x_percent {original_x} < {safe_min_x}, corrected to {safe_min_x}")
+                elif original_x > safe_max_x:
+                    cmd_dict['x_percent'] = safe_max_x
+                    violations_found += 1
+                    logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}: x_percent {original_x} > {safe_max_x}, corrected to {safe_max_x}")
+            
+            # Validate y_percent
+            if 'y_percent' in cmd_dict and cmd_dict['y_percent'] is not None:
+                original_y = cmd_dict['y_percent']
+                
+                if original_y < SAFE_Y_MIN:
+                    cmd_dict['y_percent'] = SAFE_Y_MIN
+                    violations_found += 1
+                    logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}: y_percent {original_y} < {SAFE_Y_MIN}, corrected to {SAFE_Y_MIN}")
+                elif original_y > SAFE_Y_MAX:
+                    cmd_dict['y_percent'] = SAFE_Y_MAX
+                    violations_found += 1
+                    logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}: y_percent {original_y} > {SAFE_Y_MAX}, corrected to {SAFE_Y_MAX}")
+            
+            # Validate points_percent (for lines)
+            if 'points_percent' in cmd_dict and cmd_dict['points_percent'] is not None:
+                fixed_points = []
+                for point_idx, point in enumerate(cmd_dict['points_percent']):
+                    x, y = point[0], point[1]
+                    fixed_x = max(SAFE_X_MIN, min(SAFE_X_MAX, x))
+                    fixed_y = max(SAFE_Y_MIN, min(SAFE_Y_MAX, y))
+                    
+                    if x != fixed_x or y != fixed_y:
+                        violations_found += 1
+                        logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}, Point {point_idx+1}: ({x},{y}) outside bounds, corrected to ({fixed_x},{fixed_y})")
+                    
+                    fixed_points.append([fixed_x, fixed_y])
+                cmd_dict['points_percent'] = fixed_points
+            
+            # Validate from_percent and to_percent (for arrows)
+            if 'from_percent' in cmd_dict and cmd_dict['from_percent'] is not None:
+                x, y = cmd_dict['from_percent'][0], cmd_dict['from_percent'][1]
+                fixed_x = max(SAFE_X_MIN, min(SAFE_X_MAX, x))
+                fixed_y = max(SAFE_Y_MIN, min(SAFE_Y_MAX, y))
+                
+                if x != fixed_x or y != fixed_y:
+                    violations_found += 1
+                    logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}: from_percent ({x},{y}) outside bounds, corrected to ({fixed_x},{fixed_y})")
+                    cmd_dict['from_percent'] = [fixed_x, fixed_y]
+            
+            if 'to_percent' in cmd_dict and cmd_dict['to_percent'] is not None:
+                x, y = cmd_dict['to_percent'][0], cmd_dict['to_percent'][1]
+                fixed_x = max(SAFE_X_MIN, min(SAFE_X_MAX, x))
+                fixed_y = max(SAFE_Y_MIN, min(SAFE_Y_MAX, y))
+                
+                if x != fixed_y or y != fixed_y:
+                    violations_found += 1
+                    logger.warning(f"⚠️ Step {step_idx+1}, Cmd {cmd_idx+1}: to_percent ({x},{y}) outside bounds, corrected to ({fixed_x},{fixed_y})")
+                    cmd_dict['to_percent'] = [fixed_x, fixed_y]
+            
+            fixed_commands.append(cmd_dict)
+        
+        # Create fixed step
+        step_dict = step.dict() if hasattr(step, 'dict') else step
+        step_dict['whiteboard_commands'] = fixed_commands
+        fixed_steps.append(step_dict)
+    
+    if violations_found > 0:
+        logger.warning(f"⚠️ Fixed {violations_found} coordinate violations to keep content within whiteboard bounds")
+    else:
+        logger.info(f"✅ All coordinates within safe bounds (x: {SAFE_X_MIN}-{SAFE_X_MAX}%, y: {SAFE_Y_MIN}-{SAFE_Y_MAX}%)")
+    
+    return fixed_steps
 
 # ==================== Coordinate Manager ====================
 class CoordinateManager:
@@ -558,13 +668,21 @@ INPUT:
 - Lesson content: {lesson_content}
 - Images available: {images_info}
 
-OUTPUT: Generate a JSON object with 4-6 step-by-step teaching sequence using whiteboard commands.
+OUTPUT: Generate a JSON object with 10-15 step-by-step teaching sequence using whiteboard commands.
 
-CRITICAL RULES:
-1. Each step MUST have BOTH visual elements AND detailed narration
-2. Use LOTS of text to explain concepts (not just labels)
-3. Build progressively - each step adds to previous (don't always clear_all)
-4. Keep it EDUCATIONAL - explain WHY and HOW, not just WHAT
+CRITICAL RULES - READ THE FULL LESSON CONTENT CAREFULLY:
+1. **ANALYZE the lesson content thoroughly** - it contains detailed explanations, examples, and concepts
+2. **CREATE ONE STEP for EACH major concept/section** in the lesson - aim for 10-15 steps to cover everything
+3. EVERY step MUST start with a HEADING (write_text with font_size 44-54, y_percent 10-12, align center)
+4. Each step MUST have BOTH visual elements AND detailed narration FROM the lesson content
+5. Use LOTS of text to explain concepts (not just labels) - extract explanations from the lesson
+6. Build progressively - each step adds to previous (don't always clear_all)
+7. Keep it EDUCATIONAL - explain WHY and HOW, not just WHAT
+8. Use percentage-based coordinates (0-100) for ALL positions
+9. **COVER THE ENTIRE LESSON** - don't skip sections, every major concept should get a teaching step
+
+MANDATORY HEADING FORMAT (FIRST command in EVERY step):
+{{"action": "write_text", "text": "Step Title Here", "x_percent": 50, "y_percent": 10, "font_size": 48, "color": "#1976d2", "align": "center"}}
 
 WHITEBOARD COMMANDS AVAILABLE:
 1. clear_all - Clear the canvas
@@ -599,30 +717,43 @@ WHITEBOARD COMMANDS AVAILABLE:
 8. draw_image - Display extracted PDF image
    {{"action": "draw_image", "image_id": "pdf_img_0", "x_percent": 50, "y_percent": 50, "scale": 0.8}}
 
-COORDINATE SYSTEM - SAFE ZONES:
+COORDINATE SYSTEM - PERCENTAGE-BASED (0-100):
 - Canvas is 1920x1080 pixels (16:9 aspect ratio)
-- Use percentage coordinates (0-100) for x_percent and y_percent
-- SAFE ZONES for readable content:
-  * Top title area: y_percent 8-15
-  * Subtitle area: y_percent 18-25
-  * Main content area: y_percent 30-75
-  * Bottom notes area: y_percent 80-92
-- HORIZONTAL LAYOUT:
-  * Left column: x_percent 10-30
-  * Center column: x_percent 40-60
-  * Right column: x_percent 70-90
-- Leave margins: Don't use x_percent < 5 or > 95, y_percent < 5 or > 95
+- ALL coordinates use percentages (0-100) for x_percent and y_percent
+- x_percent: 0 = far left, 50 = center, 100 = far right
+- y_percent: 0 = top, 50 = middle, 100 = bottom
+
+SAFE ZONES (Use these to prevent content from going off-screen):
+- HEADING ZONE: y_percent 10-12, x_percent 50, align "center" (font_size 44-54)
+- SUBTITLE ZONE: y_percent 18-25, x_percent 50, align "center" (font_size 24-32)
+- MAIN CONTENT: y_percent 30-75, x_percent 10-90
+- BOTTOM NOTES: y_percent 80-92, x_percent 10-90
+
+HORIZONTAL ALIGNMENT:
+- Left content: x_percent 15-25, align "left"
+- Center content: x_percent 50, align "center"
+- Right content: x_percent 75-85, align "right"
+
+MARGINS - NEVER exceed these bounds:
+- Minimum x_percent: 10 (left margin)
+- Maximum x_percent: 90 (right margin)  
+- Minimum y_percent: 8 (top margin)
+- Maximum y_percent: 95 (bottom margin)
 
 TEACHING SEQUENCE STRUCTURE:
 1. Start with "explanation_start" - Title + Introduction (MUST have text explanation)
-2. Create 3-5 "explanation_step" entries (each MUST explain a concept)
+2. Create 8-13 "explanation_step" entries - ONE STEP PER MAJOR CONCEPT from the lesson
+   - Read the lesson content carefully and identify ALL major topics/sections
+   - Each concept (Introduction, Core Concepts, Process, Examples, etc.) gets its own step
+   - Don't summarize - TEACH each concept in detail as written in the lesson
 3. End with "explanation_end" - Summary + Key Takeaways
 4. Each step should:
    - Have 4-8 visual elements (mix of text, shapes, arrows)
-   - Include LOTS of explanatory text (not just labels)
+   - Include LOTS of explanatory text extracted from the lesson content
+   - Use actual examples and details from the lesson
    - Build on previous step when possible
-   - Provide detailed narration (2-4 sentences minimum)
-   - Focus on TEACHING, not just showing
+   - Provide detailed narration (3-5 sentences minimum) - use the lesson's explanations
+   - Focus on TEACHING the content thoroughly, not just giving an overview
 
 EXAMPLE OUTPUT (Photosynthesis):
 {{
@@ -633,7 +764,7 @@ EXAMPLE OUTPUT (Photosynthesis):
             "tts_text": "Hello! Welcome to our lesson on photosynthesis. This is one of the most important processes in nature. Let's explore how plants create food from sunlight, water, and carbon dioxide.",
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
-                {{"action": "write_text", "text": "🌿 Photosynthesis", "x_percent": 50, "y_percent": 12, "font_size": 54, "color": "#16a34a", "align": "center"}},
+                {{"action": "write_text", "text": "🌿 Photosynthesis", "x_percent": 50, "y_percent": 10, "font_size": 52, "color": "#16a34a", "align": "center"}},
                 {{"action": "write_text", "text": "How Plants Make Food", "x_percent": 50, "y_percent": 20, "font_size": 26, "color": "#6b7280", "align": "center"}},
                 {{"action": "write_text", "text": "The process that powers nearly all life on Earth", "x_percent": 50, "y_percent": 35, "font_size": 22, "color": "#374151", "align": "center"}},
                 {{"action": "draw_circle", "x_percent": 15, "y_percent": 60, "radius": 55, "fill": "#fef3c7", "stroke": "#f59e0b", "stroke_width": 3}},
@@ -651,7 +782,7 @@ EXAMPLE OUTPUT (Photosynthesis):
             "tts_text": "Now let's look inside a plant cell. Photosynthesis takes place in tiny green structures called chloroplasts. These chloroplasts contain chlorophyll, which is what makes plants green and allows them to capture energy from sunlight.",
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
-                {{"action": "write_text", "text": "Where Does It Happen?", "x_percent": 50, "y_percent": 12, "font_size": 44, "color": "#16a34a", "align": "center"}},
+                {{"action": "write_text", "text": "Where Does It Happen?", "x_percent": 50, "y_percent": 10, "font_size": 48, "color": "#16a34a", "align": "center"}},
                 {{"action": "draw_circle", "x_percent": 50, "y_percent": 50, "radius": 180, "fill": "#dcfce7", "stroke": "#22c55e", "stroke_width": 4}},
                 {{"action": "write_text", "text": "Chloroplast", "x_percent": 50, "y_percent": 28, "font_size": 28, "color": "#15803d", "align": "center"}},
                 {{"action": "draw_circle", "x_percent": 42, "y_percent": 48, "radius": 32, "fill": "#86efac", "stroke": "#16a34a", "stroke_width": 3}},
@@ -669,7 +800,7 @@ EXAMPLE OUTPUT (Photosynthesis):
             "tts_text": "Here's the chemical equation that describes photosynthesis. Six molecules of carbon dioxide combine with six molecules of water. Using energy from sunlight, these are transformed into one molecule of glucose, which is the food for the plant, plus six molecules of oxygen, which is released into the air.",
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
-                {{"action": "write_text", "text": "The Chemical Equation", "x_percent": 50, "y_percent": 10, "font_size": 44, "color": "#16a34a", "align": "center"}},
+                {{"action": "write_text", "text": "The Chemical Equation", "x_percent": 50, "y_percent": 10, "font_size": 48, "color": "#16a34a", "align": "center"}},
                 {{"action": "draw_text_box", "text": "6 CO₂", "x_percent": 15, "y_percent": 35, "width_percent": 14, "height": 70, "color": "#e0e7ff", "stroke": "#6366f1", "font_size": 24}},
                 {{"action": "write_text", "text": "+", "x_percent": 25, "y_percent": 35, "font_size": 36, "color": "#6b7280", "align": "center"}},
                 {{"action": "draw_text_box", "text": "6 H₂O", "x_percent": 32, "y_percent": 35, "width_percent": 14, "height": 70, "color": "#dbeafe", "stroke": "#3b82f6", "font_size": 24}},
@@ -703,15 +834,23 @@ EXAMPLE OUTPUT (Photosynthesis):
 }}
 
 IMPORTANT GUIDELINES:
-- Generate 4-6 steps total (intro + 2-4 middle steps + conclusion)
-- Each step MUST have educational value and teach something new
-- Use descriptive text extensively - explain concepts clearly
-- TTS text should be 2-4 sentences that a teacher would say
-- Build progressively - show how concepts connect
+- **READ THE ENTIRE LESSON CONTENT** - it's comprehensive and detailed (often 2000-3000 words)
+- Generate 10-15 steps total (intro + 8-13 middle steps covering ALL concepts + conclusion)
+- Each major concept/section in the lesson MUST get its own dedicated teaching step
+- Don't create generic overviews - use the ACTUAL detailed explanations from the lesson
+- Each step MUST have educational value and teach something new from the lesson
+- Use descriptive text extensively - extract and explain concepts directly from the lesson content
+- TTS text should be 3-5 sentences that explain the concept as a teacher would - use the lesson's wording
+- Include examples, definitions, and explanations exactly as provided in the lesson
+- Build progressively - show how concepts connect step by step
 - Use appropriate colors for the subject matter
-- Keep coordinates within safe zones
+- **CRITICAL**: Keep ALL coordinates within safe zones (x: 10-90%, y: 8-95%)
+- NEVER use x_percent < 10 or > 90
+- NEVER use y_percent < 8 or > 95
+- Content outside these bounds will be cut off and invisible!
+- **MOST IMPORTANT**: This is not a summary - TEACH THE FULL LESSON step by step!
 
-Now generate a comprehensive teaching sequence for the given topic. Return ONLY valid JSON.
+Now generate a comprehensive teaching sequence that covers ALL concepts from the lesson. Return ONLY valid JSON.
 """
 
 async def generate_visualization_v2(lesson_content: str, topic: str, images_info: List[Dict] = None) -> Dict[str, Any]:
@@ -767,7 +906,50 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
                         
                         # Validate with Pydantic
                         validated = VisualizationDataV2(**viz_data)
-                        logger.info(f"✅ Generated {len(validated.teaching_sequence)} teaching steps")
+                        
+                        # CRITICAL: Validate that EVERY step has a heading
+                        for idx, step in enumerate(validated.teaching_sequence):
+                            has_heading = False
+                            for cmd in step.whiteboard_commands[:3]:  # Check first 3 commands
+                                # Convert Pydantic model to dict for checking
+                                cmd_dict = cmd.dict() if hasattr(cmd, 'dict') else cmd
+                                if (cmd_dict.get('action') == 'write_text' and 
+                                    cmd_dict.get('y_percent', 0) >= 8 and cmd_dict.get('y_percent', 0) <= 15 and
+                                    cmd_dict.get('font_size', 0) >= 40 and
+                                    cmd_dict.get('align') == 'center'):
+                                    has_heading = True
+                                    break
+                            
+                            if not has_heading:
+                                logger.warning(f"⚠️ Step {idx} missing heading, adding default heading")
+                                # Insert heading as first command (after clear_all if present)
+                                first_cmd = step.whiteboard_commands[0].dict() if hasattr(step.whiteboard_commands[0], 'dict') else step.whiteboard_commands[0]
+                                insert_index = 1 if step.whiteboard_commands and first_cmd.get('action') == 'clear_all' else 0
+                                heading_text = f"Step {idx + 1}"
+                                if step.type == "explanation_start":
+                                    if len(validated.teaching_sequence[0].whiteboard_commands) > 1:
+                                        second_cmd = validated.teaching_sequence[0].whiteboard_commands[1].dict() if hasattr(validated.teaching_sequence[0].whiteboard_commands[1], 'dict') else validated.teaching_sequence[0].whiteboard_commands[1]
+                                        heading_text = second_cmd.get('text', 'Introduction')
+                                    else:
+                                        heading_text = 'Introduction'
+                                elif step.type == "explanation_end":
+                                    heading_text = "Summary & Key Points"
+                                
+                                step.whiteboard_commands.insert(insert_index, WhiteboardCommand(**{
+                                    "action": "write_text",
+                                    "text": heading_text,
+                                    "x_percent": 50,
+                                    "y_percent": 10,
+                                    "font_size": 48,
+                                    "color": "#1976d2",
+                                    "align": "center"
+                                }))
+                        
+                        logger.info(f"✅ Generated {len(validated.teaching_sequence)} teaching steps with headings validated")
+                        
+                        # CRITICAL: Validate and fix coordinates to keep content within whiteboard
+                        fixed_sequence = validate_and_fix_coordinates(validated.teaching_sequence)
+                        validated.teaching_sequence = [TeachingStep(**step) for step in fixed_sequence]
                         
                         return validated.dict()
                     except json.JSONDecodeError as e:
@@ -816,8 +998,8 @@ def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
                 "tts_text": f"Welcome! Today we'll explore {topic} with visual explanations and interactive elements.",
                 "whiteboard_commands": [
                     {"action": "clear_all"},
-                    # Title
-                    {"action": "write_text", "text": topic, "x_percent": 50, "y_percent": 15, "font_size": 56, "color": "#1e40af", "align": "center"},
+                    # MANDATORY HEADING
+                    {"action": "write_text", "text": topic, "x_percent": 50, "y_percent": 10, "font_size": 52, "color": "#1e40af", "align": "center"},
                     # Subtitle
                     {"action": "write_text", "text": "Interactive Learning Experience", "x_percent": 50, "y_percent": 25, "font_size": 28, "color": "#6b7280", "align": "center"},
                     # Decorative elements
@@ -874,25 +1056,25 @@ def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
                 "tts_text": "Let's break down the process into simple, easy-to-understand steps.",
                 "whiteboard_commands": [
                     {"action": "clear_all"},
-                    {"action": "write_text", "text": "The Process", "x_percent": 50, "y_percent": 12, "font_size": 42, "color": "#059669", "align": "center"},
+                    {"action": "write_text", "text": "The Process", "x_percent": 50, "y_percent": 10, "font_size": 48, "color": "#059669", "align": "center"},
                     # Step 1
-                    {"action": "draw_circle", "x_percent": 20, "y_percent": 35, "radius": 35, "fill": "#fef3c7", "stroke": "#f59e0b"},
-                    {"action": "write_text", "text": "1", "x_percent": 20, "y_percent": 35, "font_size": 32, "color": "#92400e", "align": "center"},
-                    {"action": "write_text", "text": "Step One", "x_percent": 20, "y_percent": 50, "font_size": 20, "color": "#1f2937", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 25, "y_percent": 40, "radius": 35, "fill": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "write_text", "text": "1", "x_percent": 25, "y_percent": 40, "font_size": 32, "color": "#92400e", "align": "center"},
+                    {"action": "write_text", "text": "Step One", "x_percent": 25, "y_percent": 55, "font_size": 20, "color": "#1f2937", "align": "center"},
                     # Arrow 1
-                    {"action": "draw_arrow", "from_percent": [28, 35], "to_percent": [42, 35], "color": "#6b7280", "thickness": 2},
+                    {"action": "draw_arrow", "from_percent": [33, 40], "to_percent": [42, 40], "color": "#6b7280", "thickness": 2},
                     # Step 2
-                    {"action": "draw_circle", "x_percent": 50, "y_percent": 35, "radius": 35, "fill": "#dbeafe", "stroke": "#3b82f6"},
-                    {"action": "write_text", "text": "2", "x_percent": 50, "y_percent": 35, "font_size": 32, "color": "#1e40af", "align": "center"},
-                    {"action": "write_text", "text": "Step Two", "x_percent": 50, "y_percent": 50, "font_size": 20, "color": "#1f2937", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 40, "radius": 35, "fill": "#dbeafe", "stroke": "#3b82f6"},
+                    {"action": "write_text", "text": "2", "x_percent": 50, "y_percent": 40, "font_size": 32, "color": "#1e40af", "align": "center"},
+                    {"action": "write_text", "text": "Step Two", "x_percent": 50, "y_percent": 55, "font_size": 20, "color": "#1f2937", "align": "center"},
                     # Arrow 2
-                    {"action": "draw_arrow", "from_percent": [58, 35], "to_percent": [72, 35], "color": "#6b7280", "thickness": 2},
+                    {"action": "draw_arrow", "from_percent": [58, 40], "to_percent": [67, 40], "color": "#6b7280", "thickness": 2},
                     # Step 3
-                    {"action": "draw_circle", "x_percent": 80, "y_percent": 35, "radius": 35, "fill": "#d1fae5", "stroke": "#10b981"},
-                    {"action": "write_text", "text": "3", "x_percent": 80, "y_percent": 35, "font_size": 32, "color": "#065f46", "align": "center"},
-                    {"action": "write_text", "text": "Step Three", "x_percent": 80, "y_percent": 50, "font_size": 20, "color": "#1f2937", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 75, "y_percent": 40, "radius": 35, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "3", "x_percent": 75, "y_percent": 40, "font_size": 32, "color": "#065f46", "align": "center"},
+                    {"action": "write_text", "text": "Step Three", "x_percent": 75, "y_percent": 55, "font_size": 20, "color": "#1f2937", "align": "center"},
                     # Summary box
-                    {"action": "draw_text_box", "text": "Process Overview", "x_percent": 50, "y_percent": 75, "width_percent": 70, "height": 80, "color": "#f3f4f6", "stroke": "#6b7280"}
+                    {"action": "draw_text_box", "text": "Process Overview", "x_percent": 50, "y_percent": 78, "width_percent": 70, "height": 80, "color": "#f3f4f6", "stroke": "#6b7280"}
                 ]
             },
             {
@@ -901,22 +1083,22 @@ def generate_fallback_visualization_v2(topic: str) -> Dict[str, Any]:
                 "tts_text": "Let's see how this applies to real-world situations and practical examples.",
                 "whiteboard_commands": [
                     {"action": "clear_all"},
-                    {"action": "write_text", "text": "Real-World Applications", "x_percent": 50, "y_percent": 12, "font_size": 42, "color": "#dc2626", "align": "center"},
+                    {"action": "write_text", "text": "Real-World Applications", "x_percent": 50, "y_percent": 10, "font_size": 48, "color": "#dc2626", "align": "center"},
                     # Example 1
-                    {"action": "draw_text_box", "text": "Example 1", "x_percent": 30, "y_percent": 35, "width_percent": 35, "height": 90, "color": "#fef2f2", "stroke": "#dc2626"},
-                    {"action": "draw_circle", "x_percent": 30, "y_percent": 30, "radius": 12, "fill": "#dc2626", "stroke": "#dc2626"},
+                    {"action": "draw_text_box", "text": "Example 1", "x_percent": 30, "y_percent": 40, "width_percent": 35, "height": 90, "color": "#fef2f2", "stroke": "#dc2626"},
+                    {"action": "draw_circle", "x_percent": 30, "y_percent": 32, "radius": 12, "fill": "#dc2626", "stroke": "#dc2626"},
                     # Example 2
-                    {"action": "draw_text_box", "text": "Example 2", "x_percent": 70, "y_percent": 35, "width_percent": 35, "height": 90, "color": "#eff6ff", "stroke": "#3b82f6"},
-                    {"action": "draw_circle", "x_percent": 70, "y_percent": 30, "radius": 12, "fill": "#3b82f6", "stroke": "#3b82f6"},
+                    {"action": "draw_text_box", "text": "Example 2", "x_percent": 70, "y_percent": 40, "width_percent": 35, "height": 90, "color": "#eff6ff", "stroke": "#3b82f6"},
+                    {"action": "draw_circle", "x_percent": 70, "y_percent": 32, "radius": 12, "fill": "#3b82f6", "stroke": "#3b82f6"},
                     # Use cases
-                    {"action": "draw_text_box", "text": "Common Use Cases", "x_percent": 50, "y_percent": 65, "width_percent": 70, "height": 100, "color": "#fef3c7", "stroke": "#f59e0b"},
+                    {"action": "draw_text_box", "text": "Common Use Cases", "x_percent": 50, "y_percent": 68, "width_percent": 70, "height": 100, "color": "#fef3c7", "stroke": "#f59e0b"},
                     # Benefit indicators
-                    {"action": "draw_circle", "x_percent": 20, "y_percent": 85, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
-                    {"action": "write_text", "text": "✓", "x_percent": 20, "y_percent": 85, "font_size": 28, "color": "#065f46", "align": "center"},
-                    {"action": "draw_circle", "x_percent": 50, "y_percent": 85, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
-                    {"action": "write_text", "text": "✓", "x_percent": 50, "y_percent": 85, "font_size": 28, "color": "#065f46", "align": "center"},
-                    {"action": "draw_circle", "x_percent": 80, "y_percent": 85, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
-                    {"action": "write_text", "text": "✓", "x_percent": 80, "y_percent": 85, "font_size": 28, "color": "#065f46", "align": "center"}
+                    {"action": "draw_circle", "x_percent": 25, "y_percent": 88, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "✓", "x_percent": 25, "y_percent": 88, "font_size": 28, "color": "#065f46", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 50, "y_percent": 88, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "✓", "x_percent": 50, "y_percent": 88, "font_size": 28, "color": "#065f46", "align": "center"},
+                    {"action": "draw_circle", "x_percent": 75, "y_percent": 88, "radius": 25, "fill": "#d1fae5", "stroke": "#10b981"},
+                    {"action": "write_text", "text": "✓", "x_percent": 75, "y_percent": 88, "font_size": 28, "color": "#065f46", "align": "center"}
                 ]
             },
             {
