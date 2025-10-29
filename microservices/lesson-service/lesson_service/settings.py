@@ -67,11 +67,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'lesson_service.wsgi.application'
 
 # Database - Using MongoDB
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.dummy',
-    }
-}
+DATABASES = {}
 
 # MongoDB Configuration
 MONGODB_SETTINGS = {
