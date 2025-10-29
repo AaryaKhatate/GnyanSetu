@@ -355,11 +355,11 @@ files/
 media/
 static_files/
 
-# Log files
+# Ignore all log files and folders
 logs/*
 !logs/.gitkeep
 *.log
-log/
+
 
 # Certificate files
 *.pem
