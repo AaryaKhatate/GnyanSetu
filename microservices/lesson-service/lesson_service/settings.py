@@ -16,7 +16,7 @@ SECRET_KEY = config('SECRET_KEY', default='lesson-service-secret-key-change-in-p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0','gnyansetu-lesson-service.onrender.com']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0','api-gateway-2bhq.onrender.com']
 
 # Application definition
 INSTALLED_APPS = [
