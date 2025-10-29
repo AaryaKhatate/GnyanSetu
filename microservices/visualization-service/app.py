@@ -558,94 +558,160 @@ INPUT:
 - Lesson content: {lesson_content}
 - Images available: {images_info}
 
-OUTPUT: Generate a JSON object with step-by-step teaching sequence using whiteboard commands.
+OUTPUT: Generate a JSON object with 4-6 step-by-step teaching sequence using whiteboard commands.
+
+CRITICAL RULES:
+1. Each step MUST have BOTH visual elements AND detailed narration
+2. Use LOTS of text to explain concepts (not just labels)
+3. Build progressively - each step adds to previous (don't always clear_all)
+4. Keep it EDUCATIONAL - explain WHY and HOW, not just WHAT
 
 WHITEBOARD COMMANDS AVAILABLE:
 1. clear_all - Clear the canvas
    {{"action": "clear_all"}}
 
-2. write_text - Display text at position (percentage-based)
+2. write_text - Display text at position (percentage-based, 0-100)
    {{"action": "write_text", "text": "...", "x_percent": 50, "y_percent": 20, "font_size": 30, "color": "#1e40af", "align": "center"}}
+   - x_percent: 0 = left edge, 50 = center, 100 = right edge
+   - y_percent: 0 = top edge, 50 = middle, 100 = bottom edge
+   - align: "left", "center", or "right"
 
 3. draw_text_box - Text in colored box
-   {{"action": "draw_text_box", "text": "...", "x_percent": 30, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#bfdbfe", "stroke": "#60a5fa"}}
+   {{"action": "draw_text_box", "text": "...", "x_percent": 30, "y_percent": 40, "width_percent": 25, "height": 80, "color": "#bfdbfe", "stroke": "#60a5fa"}}
+   - width_percent: 15-30 recommended (percentage of canvas width)
+   - Position is CENTER of the box
 
 4. draw_circle - Circle shape
-   {{"action": "draw_circle", "x_percent": 50, "y_percent": 50, "radius": 30, "fill": "#dcfce7", "stroke": "#10b981"}}
+   {{"action": "draw_circle", "x_percent": 50, "y_percent": 50, "radius": 40, "fill": "#dcfce7", "stroke": "#10b981", "stroke_width": 3}}
 
 5. draw_rectangle - Rectangle
-   {{"action": "draw_rectangle", "x_percent": 40, "y_percent": 40, "width_percent": 15, "height": 60, "fill": "#fee2e2", "stroke": "#ef4444"}}
+   {{"action": "draw_rectangle", "x_percent": 40, "y_percent": 40, "width_percent": 20, "height": 80, "fill": "#fee2e2", "stroke": "#ef4444", "stroke_width": 2}}
+   - Position is CENTER of the rectangle
 
 6. draw_line - Connect points
-   {{"action": "draw_line", "points_percent": [[10,10], [90,90]], "stroke": "#374151", "stroke_width": 3}}
+   {{"action": "draw_line", "points_percent": [[10,20], [90,20]], "stroke": "#374151", "stroke_width": 3}}
+   - Each point is [x_percent, y_percent]
 
 7. draw_arrow - Arrow with direction
-   {{"action": "draw_arrow", "from_percent": [20,50], "to_percent": [80,50], "color": "#065f46", "thickness": 2}}
+   {{"action": "draw_arrow", "from_percent": [20,50], "to_percent": [80,50], "color": "#065f46", "thickness": 3}}
+   - from_percent and to_percent are [x_percent, y_percent]
 
 8. draw_image - Display extracted PDF image
-   {{"action": "draw_image", "image_id": "pdf_img_1", "x_percent": 50, "y_percent": 50, "scale": 1.0}}
+   {{"action": "draw_image", "image_id": "pdf_img_0", "x_percent": 50, "y_percent": 50, "scale": 0.8}}
 
-9. highlight_object - Emphasize element temporarily
-   {{"action": "highlight_object", "target_text": "Voltage (V)", "duration": 2000, "color": "#f59e0b"}}
+COORDINATE SYSTEM - SAFE ZONES:
+- Canvas is 1920x1080 pixels (16:9 aspect ratio)
+- Use percentage coordinates (0-100) for x_percent and y_percent
+- SAFE ZONES for readable content:
+  * Top title area: y_percent 8-15
+  * Subtitle area: y_percent 18-25
+  * Main content area: y_percent 30-75
+  * Bottom notes area: y_percent 80-92
+- HORIZONTAL LAYOUT:
+  * Left column: x_percent 10-30
+  * Center column: x_percent 40-60
+  * Right column: x_percent 70-90
+- Leave margins: Don't use x_percent < 5 or > 95, y_percent < 5 or > 95
 
-10. draw_equation - Math equation (LaTeX)
-    {{"action": "draw_equation", "latex": "E = mc^2", "x_percent": 50, "y_percent": 50, "font_size": 36}}
+TEACHING SEQUENCE STRUCTURE:
+1. Start with "explanation_start" - Title + Introduction (MUST have text explanation)
+2. Create 3-5 "explanation_step" entries (each MUST explain a concept)
+3. End with "explanation_end" - Summary + Key Takeaways
+4. Each step should:
+   - Have 4-8 visual elements (mix of text, shapes, arrows)
+   - Include LOTS of explanatory text (not just labels)
+   - Build on previous step when possible
+   - Provide detailed narration (2-4 sentences minimum)
+   - Focus on TEACHING, not just showing
 
-TEACHING SEQUENCE GUIDELINES:
-1. Start with "explanation_start" - Introduction with title
-2. Create 4-7 "explanation_step" entries
-3. Each step should:
-   - Clear canvas OR build on previous step
-   - Add visual elements progressively
-   - Provide clear narration for TTS
-   - Use PDF images when relevant
-4. Use colors appropriate to subject:
-   - Biology: Greens (#16a34a, #22c55e), Blues (#0284c7)
-   - Physics: Blues (#3b82f6), Purples (#8b5cf6)
-   - Chemistry: Blues (#3b82f6), Reds (#ef4444), Grays (#6b7280)
-   - Math: Blacks (#1f2937), Blues (#2563eb)
-
-EXAMPLE OUTPUT FORMAT:
+EXAMPLE OUTPUT (Photosynthesis):
 {{
     "teaching_sequence": [
         {{
             "type": "explanation_start",
-            "text_explanation": "Today we'll learn about Photosynthesis - how plants make food using sunlight.",
-            "tts_text": "Hello! Today we'll explore photosynthesis, the amazing process plants use to create their own food using sunlight.",
+            "text_explanation": "Today we'll learn about Photosynthesis - the process by which plants make their own food using sunlight.",
+            "tts_text": "Hello! Welcome to our lesson on photosynthesis. This is one of the most important processes in nature. Let's explore how plants create food from sunlight, water, and carbon dioxide.",
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
-                {{"action": "write_text", "text": "Photosynthesis", "x_percent": 50, "y_percent": 30, "font_size": 48, "color": "#16a34a", "align": "center"}},
-                {{"action": "write_text", "text": "How Plants Make Food", "x_percent": 50, "y_percent": 45, "font_size": 24, "color": "#6b7280", "align": "center"}}
+                {{"action": "write_text", "text": "🌿 Photosynthesis", "x_percent": 50, "y_percent": 12, "font_size": 54, "color": "#16a34a", "align": "center"}},
+                {{"action": "write_text", "text": "How Plants Make Food", "x_percent": 50, "y_percent": 20, "font_size": 26, "color": "#6b7280", "align": "center"}},
+                {{"action": "write_text", "text": "The process that powers nearly all life on Earth", "x_percent": 50, "y_percent": 35, "font_size": 22, "color": "#374151", "align": "center"}},
+                {{"action": "draw_circle", "x_percent": 15, "y_percent": 60, "radius": 55, "fill": "#fef3c7", "stroke": "#f59e0b", "stroke_width": 3}},
+                {{"action": "write_text", "text": "Sunlight", "x_percent": 15, "y_percent": 60, "font_size": 20, "color": "#92400e", "align": "center"}},
+                {{"action": "draw_circle", "x_percent": 50, "y_percent": 60, "radius": 55, "fill": "#dbeafe", "stroke": "#3b82f6", "stroke_width": 3}},
+                {{"action": "write_text", "text": "Water", "x_percent": 50, "y_percent": 60, "font_size": 20, "color": "#1e40af", "align": "center"}},
+                {{"action": "draw_circle", "x_percent": 85, "y_percent": 60, "radius": 55, "fill": "#e0e7ff", "stroke": "#6366f1", "stroke_width": 3}},
+                {{"action": "write_text", "text": "CO₂", "x_percent": 85, "y_percent": 60, "font_size": 20, "color": "#3730a3", "align": "center"}},
+                {{"action": "write_text", "text": "The Three Essential Ingredients", "x_percent": 50, "y_percent": 85, "font_size": 24, "color": "#059669", "align": "center"}}
             ]
         }},
         {{
             "type": "explanation_step",
-            "text_explanation": "Photosynthesis requires three key ingredients: Sunlight, Water, and Carbon Dioxide.",
-            "tts_text": "For photosynthesis to occur, plants need three essential ingredients: sunlight from the sun, water from the soil, and carbon dioxide from the air.",
+            "text_explanation": "Photosynthesis occurs in special cell structures called chloroplasts. Chloroplasts contain chlorophyll, the green pigment that captures sunlight energy.",
+            "tts_text": "Now let's look inside a plant cell. Photosynthesis takes place in tiny green structures called chloroplasts. These chloroplasts contain chlorophyll, which is what makes plants green and allows them to capture energy from sunlight.",
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
-                {{"action": "write_text", "text": "Three Key Ingredients", "x_percent": 50, "y_percent": 10, "font_size": 30, "color": "#16a34a", "align": "center"}},
-                {{"action": "draw_text_box", "text": " Sunlight", "x_percent": 20, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#fef3c7", "stroke": "#f59e0b"}},
-                {{"action": "draw_text_box", "text": "� Water", "x_percent": 50, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#dbeafe", "stroke": "#3b82f6"}},
-                {{"action": "draw_text_box", "text": " CO₂", "x_percent": 80, "y_percent": 40, "width_percent": 20, "height": 60, "color": "#e0e7ff", "stroke": "#6366f1"}}
+                {{"action": "write_text", "text": "Where Does It Happen?", "x_percent": 50, "y_percent": 12, "font_size": 44, "color": "#16a34a", "align": "center"}},
+                {{"action": "draw_circle", "x_percent": 50, "y_percent": 50, "radius": 180, "fill": "#dcfce7", "stroke": "#22c55e", "stroke_width": 4}},
+                {{"action": "write_text", "text": "Chloroplast", "x_percent": 50, "y_percent": 28, "font_size": 28, "color": "#15803d", "align": "center"}},
+                {{"action": "draw_circle", "x_percent": 42, "y_percent": 48, "radius": 32, "fill": "#86efac", "stroke": "#16a34a", "stroke_width": 3}},
+                {{"action": "draw_circle", "x_percent": 58, "y_percent": 48, "radius": 32, "fill": "#86efac", "stroke": "#16a34a", "stroke_width": 3}},
+                {{"action": "draw_circle", "x_percent": 42, "y_percent": 58, "radius": 32, "fill": "#86efac", "stroke": "#16a34a", "stroke_width": 3}},
+                {{"action": "draw_circle", "x_percent": 58, "y_percent": 58, "radius": 32, "fill": "#86efac", "stroke": "#16a34a", "stroke_width": 3}},
+                {{"action": "write_text", "text": "Thylakoids", "x_percent": 50, "y_percent": 75, "font_size": 22, "color": "#15803d", "align": "center"}},
+                {{"action": "write_text", "text": "(Stack of membranes where light reactions occur)", "x_percent": 50, "y_percent": 82, "font_size": 18, "color": "#6b7280", "align": "center"}},
+                {{"action": "write_text", "text": "Chlorophyll molecules capture sunlight here!", "x_percent": 50, "y_percent": 90, "font_size": 20, "color": "#059669", "align": "center"}}
             ]
         }},
         {{
             "type": "explanation_step",
-            "text_explanation": "Here's the chemical equation: 6CO₂ + 6H₂O + Light Energy → C₆H₁₂O₆ + 6O₂",
-            "tts_text": "The chemical equation shows that six molecules of carbon dioxide plus six molecules of water, using light energy, produce one molecule of glucose and six molecules of oxygen.",
+            "text_explanation": "The chemical equation for photosynthesis is: 6CO₂ + 6H₂O + Light Energy → C₆H₁₂O₆ + 6O₂. This shows how carbon dioxide and water are converted into glucose and oxygen.",
+            "tts_text": "Here's the chemical equation that describes photosynthesis. Six molecules of carbon dioxide combine with six molecules of water. Using energy from sunlight, these are transformed into one molecule of glucose, which is the food for the plant, plus six molecules of oxygen, which is released into the air.",
             "whiteboard_commands": [
                 {{"action": "clear_all"}},
-                {{"action": "write_text", "text": "The Chemical Equation", "x_percent": 50, "y_percent": 15, "font_size": 28, "color": "#16a34a", "align": "center"}},
-                {{"action": "draw_equation", "latex": "6CO_2 + 6H_2O + \\\\text{{Light}} \\\\rightarrow C_6H_{{12}}O_6 + 6O_2", "x_percent": 50, "y_percent": 45, "font_size": 24}},
-                {{"action": "write_text", "text": "Glucose (Food) + Oxygen", "x_percent": 50, "y_percent": 70, "font_size": 20, "color": "#6b7280", "align": "center"}}
+                {{"action": "write_text", "text": "The Chemical Equation", "x_percent": 50, "y_percent": 10, "font_size": 44, "color": "#16a34a", "align": "center"}},
+                {{"action": "draw_text_box", "text": "6 CO₂", "x_percent": 15, "y_percent": 35, "width_percent": 14, "height": 70, "color": "#e0e7ff", "stroke": "#6366f1", "font_size": 24}},
+                {{"action": "write_text", "text": "+", "x_percent": 25, "y_percent": 35, "font_size": 36, "color": "#6b7280", "align": "center"}},
+                {{"action": "draw_text_box", "text": "6 H₂O", "x_percent": 32, "y_percent": 35, "width_percent": 14, "height": 70, "color": "#dbeafe", "stroke": "#3b82f6", "font_size": 24}},
+                {{"action": "write_text", "text": "+", "x_percent": 42, "y_percent": 35, "font_size": 36, "color": "#6b7280", "align": "center"}},
+                {{"action": "draw_text_box", "text": "☀️ Light", "x_percent": 50, "y_percent": 35, "width_percent": 14, "height": 70, "color": "#fef3c7", "stroke": "#f59e0b", "font_size": 22}},
+                {{"action": "draw_arrow", "from_percent": [60, 35], "to_percent": [72, 35], "color": "#16a34a", "thickness": 5}},
+                {{"action": "draw_text_box", "text": "C₆H₁₂O₆", "x_percent": 85, "y_percent": 28, "width_percent": 16, "height": 70, "color": "#dcfce7", "stroke": "#22c55e", "font_size": 22}},
+                {{"action": "write_text", "text": "+", "x_percent": 85, "y_percent": 42, "font_size": 32, "color": "#6b7280", "align": "center"}},
+                {{"action": "draw_text_box", "text": "6 O₂", "x_percent": 85, "y_percent": 50, "width_percent": 16, "height": 60, "color": "#dbeafe", "stroke": "#3b82f6", "font_size": 24}},
+                {{"action": "write_text", "text": "Glucose (Food for plant)", "x_percent": 85, "y_percent": 65, "font_size": 18, "color": "#15803d", "align": "center"}},
+                {{"action": "write_text", "text": "Oxygen (Released to air)", "x_percent": 85, "y_percent": 70, "font_size": 18, "color": "#0369a1", "align": "center"}},
+                {{"action": "write_text", "text": "This reaction captures energy from the Sun and stores it in chemical bonds", "x_percent": 50, "y_percent": 88, "font_size": 20, "color": "#374151", "align": "center"}}
+            ]
+        }},
+        {{
+            "type": "explanation_end",
+            "text_explanation": "Summary: Photosynthesis is how plants convert light energy into chemical energy stored in glucose. This process provides food for plants and oxygen for all living things.",
+            "tts_text": "To summarize what we've learned: Photosynthesis is the remarkable process where plants use sunlight, water, and carbon dioxide to create glucose and release oxygen. This process is essential for life on Earth, providing food for plants and oxygen for animals and humans to breathe.",
+            "whiteboard_commands": [
+                {{"action": "clear_all"}},
+                {{"action": "write_text", "text": "Key Takeaways 🎯", "x_percent": 50, "y_percent": 10, "font_size": 48, "color": "#16a34a", "align": "center"}},
+                {{"action": "draw_text_box", "text": "1. Chloroplasts capture sunlight", "x_percent": 50, "y_percent": 30, "width_percent": 70, "height": 65, "color": "#dbeafe", "stroke": "#3b82f6", "font_size": 22}},
+                {{"action": "draw_text_box", "text": "2. Converts CO₂ + H₂O into Glucose + O₂", "x_percent": 50, "y_percent": 45, "width_percent": 70, "height": 65, "color": "#fef3c7", "stroke": "#f59e0b", "font_size": 22}},
+                {{"action": "draw_text_box", "text": "3. Powers nearly all life on Earth!", "x_percent": 50, "y_percent": 60, "width_percent": 70, "height": 65, "color": "#dcfce7", "stroke": "#22c55e", "font_size": 22}},
+                {{"action": "write_text", "text": "Without photosynthesis, there would be no food or oxygen!", "x_percent": 50, "y_percent": 78, "font_size": 24, "color": "#dc2626", "align": "center"}},
+                {{"action": "write_text", "text": "🌍 Plants are the foundation of life on Earth 🌱", "x_percent": 50, "y_percent": 90, "font_size": 26, "color": "#059669", "align": "center"}}
             ]
         }}
     ],
     "images": []
 }}
 
-Now generate teaching sequence for the given topic and lesson content. Return ONLY valid JSON.
+IMPORTANT GUIDELINES:
+- Generate 4-6 steps total (intro + 2-4 middle steps + conclusion)
+- Each step MUST have educational value and teach something new
+- Use descriptive text extensively - explain concepts clearly
+- TTS text should be 2-4 sentences that a teacher would say
+- Build progressively - show how concepts connect
+- Use appropriate colors for the subject matter
+- Keep coordinates within safe zones
+
+Now generate a comprehensive teaching sequence for the given topic. Return ONLY valid JSON.
 """
 
 async def generate_visualization_v2(lesson_content: str, topic: str, images_info: List[Dict] = None) -> Dict[str, Any]:
@@ -690,18 +756,27 @@ async def generate_visualization_v2(lesson_content: str, topic: str, images_info
                 logger.info(f"✅ LLM Response length: {len(response_text)} chars")
                 
                 # Parse JSON (handle markdown code blocks)
-                json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+                # Use greedy matching for proper nested JSON handling
+                json_match = re.search(r'```json\s*(\{.*\})\s*```', response_text, re.DOTALL)
                 if not json_match:
-                    json_match = re.search(r'(\{.*?\})', response_text, re.DOTALL)
+                    json_match = re.search(r'(\{.*\})', response_text, re.DOTALL)
                 
                 if json_match:
-                    viz_data = json.loads(json_match.group(1))
-                    
-                    # Validate with Pydantic
-                    validated = VisualizationDataV2(**viz_data)
-                    logger.info(f"✅ Generated {len(validated.teaching_sequence)} teaching steps")
-                    
-                    return validated.dict()
+                    try:
+                        viz_data = json.loads(json_match.group(1))
+                        
+                        # Validate with Pydantic
+                        validated = VisualizationDataV2(**viz_data)
+                        logger.info(f"✅ Generated {len(validated.teaching_sequence)} teaching steps")
+                        
+                        return validated.dict()
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ JSON parsing failed: {e}")
+                        logger.error(f"Response excerpt: {response_text[:500]}")
+                        return generate_fallback_visualization_v2(topic)
+                    except Exception as e:
+                        logger.error(f"❌ Validation failed: {e}")
+                        return generate_fallback_visualization_v2(topic)
                 else:
                     logger.error("❌ Could not extract JSON from response")
                     return generate_fallback_visualization_v2(topic)
@@ -980,14 +1055,20 @@ Generate 3-5 scenes with extraordinary, topic-specific visualizations."""
         logger.info(f" LLM Response length: {len(response_text)} chars")
         
         # Extract JSON array from markdown code blocks or raw text
-        json_match = re.search(r'```json\s*(\[.*?\])\s*```', response_text, re.DOTALL)
+        # Use greedy matching for proper nested JSON handling
+        json_match = re.search(r'```json\s*(\[.*\])\s*```', response_text, re.DOTALL)
         if not json_match:
-            json_match = re.search(r'(\[.*?\])', response_text, re.DOTALL)
+            json_match = re.search(r'(\[.*\])', response_text, re.DOTALL)
         
         if json_match:
-            scenes_data = json.loads(json_match.group(1))
-            logger.info(f" Generated {len(scenes_data)} extraordinary visualization scenes")
-            return scenes_data
+            try:
+                scenes_data = json.loads(json_match.group(1))
+                logger.info(f" Generated {len(scenes_data)} extraordinary visualization scenes")
+                return scenes_data
+            except json.JSONDecodeError as e:
+                logger.error(f" JSON parsing failed: {e}")
+                logger.error(f" Response excerpt: {response_text[:500]}")
+                return _generate_fallback_visualization(topic, explanation)
         else:
             logger.error(" Could not extract JSON from LLM response")
             return _generate_fallback_visualization(topic, explanation)
@@ -1024,86 +1105,49 @@ def _generate_fallback_visualization(topic: str, explanation: str) -> List[Dict[
 @app.post("/api/visualizations/process", response_model=VisualizationResponseModel)
 async def process_visualization(viz_request: VisualizationRequestModel):
     """
-     TWO-STAGE ARCHITECTURE: Visualization Service with Dedicated LLM
+   
+    Please use GET /visualization/v2/{lesson_id} instead for new whiteboard format.
     
-    1. Receives lesson content from Lesson Service (educational content already generated)
-    2. Calls dedicated Gemini LLM to generate EXTRAORDINARY visualizations
-    3. Validates, sequences, and optimizes visualization with perfect coordinates
-    4. Returns optimized visualization data to Teaching Service
+    This endpoint now redirects to v2 format.
     """
     try:
-        logger.info(f"� Received visualization request for lesson: {viz_request.lesson_id}")
-        logger.info(f" Topic: {viz_request.topic}")
+        logger.warning("⚠️ DEPRECATED endpoint /api/visualizations/process called")
+        logger.info(f"🔄 Redirecting to v2 format for lesson: {viz_request.lesson_id}")
         
-        #  STAGE 1: Generate extraordinary visualizations with dedicated LLM
-        logger.info(" Calling dedicated LLM for visualization generation...")
-        llm_generated_scenes = await generate_visualization_with_llm(
+        # Generate v2 visualization instead
+        viz_data = await generate_visualization_v2(
+            lesson_content=viz_request.explanation,
             topic=viz_request.topic,
-            explanation=viz_request.explanation,
-            lesson_content=viz_request.explanation[:3000]  # Pass lesson context
+            images_info=None
         )
         
-        # Replace original scenes with LLM-generated extraordinary visualizations
-        viz_request.scenes = []
-        for scene_data in llm_generated_scenes:
-            try:
-                viz_request.scenes.append(VisualizationSceneModel(**scene_data))
-            except Exception as e:
-                logger.warning(f" Scene validation failed: {e}, using raw data")
-                # If validation fails, keep raw data for processor to handle
-        
-        if not viz_request.scenes and llm_generated_scenes:
-            # Fallback: use raw scene data
-            logger.info("� Using raw scene data from LLM")
-        
-        #  STAGE 2: Process and validate visualization (coordinate management, overlap prevention)
-        logger.info("� Processing and optimizing visualization...")
-        processed_data = processor.process_visualization(viz_request)
-        
-        # Generate visualization ID
-        viz_id = f"viz_{viz_request.lesson_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-        
-        # Store in database
-        viz_document = {
-            "visualization_id": viz_id,
+        # Store in v2 format
+        viz_doc = {
             "lesson_id": viz_request.lesson_id,
-            "topic": viz_request.topic,
-            "explanation": viz_request.explanation,
-            "session_id": viz_request.session_id,
-            "status": "processed",
-            "scenes": processed_data["scenes"],
-            "total_duration": processed_data["total_duration"],
-            "canvas": processed_data["canvas"],
-            "errors": processed_data["errors"],
-            "warnings": processed_data["warnings"],
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "teaching_sequence": viz_data['teaching_sequence'],
+            "images": viz_data.get('images', []),
+            "created_at": datetime.utcnow().isoformat()
         }
         
-        await visualization_db.visualizations.insert_one(viz_document)
-        logger.info(f" Stored visualization: {viz_id}")
+        result = await visualization_db.visualizations_v2.insert_one(viz_doc)
+        viz_id = str(result.inserted_id)
         
-        # Notify Teaching Service via WebSocket if session_id provided
-        if viz_request.session_id and viz_request.session_id in manager.active_connections:
-            await manager.send_message(viz_request.session_id, {
-                "type": "visualization_ready",
-                "visualization_id": viz_id,
-                "lesson_id": viz_request.lesson_id
-            })
+        logger.info(f"✅ Generated v2 visualization: {viz_id}")
         
+        # Return in old format for compatibility but log warning
         return VisualizationResponseModel(
             visualization_id=viz_id,
             lesson_id=viz_request.lesson_id,
             status="processed",
-            scenes=processed_data["scenes"],
-            total_duration=processed_data["total_duration"],
-            created_at=viz_document["created_at"],
-            errors=processed_data["errors"],
-            warnings=processed_data["warnings"]
+            scenes=[],  # Empty - use v2 format instead
+            total_duration=0,
+            created_at=viz_doc["created_at"],
+            errors=[],
+            warnings=["This endpoint is deprecated. Use GET /visualization/v2/{lesson_id} instead"]
         )
         
     except Exception as e:
-        logger.error(f" Error processing visualization: {e}")
+        logger.error(f"❌ Error processing visualization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/visualizations/{visualization_id}")

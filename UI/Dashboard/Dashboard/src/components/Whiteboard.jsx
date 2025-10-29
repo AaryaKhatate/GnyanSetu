@@ -177,9 +177,11 @@ const Whiteboard = ({
           const shapes = (step.whiteboard_commands || [])
             .filter(cmd => cmd.action !== 'clear_all') // Skip clear commands
             .map(cmd => {
+              // Validate and clamp percentage coordinates to 0-100 range
+              const xPercent = Math.max(0, Math.min(100, cmd.x_percent || 50));
+              const yPercent = Math.max(0, Math.min(100, cmd.y_percent || 50));
+              
               // Convert percentage coordinates to absolute pixels
-              const xPercent = cmd.x_percent || 50;
-              const yPercent = cmd.y_percent || 50;
               const x = (xPercent / 100) * CANVAS_WIDTH;
               const y = (yPercent / 100) * CANVAS_HEIGHT;
               
@@ -207,11 +209,14 @@ const Whiteboard = ({
                 case 'draw_text_box':
                   const boxWidth = cmd.width_percent ? (cmd.width_percent / 100) * CANVAS_WIDTH : (cmd.width || 300);
                   const boxHeight = cmd.height || 60;
+                  const boxX = x - boxWidth / 2;
+                  const boxY = y - boxHeight / 2;
+                  
                   return [
                     {
                       type: 'rectangle',
-                      x: x - boxWidth / 2,
-                      y: y - boxHeight / 2,
+                      x: boxX,
+                      y: boxY,
                       width: boxWidth,
                       height: boxHeight,
                       fill: cmd.color || '#f0f0f0',
@@ -221,13 +226,15 @@ const Whiteboard = ({
                     },
                     {
                       type: 'text',
-                      x: x,
-                      y: y,
+                      x: boxX,
+                      y: boxY + boxHeight / 2,  // Center vertically
                       text: cmd.text || '',
-                      fontSize: 20,
-                      fill: '#1f2937',
+                      fontSize: cmd.font_size || 20,
+                      fill: cmd.text_color || '#1f2937',
                       align: 'center',
-                      verticalAlign: 'middle'
+                      verticalAlign: 'middle',
+                      width: boxWidth,  // Set width for proper centering
+                      offsetY: (cmd.font_size || 20) / 2  // Offset for vertical centering
                     }
                   ];
                   
@@ -257,21 +264,51 @@ const Whiteboard = ({
                   };
                   
                 case 'draw_line':
-                  const linePoints = (cmd.points_percent || []).map((point, i) => 
-                    i % 2 === 0 ? (point / 100) * CANVAS_WIDTH : (point / 100) * CANVAS_HEIGHT
-                  );
+                  // Convert array of [x_percent, y_percent] pairs to flat array [x1, y1, x2, y2, ...]
+                  let linePoints = [];
+                  if (cmd.points_percent && Array.isArray(cmd.points_percent) && cmd.points_percent.length > 0) {
+                    linePoints = cmd.points_percent.flatMap(point => {
+                      if (Array.isArray(point) && point.length >= 2) {
+                        // Validate and clamp coordinates
+                        const px_percent = Math.max(0, Math.min(100, point[0]));
+                        const py_percent = Math.max(0, Math.min(100, point[1]));
+                        const px = (px_percent / 100) * CANVAS_WIDTH;
+                        const py = (py_percent / 100) * CANVAS_HEIGHT;
+                        return [px, py];
+                      }
+                      return [];
+                    });
+                  }
+                  
                   return {
                     type: 'line',
-                    points: linePoints.length > 0 ? linePoints : [x, y, x + 100, y + 100],
+                    points: linePoints.length >= 4 ? linePoints : [x, y, x + 100, y + 100],
                     stroke: cmd.stroke || cmd.color || '#000000',
                     strokeWidth: cmd.stroke_width || cmd.thickness || 2
                   };
                   
                 case 'draw_arrow':
-                  const fromX = (cmd.from_percent?.[0] / 100) * CANVAS_WIDTH || x;
-                  const fromY = (cmd.from_percent?.[1] / 100) * CANVAS_HEIGHT || y;
-                  const toX = (cmd.to_percent?.[0] / 100) * CANVAS_WIDTH || x + 100;
-                  const toY = (cmd.to_percent?.[1] / 100) * CANVAS_HEIGHT || y;
+                  let fromX = x;
+                  let fromY = y;
+                  let toX = x + 100;
+                  let toY = y;
+                  
+                  if (cmd.from_percent && Array.isArray(cmd.from_percent) && cmd.from_percent.length >= 2) {
+                    // Validate and clamp coordinates
+                    const from_x_percent = Math.max(0, Math.min(100, cmd.from_percent[0]));
+                    const from_y_percent = Math.max(0, Math.min(100, cmd.from_percent[1]));
+                    fromX = (from_x_percent / 100) * CANVAS_WIDTH;
+                    fromY = (from_y_percent / 100) * CANVAS_HEIGHT;
+                  }
+                  
+                  if (cmd.to_percent && Array.isArray(cmd.to_percent) && cmd.to_percent.length >= 2) {
+                    // Validate and clamp coordinates
+                    const to_x_percent = Math.max(0, Math.min(100, cmd.to_percent[0]));
+                    const to_y_percent = Math.max(0, Math.min(100, cmd.to_percent[1]));
+                    toX = (to_x_percent / 100) * CANVAS_WIDTH;
+                    toY = (to_y_percent / 100) * CANVAS_HEIGHT;
+                  }
+                  
                   return {
                     type: 'arrow',
                     points: [fromX, fromY, toX, toY],
@@ -390,8 +427,11 @@ const Whiteboard = ({
             const shapes = whiteboardCmds
               .filter(cmd => cmd.action !== 'clear_all')
               .map(cmd => {
-                const xPercent = cmd.x_percent || 50;
-                const yPercent = cmd.y_percent || 50;
+                // Validate and clamp percentage coordinates to 0-100 range
+                const xPercent = Math.max(0, Math.min(100, cmd.x_percent || 50));
+                const yPercent = Math.max(0, Math.min(100, cmd.y_percent || 50));
+                
+                // Convert percentage to pixel coordinates
                 const x = (xPercent / 100) * CANVAS_WIDTH;
                 const y = (yPercent / 100) * CANVAS_HEIGHT;
                 
@@ -418,11 +458,14 @@ const Whiteboard = ({
                   case 'draw_text_box':
                     const boxWidth = cmd.width_percent ? (cmd.width_percent / 100) * CANVAS_WIDTH : (cmd.width || 300);
                     const boxHeight = cmd.height || 60;
+                    const boxX = x - boxWidth / 2;
+                    const boxY = y - boxHeight / 2;
+                    
                     return [
                       {
                         type: 'rectangle',
-                        x: x - boxWidth / 2,
-                        y: y - boxHeight / 2,
+                        x: boxX,
+                        y: boxY,
                         width: boxWidth,
                         height: boxHeight,
                         fill: cmd.color || '#f0f0f0',
@@ -432,13 +475,15 @@ const Whiteboard = ({
                       },
                       {
                         type: 'text',
-                        x: x,
-                        y: y,
+                        x: boxX,
+                        y: boxY + boxHeight / 2,  // Center vertically
                         text: cmd.text || '',
-                        fontSize: 20,
-                        fill: '#1f2937',
+                        fontSize: cmd.font_size || 20,
+                        fill: cmd.text_color || '#1f2937',
                         align: 'center',
-                        verticalAlign: 'middle'
+                        verticalAlign: 'middle',
+                        width: boxWidth,  // Set width for proper centering
+                        offsetY: (cmd.font_size || 20) / 2  // Offset for vertical centering
                       }
                     ];
                   
@@ -468,21 +513,51 @@ const Whiteboard = ({
                     };
                   
                   case 'draw_line':
-                    const linePoints = (cmd.points_percent || []).map((point, i) => 
-                      i % 2 === 0 ? (point / 100) * CANVAS_WIDTH : (point / 100) * CANVAS_HEIGHT
-                    );
+                    // Convert array of [x_percent, y_percent] pairs to flat array [x1, y1, x2, y2, ...]
+                    let linePoints = [];
+                    if (cmd.points_percent && Array.isArray(cmd.points_percent) && cmd.points_percent.length > 0) {
+                      linePoints = cmd.points_percent.flatMap(point => {
+                        if (Array.isArray(point) && point.length >= 2) {
+                          // Validate and clamp coordinates
+                          const px_percent = Math.max(0, Math.min(100, point[0]));
+                          const py_percent = Math.max(0, Math.min(100, point[1]));
+                          const px = (px_percent / 100) * CANVAS_WIDTH;
+                          const py = (py_percent / 100) * CANVAS_HEIGHT;
+                          return [px, py];
+                        }
+                        return [];
+                      });
+                    }
+                    
                     return {
                       type: 'line',
-                      points: linePoints.length > 0 ? linePoints : [x, y, x + 100, y + 100],
+                      points: linePoints.length >= 4 ? linePoints : [x, y, x + 100, y + 100],
                       stroke: cmd.stroke || cmd.color || '#000000',
                       strokeWidth: cmd.stroke_width || cmd.thickness || 2
                     };
                   
                   case 'draw_arrow':
-                    const fromX = (cmd.from_percent?.[0] / 100) * CANVAS_WIDTH || x;
-                    const fromY = (cmd.from_percent?.[1] / 100) * CANVAS_HEIGHT || y;
-                    const toX = (cmd.to_percent?.[0] / 100) * CANVAS_WIDTH || x + 100;
-                    const toY = (cmd.to_percent?.[1] / 100) * CANVAS_HEIGHT || y;
+                    let fromX = x;
+                    let fromY = y;
+                    let toX = x + 100;
+                    let toY = y;
+                    
+                    if (cmd.from_percent && Array.isArray(cmd.from_percent) && cmd.from_percent.length >= 2) {
+                      // Validate and clamp coordinates
+                      const from_x_percent = Math.max(0, Math.min(100, cmd.from_percent[0]));
+                      const from_y_percent = Math.max(0, Math.min(100, cmd.from_percent[1]));
+                      fromX = (from_x_percent / 100) * CANVAS_WIDTH;
+                      fromY = (from_y_percent / 100) * CANVAS_HEIGHT;
+                    }
+                    
+                    if (cmd.to_percent && Array.isArray(cmd.to_percent) && cmd.to_percent.length >= 2) {
+                      // Validate and clamp coordinates
+                      const to_x_percent = Math.max(0, Math.min(100, cmd.to_percent[0]));
+                      const to_y_percent = Math.max(0, Math.min(100, cmd.to_percent[1]));
+                      toX = (to_x_percent / 100) * CANVAS_WIDTH;
+                      toY = (to_y_percent / 100) * CANVAS_HEIGHT;
+                    }
+                    
                     return {
                       type: 'arrow',
                       points: [fromX, fromY, toX, toY],

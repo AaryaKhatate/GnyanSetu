@@ -23,6 +23,7 @@ const KonvaTeachingBoard = ({ scenes = [], onSceneComplete, autoPlay = true }) =
   const [isPlaying, setIsPlaying] = useState(false);
   const [loadedImages, setLoadedImages] = useState({});
   const audioRef = useRef(null);
+  const audioPlayedRef = useRef(new Set()); // Track which scenes have played audio
   
   const CANVAS_WIDTH = 1920;
   const CANVAS_HEIGHT = 1080;
@@ -78,8 +79,10 @@ const KonvaTeachingBoard = ({ scenes = [], onSceneComplete, autoPlay = true }) =
       await executeAnimations(scene.animations, scene.shapes);
     }
 
-    // Play audio narration
-    if (scene.audio && scene.audio.text) {
+    // Play audio narration ONLY ONCE per scene
+    const sceneKey = `scene-${sceneIndex}`;
+    if (scene.audio && scene.audio.text && !audioPlayedRef.current.has(sceneKey)) {
+      audioPlayedRef.current.add(sceneKey);
       playAudioNarration(scene.audio);
     }
 

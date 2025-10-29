@@ -54,7 +54,7 @@ class LessonGenerator:
     
     def generate_image_explanations(self, pdf_images, lesson_content=""):
         """
-        Generate AI explanations for extracted PDF images using Gemini Vision
+        Generate AI explanations for ALL PDF images in a SINGLE BATCH API call (OPTIMIZED)
         
         Args:
             pdf_images (list): List of image dicts with base64_data
@@ -66,15 +66,15 @@ class LessonGenerator:
         if not pdf_images or not self.model:
             return pdf_images or []
         
-        explained_images = []
+        # Prepare all images for batch processing
+        pil_images = []
+        valid_indices = []
         
         for idx, img in enumerate(pdf_images):
             try:
-                # Get base64 image data
                 img_base64 = img.get('base64_data', '')
                 if not img_base64:
-                    logger.warning(f"Image {idx} has no base64 data, skipping explanation")
-                    explained_images.append(img)
+                    logger.warning(f"Image {idx} has no base64 data, will use fallback")
                     continue
                 
                 # Decode base64 to bytes
@@ -82,53 +82,86 @@ class LessonGenerator:
                     img_base64 = img_base64.split('base64,')[1]
                 
                 img_bytes = base64.b64decode(img_base64)
-                
-                # Create PIL Image
                 pil_image = Image.open(BytesIO(img_bytes))
+                pil_images.append(pil_image)
+                valid_indices.append(idx)
                 
-                # Create prompt for image explanation
-                prompt = f"""Analyze this educational image extracted from a PDF lesson.
+            except Exception as e:
+                logger.error(f"Failed to decode image {idx}: {e}")
+        
+        # BATCH PROCESS: Single API call for ALL images
+        if pil_images:
+            try:
+                # Create batch prompt for all images
+                prompt = f"""Analyze these {len(pil_images)} educational images extracted from a PDF lesson.
 
 Lesson context: {lesson_content[:500]}
 
-Provide a detailed explanation in JSON format:
+Provide explanations for ALL images in a JSON array format:
 {{
-    "description": "Brief description of what the image shows (1-2 sentences)",
-    "teaching_points": ["Key point 1", "Key point 2", "Key point 3"],
-    "narration": "Natural explanation suitable for text-to-speech (2-3 sentences)"
+    "images": [
+        {{
+            "image_index": 0,
+            "description": "Brief description of what the image shows (1-2 sentences)",
+            "teaching_points": ["Key point 1", "Key point 2", "Key point 3"],
+            "narration": "Natural explanation suitable for text-to-speech (2-3 sentences)"
+        }},
+        ... (repeat for all {len(pil_images)} images)
+    ]
 }}
 
-Focus on educational value and how this image supports the lesson."""
+Focus on educational value and how each image supports the lesson."""
 
-                # Generate explanation using Gemini Vision
-                response = self.model.generate_content([prompt, pil_image])
-                response_text = self._safe_extract_text(response, fallback='{"description": "Educational diagram", "teaching_points": [], "narration": "This image illustrates a key concept from the lesson."}')
+                # Single API call with all images
+                logger.info(f"📸 Batch processing {len(pil_images)} images in ONE API call")
+                content_parts = [prompt] + pil_images
+                response = self.model.generate_content(content_parts)
+                response_text = self._safe_extract_text(response, fallback='{"images": []}')
                 
-                # Parse JSON response
-                explanation_json = json.loads(response_text)
+                # Parse batch response with error handling
+                try:
+                    batch_result = json.loads(response_text)
+                    explanations = batch_result.get('images', [])
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Failed to parse batch response JSON: {e}")
+                    logger.error(f"Response text: {response_text[:500]}")
+                    batch_result = {"images": []}
+                    explanations = []
                 
-                # Update image with explanation
-                img['id'] = img.get('id', f'pdf_img_{idx}')
-                img['description'] = explanation_json.get('description', 'Educational diagram')
-                img['teaching_points'] = explanation_json.get('teaching_points', [])
-                img['narration'] = explanation_json.get('narration', 'This image illustrates a key concept.')
-                img['explanation'] = explanation_json.get('description', '')
+                logger.info(f"✅ Generated explanations for {len(explanations)} images in single batch")
                 
-                logger.info(f" Generated explanation for image {idx}")
-                explained_images.append(img)
+                # Apply explanations to images
+                for explanation in explanations:
+                    img_idx = explanation.get('image_index', 0)
+                    if img_idx < len(valid_indices):
+                        actual_idx = valid_indices[img_idx]
+                        pdf_images[actual_idx]['id'] = pdf_images[actual_idx].get('id', f'pdf_img_{actual_idx}')
+                        pdf_images[actual_idx]['description'] = explanation.get('description', 'Educational diagram')
+                        pdf_images[actual_idx]['teaching_points'] = explanation.get('teaching_points', [])
+                        pdf_images[actual_idx]['narration'] = explanation.get('narration', 'This image illustrates a key concept.')
+                        pdf_images[actual_idx]['explanation'] = explanation.get('description', '')
                 
             except Exception as e:
-                logger.error(f"Failed to explain image {idx}: {e}")
-                # Add fallback explanation
+                logger.error(f"Batch image explanation failed: {e}, using fallback")
+                # Apply fallback to all images
+                for idx in valid_indices:
+                    pdf_images[idx]['id'] = pdf_images[idx].get('id', f'pdf_img_{idx}')
+                    pdf_images[idx]['description'] = 'Educational diagram from PDF'
+                    pdf_images[idx]['teaching_points'] = []
+                    pdf_images[idx]['narration'] = 'This image illustrates a concept from the lesson.'
+                    pdf_images[idx]['explanation'] = 'Educational diagram'
+        
+        # Apply fallback to any images that weren't processed
+        for idx, img in enumerate(pdf_images):
+            if 'description' not in img:
                 img['id'] = img.get('id', f'pdf_img_{idx}')
                 img['description'] = 'Educational diagram from PDF'
                 img['teaching_points'] = []
                 img['narration'] = 'This image illustrates a concept from the lesson.'
                 img['explanation'] = 'Educational diagram'
-                explained_images.append(img)
         
-        logger.info(f" Explained {len(explained_images)} images")
-        return explained_images
+        logger.info(f"✅ Batch explained {len(pdf_images)} images with 1 API call (OPTIMIZED)")
+        return pdf_images
     
     def generate_lesson(self, pdf_text, images_ocr_text="", lesson_type="interactive", user_context=None, pdf_images=None):
         """
@@ -295,55 +328,6 @@ Focus on educational value and how this image supports the lesson."""
         else:
             # Default to general - let AI handle specific categorization
             return 'general'
-    
-    def _analyze_topic_with_ai(self, title, content):
-        """Use Gemini to intelligently analyze ANY topic and extract visualization requirements"""
-        try:
-            analysis_prompt = f"""Analyze this educational topic and provide visualization requirements in JSON format.
-
-TOPIC: {title}
-CONTENT PREVIEW: {content[:500]}
-
-Analyze and return ONLY this JSON structure (no markdown, no explanation):
-{{
-  "subject_category": "biology|physics|chemistry|computer_science|mathematics|earth_science|history|language|arts|business|general",
-  "key_concepts": ["concept1", "concept2", "concept3"],
-  "visual_elements": [
-    {{"name": "element1", "type": "icon|shape|image|diagram", "description": "what to show", "icon_name": "relevant icon name or image search term"}},
-    {{"name": "element2", "type": "icon|shape|image|diagram", "description": "what to show", "icon_name": "relevant icon name or image search term"}}
-  ],
-  "relationships": [
-    {{"from": "element1", "to": "element2", "type": "arrow|line|flow", "label": "relationship description"}}
-  ],
-  "image_search_terms": ["search term 1", "search term 2"],
-  "icon_suggestions": ["icon-name-1", "icon-name-2"],
-  "color_palette": {{"primary": "#hex", "secondary": "#hex", "accent": "#hex"}},
-  "diagram_type": "flowchart|concept_map|cycle|hierarchy|process|structure|comparison"
-}}"""
-
-            response = self.text_model.generate_content(
-                analysis_prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.2,
-                    max_output_tokens=2000
-                )
-            )
-            
-            result_text = self._safe_extract_text(response, "{}")
-            # Extract JSON from response
-            import re
-            json_match = re.search(r'\{[\s\S]*\}', result_text)
-            if json_match:
-                analysis = json.loads(json_match.group())
-                logger.info(f" AI Topic Analysis: {analysis.get('subject_category')} - {len(analysis.get('visual_elements', []))} elements")
-                return analysis
-            else:
-                logger.warning("Failed to parse AI analysis, using fallback")
-                return self._get_fallback_analysis(title, content)
-                
-        except Exception as e:
-            logger.error(f"AI topic analysis failed: {e}")
-            return self._get_fallback_analysis(title, content)
     
     def _get_fallback_analysis(self, title, content):
         """Fallback analysis when AI fails - removed hardcoded keywords to avoid misclassification"""
@@ -633,10 +617,8 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         result = self._try_generate_with_images(content, title, pdf_images, max_images=1, max_image_size=300)
         if result:
             logger.info(" SUCCESS: Generated lesson with image")
-            #  FIX: ALWAYS add fallback visualization if Gemini didn't generate proper visualization JSON
-            if "```visualization" not in result:
-                logger.warning(" No visualization JSON in generated content, adding fallback")
-                result += self._generate_fallback_visualization(title, pdf_images, content)
+            # ⚠️ REMOVED: Fallback visualization - Visualization Service handles this via /visualization/v2/{lesson_id}
+            logger.info("ℹ️ Visualization will be generated by Visualization Service")
             return result
         
         # ATTEMPT 2: Try without any images (text-only)
@@ -644,15 +626,15 @@ Analyze and return ONLY this JSON structure (no markdown, no explanation):
         result = self._try_generate_text_only(content, title)
         if result:
             logger.info(" SUCCESS: Generated text-only lesson")
-            # Add PDF images to fallback visualization
-            if "```visualization" not in result:
-                result += self._generate_fallback_visualization(title, pdf_images, content)
+            # ⚠️ REMOVED: Fallback visualization - Visualization Service handles this via /visualization/v2/{lesson_id}
+            logger.info("ℹ️ Visualization will be generated by Visualization Service")
             return result
         
         # ATTEMPT 3: Complete fallback
         logger.error(" ATTEMPT 3: All attempts failed, using complete fallback")
         fallback = self._create_basic_lesson(content, title)
-        fallback += self._generate_fallback_visualization(title, pdf_images, content)
+        # ⚠️ REMOVED: Fallback visualization - Visualization Service handles this via /visualization/v2/{lesson_id}
+        logger.info("ℹ️ Visualization will be generated by Visualization Service")
         return fallback
     
     def _try_generate_text_only(self, content, title):
@@ -899,50 +881,6 @@ Create 4 scenes with 10-15 shapes each, all animated beautifully!""")
         except Exception as e:
             logger.error(f"Image generation failed: {e}")
             return None
-    
-    def _detect_topic_category(self, title, content=""):
-        """Detect the topic category to generate appropriate visualizations"""
-        combined = (title + " " + content[:500]).lower()
-        
-        # Computer Science topics - check FIRST to avoid confusion with biology
-        if any(word in combined for word in ['sdlc', 'software development', 'development life cycle', 'agile', 'waterfall', 'deployment']):
-            return 'software_engineering'
-        if any(word in combined for word in ['computer', 'laptop', 'cpu', 'ram', 'hardware', 'processor', 'motherboard']):
-            return 'computer_hardware'
-        if any(word in combined for word in ['algorithm', 'code', 'program', 'software', 'function', 'variable', 'python', 'java']):
-            return 'programming'
-        if any(word in combined for word in ['network', 'internet', 'tcp', 'ip', 'router', 'protocol', 'http']):
-            return 'networking'
-        if any(word in combined for word in ['database', 'sql', 'table', 'query', 'data structure', 'array']):
-            return 'data'
-        
-        # Biology topics - use more specific keywords
-        if any(word in combined for word in ['photosynthesis', 'chlorophyll', 'chloroplast']):
-            return 'photosynthesis'
-        if any(word in combined for word in ['dna', 'gene', 'chromosome', 'rna', 'protein synthesis', 'evolution']):
-            return 'biology'
-        if any(word in combined for word in ['heart', 'blood', 'circulatory', 'respiration', 'lung']):
-            return 'anatomy'
-            
-        # Physics topics
-        if any(word in combined for word in ['circuit', 'voltage', 'current', 'resistor', 'capacitor', 'electric', 'ohm']):
-            return 'circuits'
-        if any(word in combined for word in ['force', 'motion', 'velocity', 'acceleration', 'newton', 'energy']):
-            return 'physics'
-        if any(word in combined for word in ['wave', 'frequency', 'light', 'sound', 'electromagnetic']):
-            return 'waves'
-            
-        # Math topics
-        if any(word in combined for word in ['equation', 'algebra', 'graph', 'function', 'calculus', 'derivative', 'integral']):
-            return 'math'
-        if any(word in combined for word in ['geometry', 'triangle', 'circle', 'angle', 'theorem']):
-            return 'geometry'
-            
-        # Chemistry topics
-        if any(word in combined for word in ['atom', 'molecule', 'chemical', 'reaction', 'element', 'compound', 'periodic']):
-            return 'chemistry'
-            
-        return 'general'
     
     def _generate_fallback_visualization(self, title, pdf_images=None, content=""):
         """Generate INTELLIGENT, topic-specific visualization with educational diagrams"""
