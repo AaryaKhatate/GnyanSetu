@@ -512,3 +512,5 @@ migrations/__pycache__/
 # Generated documentation
 docs/build/
 documentation/build/
+
+mongo_dump/
